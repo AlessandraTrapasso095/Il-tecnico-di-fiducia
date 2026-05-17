@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 
+import { assertNotLastAdmin } from "@/lib/api/admin-guards";
 import { requireAuth } from "@/lib/api/auth";
 import { isNonEmptyString } from "@/lib/api/validation";
 import { createServiceClient } from "@/lib/supabase/service";
@@ -17,6 +18,8 @@ export async function DELETE(
   const auth = await requireAuth({ allowedRoles: ["admin"] });
   if (!auth.ok) return auth.response;
 
+  const { supabase } = auth.ctx;
+
   const { id: targetUserId } = await params;
   if (!targetUserId) {
     return NextResponse.json({ error: "Missing id" }, { status: 400 });
@@ -27,6 +30,22 @@ export async function DELETE(
       { error: "Use /api/account to delete your own account" },
       { status: 400 },
     );
+  }
+
+  try {
+    const guard = await assertNotLastAdmin(supabase, targetUserId, "delete");
+    if (!guard.ok) {
+      if (guard.reason === "not_found") {
+        return NextResponse.json({ error: "Not found" }, { status: 404 });
+      }
+      if (guard.reason === "last_admin") {
+        return NextResponse.json({ error: guard.message }, { status: 400 });
+      }
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "Failed to validate admin safety";
+    return NextResponse.json({ error: message }, { status: 500 });
   }
 
   let service;
@@ -102,6 +121,24 @@ export async function PATCH(
 
   if (Object.keys(updates).length === 0) {
     return NextResponse.json({ error: "No updates provided" }, { status: 400 });
+  }
+
+  if (payload.is_banned === true) {
+    try {
+      const guard = await assertNotLastAdmin(supabase, targetUserId, "ban");
+      if (!guard.ok) {
+        if (guard.reason === "not_found") {
+          return NextResponse.json({ error: "Not found" }, { status: 404 });
+        }
+        if (guard.reason === "last_admin") {
+          return NextResponse.json({ error: guard.message }, { status: 400 });
+        }
+        return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+      }
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Failed to validate admin safety";
+      return NextResponse.json({ error: message }, { status: 500 });
+    }
   }
 
   const { data: updated, error: updateError } = await supabase

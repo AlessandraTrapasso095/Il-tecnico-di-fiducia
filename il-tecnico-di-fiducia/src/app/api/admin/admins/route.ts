@@ -41,7 +41,14 @@ export async function POST(request: Request) {
     );
   }
 
-  const service = createServiceClient();
+  let service;
+  try {
+    service = createServiceClient();
+  } catch (err) {
+    const message =
+      err instanceof Error ? err.message : "Failed to initialize service client";
+    return NextResponse.json({ error: message }, { status: 500 });
+  }
 
   const { data, error } = await service.auth.admin.createUser({
     email: payload.email.trim(),
@@ -87,4 +94,3 @@ export async function POST(request: Request) {
     user: { id: userId, email: payload.email.trim() },
   });
 }
-
