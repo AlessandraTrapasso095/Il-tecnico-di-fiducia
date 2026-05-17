@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { Container } from "./container";
 
 export function Footer() {
@@ -19,24 +20,24 @@ export function Footer() {
             Piattaforma
           </div>
           <div className="flex flex-col gap-2">
-            <a
+            <Link
               className="text-surface-container-highest hover:text-on-primary-container transition-colors"
               href="/#come-funziona"
             >
               Come funziona
-            </a>
-            <a
+            </Link>
+            <Link
               className="text-surface-container-highest hover:text-on-primary-container transition-colors"
               href="/#professioni"
             >
               Professioni
-            </a>
-            <a
+            </Link>
+            <Link
               className="text-surface-container-highest hover:text-on-primary-container transition-colors"
               href="/auth/register"
             >
               Registrati
-            </a>
+            </Link>
           </div>
         </div>
 
@@ -111,4 +112,3 @@ export function Footer() {
     </footer>
   );
 }
-
