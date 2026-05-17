@@ -1,0 +1,138 @@
+@import url("https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600;700&family=Manrope:wght@400;600;700&display=swap");
+@import "tailwindcss";
+
+:root {
+  /* Brand fonts */
+  --font-playfair: "Playfair Display", ui-serif, Georgia, Cambria, "Times New Roman",
+    Times, serif;
+  --font-manrope: "Manrope", ui-sans-serif, system-ui, -apple-system, "Segoe UI",
+    Roboto, Helvetica, Arial, "Apple Color Emoji", "Segoe UI Emoji";
+}
+
+@theme inline {
+  /* Colors (Professional Trust Interface) */
+  --color-surface: #f9f9ff;
+  --color-surface-dim: #d2daf0;
+  --color-surface-bright: #f9f9ff;
+  --color-surface-container-lowest: #ffffff;
+  --color-surface-container-low: #f1f3ff;
+  --color-surface-container: #e9edff;
+  --color-surface-container-high: #e0e8ff;
+  --color-surface-container-highest: #dbe2f9;
+  --color-surface-variant: #dbe2f9;
+
+  --color-background: #f9f9ff;
+  --color-on-background: #141b2c;
+
+  --color-on-surface: #141b2c;
+  --color-on-surface-variant: #434750;
+
+  --color-primary: #002654;
+  --color-on-primary: #ffffff;
+  --color-primary-container: #0b3c78;
+  --color-on-primary-container: #84a8eb;
+  --color-primary-fixed: #d7e3ff;
+  --color-primary-fixed-dim: #aac7ff;
+  --color-on-primary-fixed: #001b3e;
+  --color-on-primary-fixed-variant: #1b4682;
+
+  --color-secondary: #435e94;
+  --color-on-secondary: #ffffff;
+  --color-secondary-container: #a6c1fe;
+  --color-on-secondary-container: #324e83;
+  --color-secondary-fixed: #d8e2ff;
+  --color-secondary-fixed-dim: #aec6ff;
+  --color-on-secondary-fixed: #001a42;
+  --color-on-secondary-fixed-variant: #2a467b;
+
+  --color-tertiary: #411d00;
+  --color-on-tertiary: #ffffff;
+  --color-tertiary-container: #622f00;
+  --color-on-tertiary-container: #ff8814;
+  --color-tertiary-fixed: #ffdcc5;
+  --color-tertiary-fixed-dim: #ffb783;
+  --color-on-tertiary-fixed: #301400;
+  --color-on-tertiary-fixed-variant: #703700;
+
+  --color-outline: #737781;
+  --color-outline-variant: #c3c6d1;
+
+  --color-error: #ba1a1a;
+  --color-on-error: #ffffff;
+  --color-error-container: #ffdad6;
+  --color-on-error-container: #93000a;
+
+  --color-inverse-surface: #293041;
+  --color-inverse-on-surface: #edf0ff;
+  --color-inverse-primary: #aac7ff;
+  --color-surface-tint: #385e9c;
+
+  /* Typography tokens (matching the provided HTML examples) */
+  --font-display-lg: var(--font-playfair);
+  --font-display-lg-mobile: var(--font-playfair);
+  --font-headline-md: var(--font-playfair);
+  --font-headline-sm: var(--font-playfair);
+  --font-body-lg: var(--font-manrope);
+  --font-body-md: var(--font-manrope);
+  --font-label-md: var(--font-manrope);
+  --font-button: var(--font-manrope);
+
+  --text-display-lg: 56px;
+  --text-display-lg--line-height: 1.1;
+  --text-display-lg--letter-spacing: -0.02em;
+  --text-display-lg--font-weight: 700;
+
+  --text-display-lg-mobile: 36px;
+  --text-display-lg-mobile--line-height: 1.2;
+  --text-display-lg-mobile--font-weight: 700;
+
+  --text-headline-md: 32px;
+  --text-headline-md--line-height: 1.3;
+  --text-headline-md--font-weight: 600;
+
+  --text-headline-sm: 24px;
+  --text-headline-sm--line-height: 1.4;
+  --text-headline-sm--font-weight: 600;
+
+  --text-body-lg: 18px;
+  --text-body-lg--line-height: 1.6;
+  --text-body-lg--font-weight: 400;
+
+  --text-body-md: 16px;
+  --text-body-md--line-height: 1.5;
+  --text-body-md--font-weight: 400;
+
+  --text-label-md: 14px;
+  --text-label-md--line-height: 1.4;
+  --text-label-md--letter-spacing: 0.05em;
+  --text-label-md--font-weight: 600;
+
+  --text-button: 16px;
+  --text-button--line-height: 1;
+  --text-button--font-weight: 600;
+
+  /* Base Tailwind font utilities */
+  --font-sans: var(--font-manrope);
+  --font-serif: var(--font-playfair);
+
+  /* Radius & spacing */
+  --radius-sm: 0.25rem;
+  --radius: 0.5rem;
+  --radius-md: 0.75rem;
+  --radius-lg: 1rem;
+  --radius-xl: 1.5rem;
+  --radius-full: 9999px;
+
+  --spacing-unit: 4px;
+  --spacing-xs: 8px;
+  --spacing-sm: 16px;
+  --spacing-md: 24px;
+  --spacing-lg: 48px;
+  --spacing-xl: 80px;
+}
+
+body {
+  background: var(--color-background);
+  color: var(--color-on-background);
+  font-family: var(--font-manrope);
+}
