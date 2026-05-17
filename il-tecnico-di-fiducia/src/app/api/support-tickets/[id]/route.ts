@@ -50,7 +50,7 @@ export async function PATCH(
   const auth = await requireAuth();
   if (!auth.ok) return auth.response;
 
-  const { supabase } = auth.ctx;
+  const { supabase, profile } = auth.ctx;
 
   const { id } = await params;
   if (!id) {
@@ -66,6 +66,13 @@ export async function PATCH(
 
   if (!isOptionalString(payload.subject) || !isOptionalString(payload.body)) {
     return NextResponse.json({ error: "Invalid fields" }, { status: 400 });
+  }
+
+  if (payload.status && profile.role !== "admin") {
+    return NextResponse.json(
+      { error: "Only admins can change ticket status" },
+      { status: 403 },
+    );
   }
 
   const updates: Record<string, unknown> = {};
