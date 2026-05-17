@@ -11,7 +11,7 @@ export async function GET(request: NextRequest) {
   const auth = await requireAuth();
   if (!auth.ok) return auth.response;
 
-  const { supabase } = auth.ctx;
+  const { supabase, user } = auth.ctx;
 
   const limit = clampInt(request.nextUrl.searchParams.get("limit"), 50, 1, 200);
   const unreadOnly = request.nextUrl.searchParams.get("unread") === "true";
@@ -19,6 +19,7 @@ export async function GET(request: NextRequest) {
   let builder = supabase
     .from("notifications")
     .select("id, recipient_id, actor_id, type, entity_type, entity_id, created_at, read_at")
+    .eq("recipient_id", user.id)
     .order("created_at", { ascending: false })
     .limit(limit);
 
@@ -42,7 +43,7 @@ export async function PATCH(request: Request) {
   const auth = await requireAuth();
   if (!auth.ok) return auth.response;
 
-  const { supabase } = auth.ctx;
+  const { supabase, user } = auth.ctx;
 
   let payload: MarkReadPayload;
   try {
@@ -58,6 +59,7 @@ export async function PATCH(request: Request) {
   const { error } = await supabase
     .from("notifications")
     .update({ read_at: new Date().toISOString() })
+    .eq("recipient_id", user.id)
     .in("id", payload.ids);
 
   if (error) {
