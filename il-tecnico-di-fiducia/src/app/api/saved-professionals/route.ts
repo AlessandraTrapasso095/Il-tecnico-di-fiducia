@@ -72,7 +72,9 @@ export async function POST(request: Request) {
       customer_id: user.id,
       professional_id: payload.professional_id,
     },
-    { onConflict: "customer_id,professional_id" },
+    // Bookmarks are idempotent: if the row already exists, ignore the duplicate
+    // instead of requiring UPDATE permissions/RLS (least-privilege).
+    { onConflict: "customer_id,professional_id", ignoreDuplicates: true },
   );
 
   if (error) {
