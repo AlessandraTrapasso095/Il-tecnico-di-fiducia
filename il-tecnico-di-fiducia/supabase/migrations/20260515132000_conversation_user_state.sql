@@ -28,6 +28,7 @@ to authenticated
 using (
   user_id = (select auth.uid())
   and (select public.is_active_user())
+  and (select public.can_access_conversation(conversation_id))
 );
 
 drop policy if exists "Conversation user state: self insert" on public.conversation_user_state;
