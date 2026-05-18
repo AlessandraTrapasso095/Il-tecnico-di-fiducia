@@ -2,11 +2,6 @@ import "server-only";
 
 import type { SupabaseClient } from "@supabase/supabase-js";
 
-type StorageObjectRow = {
-  bucket_id: string;
-  name: string;
-};
-
 function chunkArray<T>(items: T[], size: number) {
   const chunks: T[][] = [];
   for (let i = 0; i < items.length; i += size) {
@@ -15,39 +10,88 @@ function chunkArray<T>(items: T[], size: number) {
   return chunks;
 }
 
+function joinStoragePath(prefix: string, name: string) {
+  if (!prefix) return name;
+  return `${prefix}/${name}`;
+}
+
+async function listAllPathsUnderPrefix(
+  supabase: SupabaseClient,
+  bucketId: string,
+  rootPrefix: string,
+) {
+  const limit = 1000;
+  const queue: string[] = [rootPrefix];
+  const visited = new Set<string>();
+  const paths: string[] = [];
+
+  while (queue.length > 0) {
+    const prefix = queue.shift()!;
+    if (visited.has(prefix)) continue;
+    visited.add(prefix);
+
+    let offset = 0;
+
+    // Storage list is non-recursive; we walk "folders" (items with id === null).
+    while (true) {
+      const { data, error } = await supabase.storage
+        .from(bucketId)
+        .list(prefix, { limit, offset, sortBy: { column: "name", order: "asc" } });
+
+      if (error) {
+        // If a bucket doesn't exist (dev/prod mismatch), treat as empty.
+        const msg = error.message.toLowerCase();
+        if (msg.includes("bucket") && msg.includes("not found")) {
+          return [];
+        }
+        throw new Error(`Failed to list files in bucket ${bucketId}: ${error.message}`);
+      }
+
+      const objects = data ?? [];
+      for (const obj of objects) {
+        const name = obj?.name;
+        if (!name) continue;
+
+        // Supabase uses synthetic "folder" nodes where id is null.
+        // (We already rely on this behavior in the attachments listing endpoint.)
+        if (!obj.id) {
+          queue.push(joinStoragePath(prefix, name));
+          continue;
+        }
+
+        paths.push(joinStoragePath(prefix, name));
+      }
+
+      if (objects.length < limit) break;
+      offset += limit;
+    }
+  }
+
+  return paths;
+}
+
 export async function deleteAllStorageObjectsForUser(
   serviceSupabase: SupabaseClient,
   userId: string,
 ) {
   // IMPORTANT:
-  // - `storage.objects.owner` is deprecated in Supabase Storage and may be NULL for some operations
-  //   (e.g. service_role uploads, move/copy). Deleting by path prefix is more reliable.
-  // - We scope to known buckets to avoid scanning unrelated storage.
-  const USER_PREFIX = `${userId}/`;
+  // - Do not rely on `storage.objects` via PostgREST; many hosted projects don't expose `storage` schema.
+  // - `storage.objects.owner` can be NULL; prefix delete is more reliable.
+  const rootPrefix = userId;
 
-  const { data, error } = await serviceSupabase
-    .schema("storage")
-    .from("objects")
-    .select("bucket_id,name")
-    .in("bucket_id", ["public-media", "private-media"])
-    .like("name", `${USER_PREFIX}%`);
-
-  if (error) {
-    throw new Error(`Failed to list storage objects: ${error.message}`);
-  }
-
-  const objects = (data ?? []) as StorageObjectRow[];
-  if (objects.length === 0) {
-    return { deleted: 0 };
-  }
-
+  const bucketIds = ["public-media", "private-media"] as const;
   const byBucket = new Map<string, string[]>();
-  for (const obj of objects) {
-    if (!obj?.bucket_id || !obj?.name) continue;
-    const list = byBucket.get(obj.bucket_id) ?? [];
-    list.push(obj.name);
-    byBucket.set(obj.bucket_id, list);
+
+  for (const bucketId of bucketIds) {
+    const paths = await listAllPathsUnderPrefix(
+      serviceSupabase,
+      bucketId,
+      rootPrefix,
+    );
+    if (paths.length > 0) byBucket.set(bucketId, paths);
   }
+
+  if (byBucket.size === 0) return { deleted: 0 };
 
   let deleted = 0;
 
