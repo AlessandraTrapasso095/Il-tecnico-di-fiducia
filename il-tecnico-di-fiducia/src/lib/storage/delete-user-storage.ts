@@ -19,11 +19,18 @@ export async function deleteAllStorageObjectsForUser(
   serviceSupabase: SupabaseClient,
   userId: string,
 ) {
+  // IMPORTANT:
+  // - `storage.objects.owner` is deprecated in Supabase Storage and may be NULL for some operations
+  //   (e.g. service_role uploads, move/copy). Deleting by path prefix is more reliable.
+  // - We scope to known buckets to avoid scanning unrelated storage.
+  const USER_PREFIX = `${userId}/`;
+
   const { data, error } = await serviceSupabase
     .schema("storage")
     .from("objects")
     .select("bucket_id,name")
-    .eq("owner", userId);
+    .in("bucket_id", ["public-media", "private-media"])
+    .like("name", `${USER_PREFIX}%`);
 
   if (error) {
     throw new Error(`Failed to list storage objects: ${error.message}`);
@@ -63,4 +70,3 @@ export async function deleteAllStorageObjectsForUser(
 
   return { deleted };
 }
-

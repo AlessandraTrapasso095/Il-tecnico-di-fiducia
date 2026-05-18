@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { requireAuth } from "@/lib/api/auth";
+import { sniffImageMime, sniffIsoBmffVideoMime } from "@/lib/api/file-signatures";
 import { sanitizeFileName } from "@/lib/api/validation";
 
 const MAX_FILES = 10;
@@ -59,16 +60,26 @@ export async function POST(
       return NextResponse.json({ error: "Invalid file" }, { status: 400 });
     }
 
-    if (!ALLOWED_ATTACHMENT_TYPES.has(item.type)) {
+    if (item.size > MAX_FILE_SIZE_BYTES) {
       return NextResponse.json(
-        { error: "Unsupported file type (allowed: JPG/PNG/WebP/MP4/MOV)" },
+        { error: "Max file size is 50MB" },
         { status: 400 },
       );
     }
 
-    if (item.size > MAX_FILE_SIZE_BYTES) {
+    // Defense-in-depth: validate file signatures for common types to avoid spoofed MIME uploads.
+    // For video, allow the client-provided MIME if sniffing fails (to reduce false negatives).
+    let contentType: string | null = await sniffImageMime(item);
+    if (!contentType) {
+      contentType = await sniffIsoBmffVideoMime(item);
+    }
+    if (!contentType) {
+      contentType = item.type || null;
+    }
+
+    if (!contentType || !ALLOWED_ATTACHMENT_TYPES.has(contentType)) {
       return NextResponse.json(
-        { error: "Max file size is 50MB" },
+        { error: "Unsupported file type (allowed: JPG/PNG/WebP/MP4/MOV)" },
         { status: 400 },
       );
     }
@@ -78,7 +89,7 @@ export async function POST(
 
     const { error: uploadError } = await supabase.storage
       .from("private-media")
-      .upload(path, item, { upsert: false, contentType: item.type || undefined, cacheControl: "3600" });
+      .upload(path, item, { upsert: false, contentType, cacheControl: "3600" });
 
     if (uploadError) {
       return NextResponse.json({ error: uploadError.message }, { status: 400 });

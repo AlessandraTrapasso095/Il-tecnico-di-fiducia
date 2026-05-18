@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { requireAuth } from "@/lib/api/auth";
+import { sniffImageMime } from "@/lib/api/file-signatures";
 import { sanitizeFileName } from "@/lib/api/validation";
 
 const ALLOWED_IMAGE_TYPES = new Set([
@@ -31,7 +32,8 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "file is required" }, { status: 400 });
   }
 
-  if (!ALLOWED_IMAGE_TYPES.has(file.type)) {
+  const sniffedMime = await sniffImageMime(file);
+  if (!sniffedMime || !ALLOWED_IMAGE_TYPES.has(sniffedMime)) {
     return NextResponse.json(
       { error: "Only JPG/PNG/WebP images are allowed" },
       { status: 400 },
@@ -53,7 +55,7 @@ export async function POST(request: Request) {
 
   const { error: uploadError } = await supabase.storage
     .from("public-media")
-    .upload(path, file, { upsert: false, contentType: file.type, cacheControl: "3600" });
+    .upload(path, file, { upsert: false, contentType: sniffedMime, cacheControl: "3600" });
 
   if (uploadError) {
     return NextResponse.json({ error: uploadError.message }, { status: 400 });

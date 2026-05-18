@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { requireAuth } from "@/lib/api/auth";
+import { isPdfFile } from "@/lib/api/file-signatures";
 import { sanitizeFileName } from "@/lib/api/validation";
 
 export async function POST(request: Request) {
@@ -17,8 +18,8 @@ export async function POST(request: Request) {
   }
 
   const safeName = sanitizeFileName(file.name || "cv.pdf");
-  const lower = safeName.toLowerCase();
-  if (!lower.endsWith(".pdf") && file.type !== "application/pdf") {
+  const isPdf = await isPdfFile(file);
+  if (!isPdf) {
     return NextResponse.json({ error: "Only PDF is allowed" }, { status: 400 });
   }
 
