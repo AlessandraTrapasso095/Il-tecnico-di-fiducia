@@ -1,5 +1,10 @@
 import { NextResponse } from "next/server";
 
+import {
+  enforceRateLimit,
+  getClientIp,
+  hashRateLimitId,
+} from "@/lib/api/rate-limit";
 import { isNonEmptyString } from "@/lib/api/validation";
 import { createClient } from "@/lib/supabase/server";
 
@@ -9,6 +14,16 @@ type ResendSignupOtpPayload = {
 
 export async function POST(request: Request) {
   const supabase = await createClient();
+
+  const ip = getClientIp(request);
+  const ipLimited = await enforceRateLimit({
+    supabase,
+    key: `v1:auth:resend_otp:ip:${ip}`,
+    maxHits: 10,
+    windowSeconds: 600,
+    errorMessage: "Too many requests. Please try again later.",
+  });
+  if (ipLimited) return ipLimited;
 
   let payload: ResendSignupOtpPayload;
   try {
@@ -22,6 +37,15 @@ export async function POST(request: Request) {
   }
 
   const email = payload.email.trim();
+  const emailHash = await hashRateLimitId(`email:${email.toLowerCase()}`);
+  const emailLimited = await enforceRateLimit({
+    supabase,
+    key: `v1:auth:resend_otp:email:${emailHash}`,
+    maxHits: 3,
+    windowSeconds: 600,
+    errorMessage: "Too many OTP resend requests for this email. Please try again later.",
+  });
+  if (emailLimited) return emailLimited;
 
   const { error } = await supabase.auth.resend({
     type: "signup",

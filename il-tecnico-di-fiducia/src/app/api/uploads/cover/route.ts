@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { requireAuth } from "@/lib/api/auth";
+import { enforceRateLimit } from "@/lib/api/rate-limit";
 import { sniffImageMime } from "@/lib/api/file-signatures";
 import { sanitizeFileName } from "@/lib/api/validation";
 
@@ -24,6 +25,15 @@ export async function POST(request: Request) {
   if (!auth.ok) return auth.response;
 
   const { supabase, user } = auth.ctx;
+
+  const limited = await enforceRateLimit({
+    supabase,
+    key: `v1:upload:cover:user:${user.id}`,
+    maxHits: 10,
+    windowSeconds: 3600,
+    errorMessage: "Too many cover uploads. Please try again later.",
+  });
+  if (limited) return limited;
 
   const formData = await request.formData();
   const file = formData.get("file");

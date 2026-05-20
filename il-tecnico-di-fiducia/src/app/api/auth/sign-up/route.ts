@@ -1,5 +1,10 @@
 import { NextResponse } from "next/server";
 
+import {
+  enforceRateLimit,
+  getClientIp,
+  hashRateLimitId,
+} from "@/lib/api/rate-limit";
 import { isNonEmptyString } from "@/lib/api/validation";
 import { createClient } from "@/lib/supabase/server";
 
@@ -16,6 +21,17 @@ type SignUpPayload = {
 
 export async function POST(request: Request) {
   const supabase = await createClient();
+
+  // Rate-limit by IP early (before parsing JSON) to reduce abuse surface.
+  const ip = getClientIp(request);
+  const ipLimited = await enforceRateLimit({
+    supabase,
+    key: `v1:auth:signup:ip:${ip}`,
+    maxHits: 8,
+    windowSeconds: 60,
+    errorMessage: "Too many signup attempts. Please try again later.",
+  });
+  if (ipLimited) return ipLimited;
 
   let payload: SignUpPayload;
   try {
@@ -41,6 +57,18 @@ export async function POST(request: Request) {
       { status: 400 },
     );
   }
+
+  // Also rate-limit by email (hashed) to reduce targeted abuse.
+  const normalizedEmail = payload.email.trim().toLowerCase();
+  const emailHash = await hashRateLimitId(`email:${normalizedEmail}`);
+  const emailLimited = await enforceRateLimit({
+    supabase,
+    key: `v1:auth:signup:email:${emailHash}`,
+    maxHits: 3,
+    windowSeconds: 600,
+    errorMessage: "Too many signup attempts for this email. Please try again later.",
+  });
+  if (emailLimited) return emailLimited;
 
   if (
     !isNonEmptyString(payload.first_name) ||

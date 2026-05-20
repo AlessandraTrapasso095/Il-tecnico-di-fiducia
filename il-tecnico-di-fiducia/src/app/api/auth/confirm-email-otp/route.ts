@@ -1,5 +1,10 @@
 import { NextResponse } from "next/server";
 
+import {
+  enforceRateLimit,
+  getClientIp,
+  hashRateLimitId,
+} from "@/lib/api/rate-limit";
 import { isNonEmptyString } from "@/lib/api/validation";
 import { createClient } from "@/lib/supabase/server";
 
@@ -14,6 +19,16 @@ function normalizeOtpToken(raw: string) {
 
 export async function POST(request: Request) {
   const supabase = await createClient();
+
+  const ip = getClientIp(request);
+  const ipLimited = await enforceRateLimit({
+    supabase,
+    key: `v1:auth:confirm_otp:ip:${ip}`,
+    maxHits: 20,
+    windowSeconds: 600,
+    errorMessage: "Too many verification attempts. Please try again later.",
+  });
+  if (ipLimited) return ipLimited;
 
   let payload: ConfirmEmailOtpPayload;
   try {
@@ -30,6 +45,16 @@ export async function POST(request: Request) {
   }
 
   const email = payload.email.trim();
+  const emailHash = await hashRateLimitId(`email:${email.toLowerCase()}`);
+  const emailLimited = await enforceRateLimit({
+    supabase,
+    key: `v1:auth:confirm_otp:email:${emailHash}`,
+    maxHits: 10,
+    windowSeconds: 600,
+    errorMessage: "Too many verification attempts for this email. Please try again later.",
+  });
+  if (emailLimited) return emailLimited;
+
   const token = normalizeOtpToken(payload.token);
 
   if (!/^\d{6,10}$/.test(token)) {
