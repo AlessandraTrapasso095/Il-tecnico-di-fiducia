@@ -1,24 +1,8 @@
 import { NextResponse } from "next/server";
 
 import { requireAuth } from "@/lib/api/auth";
+import { getRequestBaseUrl } from "@/lib/api/base-url";
 import { getStripe, getStripeProfessionalPriceId } from "@/lib/server/stripe";
-
-function getRequestBaseUrl(request: Request) {
-  const fromEnv =
-    process.env.NEXT_PUBLIC_SITE_URL ?? process.env.SITE_URL ?? null;
-  if (fromEnv) return fromEnv.replace(/\/+$/, "");
-
-  const origin = request.headers.get("origin");
-  if (origin) return origin.replace(/\/+$/, "");
-
-  const host = request.headers.get("host");
-  if (host) {
-    const protocol = host.includes("localhost") ? "http" : "https";
-    return `${protocol}://${host}`;
-  }
-
-  return "http://localhost:3000";
-}
 
 export async function POST(request: Request) {
   const auth = await requireAuth({ allowedRoles: ["professional"] });

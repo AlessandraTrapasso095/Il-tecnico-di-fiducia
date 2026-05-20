@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 
 import { requireAuth } from "@/lib/api/auth";
+import { getRequestBaseUrl } from "@/lib/api/base-url";
 import { isNonEmptyString } from "@/lib/api/validation";
 import { createServiceClient } from "@/lib/supabase/service";
 
@@ -32,8 +33,8 @@ export async function POST(
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
 
-  const origin = new URL(request.url).origin;
-  const redirectTo = `${origin}/auth/callback?next=/auth/reset-password`;
+  const baseUrl = getRequestBaseUrl(request);
+  const redirectTo = `${baseUrl}/auth/callback?next=/auth/reset-password`;
 
   const service = createServiceClient();
   const { error } = await service.auth.resetPasswordForEmail(profile.email, { redirectTo });
@@ -44,4 +45,3 @@ export async function POST(
 
   return NextResponse.json({ ok: true });
 }
-
