@@ -149,8 +149,7 @@ export default function RegisterClient({ initialRole }: RegisterClientProps) {
   }
 
   return (
-    <main className="min-h-screen flex items-center justify-center px-4 py-16 bg-background">
-      <div className="w-full max-w-[720px] bg-surface-container-lowest rounded-[28px] shadow-[0_8px_30px_rgba(8,43,95,0.10)] border border-outline-variant/30 overflow-hidden">
+    <div className="mx-auto w-full max-w-[720px] bg-surface-container-lowest rounded-[28px] shadow-[0_8px_30px_rgba(8,43,95,0.10)] border border-outline-variant/30 overflow-hidden">
         <div className="p-6 sm:p-8 border-b border-outline-variant/30 bg-surface-container-lowest">
           <div className="flex items-center justify-between gap-4">
             <div className="min-w-0">
@@ -419,7 +418,5 @@ export default function RegisterClient({ initialRole }: RegisterClientProps) {
           </form>
         )}
       </div>
-    </main>
   );
 }
-

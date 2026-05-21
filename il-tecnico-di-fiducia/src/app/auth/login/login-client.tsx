@@ -2,7 +2,6 @@
 
 import { useMemo, useState } from "react";
 import Link from "next/link";
-import Image from "next/image";
 import { useRouter } from "next/navigation";
 
 import { fetchJson } from "@/lib/api/fetch-json";
@@ -64,64 +63,8 @@ export default function LoginClient({ initialRole }: LoginClientProps) {
   }
 
   return (
-    <main className="min-h-screen flex flex-col md:flex-row">
-      <section className="relative hidden md:flex md:w-5/12 lg:w-1/2 flex-col justify-between p-10 overflow-hidden bg-primary">
-        <div className="absolute inset-0 z-0">
-          <Image
-            src="https://lh3.googleusercontent.com/aida-public/AB6AXuC6uWFYS_Qa4Y5naY6B0Ga_TwbReMdM9NY7SMO6z3bhvwqFiJNAz2M4_jMhtdN08umK3NUWGRYArxw1RtbGhK-pT-h1Jqpg36CxYxYHbvaDLCNN7K0LY-WPEfEI8iMaI1Jugz9ht-vEG2ZSpgnhaR89gSNyxQ06h3JAUcJSaLbXNUWUEgvQ-A8sJEu0zEnSqW0dZtCufswF0TY0D9RDBL6AJiTz7Wxgo-bvcCFHmhO3dets1UEDGHtZ9SjoIW061cAWJcPX68yFZooY"
-            alt="Sfondo login professionale"
-            fill
-            priority
-            sizes="(min-width: 1024px) 50vw, 0vw"
-            className="object-cover opacity-80"
-          />
-          <div className="absolute inset-0 bg-gradient-to-br from-primary/95 to-primary/60" />
-        </div>
-
-        <div className="relative z-10 flex flex-col h-full justify-between">
-          <div>
-            <div className="inline-flex items-center gap-3 mb-8">
-              <div className="w-12 h-12 bg-on-primary rounded-full flex items-center justify-center">
-                <span className="text-primary text-[28px] font-bold">✓</span>
-              </div>
-              <h1 className="font-headline-sm text-headline-sm text-on-primary font-bold">
-                Il tecnico di fiducia
-              </h1>
-            </div>
-            <div className="max-w-md">
-              <h2 className="font-display-lg text-display-lg text-on-primary mb-4">
-                Bentornato
-              </h2>
-              <p className="font-body-lg text-body-lg text-primary-fixed-dim leading-relaxed">
-                Accedi al tuo portale sicuro per gestire richieste, comunicazioni e
-                attività. La tua tranquillità è la nostra priorità.
-              </p>
-            </div>
-          </div>
-
-          <div className="bg-white/15 backdrop-blur-md border border-white/20 p-4 rounded-2xl max-w-sm">
-            <p className="font-label-md text-label-md text-primary-fixed mb-1">
-              CERTIFICAZIONE DI QUALITÀ
-            </p>
-            <p className="font-body-md text-body-md text-primary-fixed-dim">
-              Accesso protetto e controlli anti‑abuso attivi.
-            </p>
-          </div>
-        </div>
-      </section>
-
-      <section className="flex-1 flex items-center justify-center p-5 md:p-10 bg-surface-container-low">
-        <div className="w-full max-w-[480px]">
-          <div className="md:hidden flex flex-col items-center mb-8 text-center">
-            <div className="w-16 h-16 bg-primary rounded-full flex items-center justify-center mb-4">
-              <span className="text-on-primary text-[32px] font-bold">✓</span>
-            </div>
-            <h1 className="font-headline-md text-headline-md text-primary">
-              Il tecnico di fiducia
-            </h1>
-          </div>
-
-          <div className="bg-surface-container-lowest rounded-[20px] p-6 shadow-[0_4px_20px_rgba(8,43,95,0.08)] border border-outline-variant/30">
+    <div className="mx-auto w-full max-w-[480px]">
+      <div className="bg-surface-container-lowest rounded-[20px] p-6 shadow-[0_4px_20px_rgba(8,43,95,0.08)] border border-outline-variant/30">
             <div className="flex bg-surface-container-low p-1 rounded-full mb-6">
               <button
                 type="button"
@@ -245,19 +188,17 @@ export default function LoginClient({ initialRole }: LoginClientProps) {
             </div>
           </div>
 
-          <div className="mt-6 flex flex-wrap justify-center gap-4 text-on-surface-variant">
-            <Link className="font-label-md text-label-md hover:text-primary transition-colors" href="#">
-              Centro Assistenza
-            </Link>
-            <Link className="font-label-md text-label-md hover:text-primary transition-colors" href="#">
-              Privacy Policy
-            </Link>
-            <Link className="font-label-md text-label-md hover:text-primary transition-colors" href="#">
-              Termini d’uso
-            </Link>
-          </div>
-        </div>
-      </section>
-    </main>
+      <div className="mt-6 flex flex-wrap justify-center gap-4 text-on-surface-variant">
+        <Link className="font-label-md text-label-md hover:text-primary transition-colors" href="#">
+          Centro Assistenza
+        </Link>
+        <Link className="font-label-md text-label-md hover:text-primary transition-colors" href="#">
+          Privacy Policy
+        </Link>
+        <Link className="font-label-md text-label-md hover:text-primary transition-colors" href="#">
+          Termini d’uso
+        </Link>
+      </div>
+    </div>
   );
 }
