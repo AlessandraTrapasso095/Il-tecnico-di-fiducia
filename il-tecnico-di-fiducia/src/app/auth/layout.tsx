@@ -3,8 +3,8 @@ import Link from "next/link";
 
 export default function AuthLayout({ children }: { children: React.ReactNode }) {
   return (
-    <div className="min-h-screen flex flex-col lg:flex-row">
-      <aside className="relative hidden lg:flex lg:w-1/2 xl:w-5/12 flex-col justify-between px-10 py-12 overflow-hidden bg-primary">
+    <div className="min-h-screen w-full grid grid-cols-1 lg:grid-cols-[minmax(0,45%)_minmax(0,55%)]">
+      <aside className="relative hidden lg:flex min-w-0 flex-col justify-between px-12 py-14 overflow-hidden bg-primary">
         <div className="absolute inset-0 z-0">
           <Image
             src="https://lh3.googleusercontent.com/aida-public/AB6AXuC6uWFYS_Qa4Y5naY6B0Ga_TwbReMdM9NY7SMO6z3bhvwqFiJNAz2M4_jMhtdN08umK3NUWGRYArxw1RtbGhK-pT-h1Jqpg36CxYxYHbvaDLCNN7K0LY-WPEfEI8iMaI1Jugz9ht-vEG2ZSpgnhaR89gSNyxQ06h3JAUcJSaLbXNUWUEgvQ-A8sJEu0zEnSqW0dZtCufswF0TY0D9RDBL6AJiTz7Wxgo-bvcCFHmhO3dets1UEDGHtZ9SjoIW061cAWJcPX68yFZooY"
@@ -17,7 +17,7 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
           <div className="absolute inset-0 bg-gradient-to-br from-primary/95 via-primary/85 to-primary/60" />
         </div>
 
-        <div className="relative z-10 flex flex-col justify-between h-full gap-10">
+        <div className="relative z-10 flex flex-col justify-between h-full gap-12">
           <div>
             <Link href="/" className="inline-flex items-center gap-3 mb-8">
               <div className="w-12 h-12 bg-on-primary rounded-full flex items-center justify-center">
@@ -28,7 +28,7 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
               </span>
             </Link>
 
-            <div className="max-w-lg">
+            <div className="max-w-xl text-balance">
               <h2 className="font-display-lg text-display-lg text-on-primary mb-4">
                 Bentornato
               </h2>
@@ -50,9 +50,9 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
         </div>
       </aside>
 
-      <section className="flex-1 bg-surface-container-low px-4 sm:px-6 lg:px-10 py-10 flex flex-col justify-center">
-        <div className="mx-auto w-full max-w-[720px]">
-          <Link href="/" className="lg:hidden inline-flex items-center gap-3 mb-6">
+      <section className="min-w-0 bg-surface-container-low px-4 sm:px-6 lg:px-12 py-10 sm:py-12 flex flex-col justify-center">
+        <div className="mx-auto w-full max-w-2xl">
+          <Link href="/" className="lg:hidden inline-flex items-center gap-3 mb-6 sm:mb-8">
             <div className="w-12 h-12 bg-primary rounded-full flex items-center justify-center">
               <span className="text-on-primary text-[28px] font-bold">✓</span>
             </div>
@@ -67,4 +67,3 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
     </div>
   );
 }
-
