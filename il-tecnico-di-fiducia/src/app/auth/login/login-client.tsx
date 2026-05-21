@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import Link from "next/link";
+import Image from "next/image";
 import { useRouter } from "next/navigation";
 
 import { fetchJson } from "@/lib/api/fetch-json";
@@ -66,10 +67,13 @@ export default function LoginClient({ initialRole }: LoginClientProps) {
     <main className="min-h-screen flex flex-col md:flex-row">
       <section className="relative hidden md:flex md:w-5/12 lg:w-1/2 flex-col justify-between p-10 overflow-hidden bg-primary">
         <div className="absolute inset-0 z-0">
-          <img
-            className="w-full h-full object-cover opacity-80"
-            alt="Sfondo login professionale"
+          <Image
             src="https://lh3.googleusercontent.com/aida-public/AB6AXuC6uWFYS_Qa4Y5naY6B0Ga_TwbReMdM9NY7SMO6z3bhvwqFiJNAz2M4_jMhtdN08umK3NUWGRYArxw1RtbGhK-pT-h1Jqpg36CxYxYHbvaDLCNN7K0LY-WPEfEI8iMaI1Jugz9ht-vEG2ZSpgnhaR89gSNyxQ06h3JAUcJSaLbXNUWUEgvQ-A8sJEu0zEnSqW0dZtCufswF0TY0D9RDBL6AJiTz7Wxgo-bvcCFHmhO3dets1UEDGHtZ9SjoIW061cAWJcPX68yFZooY"
+            alt="Sfondo login professionale"
+            fill
+            priority
+            sizes="(min-width: 1024px) 50vw, 0vw"
+            className="object-cover opacity-80"
           />
           <div className="absolute inset-0 bg-gradient-to-br from-primary/95 to-primary/60" />
         </div>
@@ -257,4 +261,3 @@ export default function LoginClient({ initialRole }: LoginClientProps) {
     </main>
   );
 }
-

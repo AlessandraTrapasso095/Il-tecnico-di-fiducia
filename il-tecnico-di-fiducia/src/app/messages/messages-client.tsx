@@ -22,6 +22,7 @@ type MessagesClientProps = {
   initialMeError?: string | null;
   initialConversations: ConversationRow[];
   initialConversationsError?: string | null;
+  initialActiveConversationId?: string | null;
 };
 
 type ContactRequestSummary = {
@@ -107,6 +108,7 @@ export default function MessagesClient({
   initialMeError,
   initialConversations,
   initialConversationsError,
+  initialActiveConversationId,
 }: MessagesClientProps) {
   const supabase = useMemo(() => createClient(), []);
 
@@ -478,6 +480,25 @@ export default function MessagesClient({
 
     void loadConversationDetail(id);
   }
+
+  // Optional deep-link: /messages?conversation=<id>
+  useEffect(() => {
+    if (!initialActiveConversationId) return;
+    if (!meId) return;
+    if (activeId) return;
+
+    // If the conversation is already in the list, open it. Otherwise try to hydrate it.
+    const exists = conversationsRef.current.some((c) => c.id === initialActiveConversationId);
+    if (exists) {
+      selectConversation(initialActiveConversationId);
+      return;
+    }
+
+    void hydrateConversation(initialActiveConversationId).then(() => {
+      selectConversation(initialActiveConversationId);
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initialActiveConversationId, meId]);
 
   // Keep a stable reference for subscriptions & event handlers.
   useEffect(() => {

@@ -1,6 +1,7 @@
 import { Footer } from "@/components/site/footer";
 import { Container } from "@/components/site/container";
 import { TopNav } from "@/components/site/top-nav";
+import Image from "next/image";
 
 export default function Home() {
   return (
@@ -10,10 +11,13 @@ export default function Home() {
       <main className="pt-[100px]">
         {/* Hero */}
         <section className="relative min-h-[calc(100svh-100px)] flex items-center overflow-hidden">
-          <img
-            className="absolute inset-0 w-full h-full object-cover"
-            alt="Professionisti e tecnici in ambiente di lavoro"
+          <Image
             src="https://lh3.googleusercontent.com/aida-public/AB6AXuD3vz0vv7le_BC8pwC5ChG1JFlJb6EZ85a2dEQ3fuRyjmE4_pzrok1vloTwAuPEqFpe_RJtW_iIz0vB1I2_2G0-zA1jn661rbqCxbYEHXa8pdJEmzixnBdNcnntVaj6JqxkoxVuVAX3Ply4XQwFwv0OXNenJHTfaQ-0WHWtQtqwWSf2DXdYrahUqwjUEGL2BVRlVRYmWnbPa7TgdNMQwQPjf8nwiDcapnqLqUc5g9RavELG8dmFJJ0VB6JXgYpYDrvsodGkkCMkyrsn"
+            alt="Professionisti e tecnici in ambiente di lavoro"
+            fill
+            priority
+            sizes="100vw"
+            className="object-cover"
           />
           <div className="absolute inset-0 bg-gradient-to-b from-primary/80 to-primary/60" />
 
@@ -151,10 +155,12 @@ export default function Home() {
                   href="#"
                   className="group relative h-[260px] rounded-[26px] overflow-hidden shadow-md"
                 >
-                  <img
-                    className="absolute inset-0 w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
-                    alt={c.title}
+                  <Image
                     src={c.img}
+                    alt={c.title}
+                    fill
+                    sizes="(min-width: 1024px) 33vw, 100vw"
+                    className="object-cover transition-transform duration-500 group-hover:scale-110"
                   />
                   <div className="absolute inset-0 bg-gradient-to-t from-primary/80 via-primary/20 to-transparent" />
                   <div className="absolute bottom-6 left-6">

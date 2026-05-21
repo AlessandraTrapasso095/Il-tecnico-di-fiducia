@@ -6,13 +6,22 @@ import MessagesClient from "./messages-client";
 
 export const dynamic = "force-dynamic";
 
-export default async function MessagesPage() {
+type SearchParams = Promise<{ [key: string]: string | string[] | undefined }>;
+
+export default async function MessagesPage({
+  searchParams,
+}: {
+  searchParams: SearchParams;
+}) {
   const supabase = await createClient();
 
   let initialMe: MeResponse | null = null;
   let initialMeError: string | null = null;
   let initialConversations: ConversationRow[] = [];
   let initialConversationsError: string | null = null;
+  const sp = await searchParams;
+  const conversationRaw = typeof sp.conversation === "string" ? sp.conversation : null;
+  const initialActiveConversationId = conversationRaw?.trim() || null;
 
   const {
     data: { user },
@@ -86,7 +95,7 @@ export default async function MessagesPage() {
       initialMeError={initialMeError}
       initialConversations={initialConversations}
       initialConversationsError={initialConversationsError}
+      initialActiveConversationId={initialActiveConversationId}
     />
   );
 }
-
