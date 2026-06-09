@@ -25,20 +25,24 @@ export function TopNav() {
   return (
     <header className="fixed top-0 left-0 right-0 z-50 h-[100px] bg-surface-container-lowest/80 backdrop-blur-md shadow-sm">
       <div className="h-full w-full max-w-[1280px] mx-auto px-4 sm:px-6 lg:px-8 flex items-center justify-between gap-4">
-        <Link href="/" className="flex items-center gap-3 min-w-0" aria-label="Torna alla landing">
+        <Link
+          href="/"
+          className="group flex min-w-0 items-center gap-2 sm:gap-2.5 rounded-full pr-2 transition-transform hover:scale-[0.99]"
+          aria-label="Torna alla landing"
+        >
           <Image
-            src="/img/logo.png"
+            src="/img/logo-mark.png"
             alt="Il Tecnico di Fiducia"
-            width={96}
-            height={64}
-            className="h-14 sm:h-16 w-auto shrink-0 object-contain"
+            width={128}
+            height={128}
+            className="h-14 w-14 shrink-0 object-contain sm:h-[68px] sm:w-[68px]"
             priority
           />
-          <span className="flex flex-col leading-none min-w-0">
-            <span className="font-headline-sm text-[18px] sm:text-[21px] font-bold text-primary truncate">
+          <span className="flex min-w-0 flex-col leading-none">
+            <span className="font-headline-sm text-[18px] font-bold text-primary sm:text-[23px]">
               Il tecnico
             </span>
-            <span className="font-label-md text-[12px] sm:text-[14px] font-bold uppercase tracking-[0.14em] text-on-tertiary-container truncate">
+            <span className="font-label-md text-[12px] font-extrabold uppercase tracking-[0.12em] text-on-tertiary-container sm:text-[14px]">
               di fiducia
             </span>
           </span>
