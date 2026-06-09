@@ -17,7 +17,7 @@ import {
   type ProfessionSubcategory,
 } from "@/lib/professions/taxonomy";
 
-import { ProfessionCardIcon } from "./profession-card-icon";
+import { ProfessionCardIcon, ProfessionCardVisual } from "./profession-card-icon";
 
 type CategoriesResponse = { categories: DbProfessionCategory[] };
 type ProvincesResponse = { provinces: ItalianProvince[] };
@@ -168,18 +168,17 @@ export function ProfessionSearchFlow() {
                   className="object-cover transition-transform duration-500 group-hover:scale-110"
                 />
               ) : (
-                <div
-                  className={`absolute inset-0 bg-gradient-to-br ${category.visualClass} transition-transform duration-500 group-hover:scale-105`}
-                >
-                  <div className="absolute inset-0 bg-[radial-gradient(circle_at_76%_22%,rgba(255,255,255,0.28),transparent_30%),linear-gradient(135deg,rgba(255,255,255,0.15),transparent)]" />
-                </div>
+                <ProfessionCardVisual
+                  name={category.icon}
+                  className="absolute inset-0 h-full w-full transition-transform duration-500 group-hover:scale-105"
+                />
               )}
-              <div className="absolute inset-0 bg-gradient-to-t from-[#001b3e]/95 via-primary/55 to-primary/10" />
-              <div className="absolute inset-0 bg-[linear-gradient(120deg,rgba(255,255,255,0.12)_0%,transparent_35%,rgba(255,255,255,0.08)_70%,transparent_100%)] opacity-80" />
-              <div className="absolute right-5 top-5 flex h-24 w-24 items-center justify-center rounded-[28px] border border-white/30 bg-white/15 text-white shadow-[0_10px_30px_rgba(0,0,0,0.18)] backdrop-blur-md transition-transform duration-300 group-hover:scale-105 sm:h-28 sm:w-28">
+              <div className="absolute inset-0 bg-gradient-to-t from-[#001b3e]/95 via-primary/45 to-transparent" />
+              <div className="absolute inset-0 bg-[linear-gradient(120deg,rgba(255,255,255,0.1)_0%,transparent_34%,rgba(255,255,255,0.08)_72%,transparent_100%)] opacity-80" />
+              <div className="absolute right-4 top-4 flex h-[62px] w-[62px] items-center justify-center rounded-[20px] border border-white/30 bg-white/16 text-white shadow-[0_10px_30px_rgba(0,0,0,0.18)] backdrop-blur-md transition-transform duration-300 group-hover:scale-105">
                 <ProfessionCardIcon
                   name={category.icon}
-                  className="h-16 w-16 drop-shadow-[0_4px_14px_rgba(0,0,0,0.35)] sm:h-[74px] sm:w-[74px]"
+                  className="h-10 w-10 drop-shadow-[0_4px_14px_rgba(0,0,0,0.35)]"
                 />
               </div>
               <div className="absolute bottom-5 left-5 right-5">
