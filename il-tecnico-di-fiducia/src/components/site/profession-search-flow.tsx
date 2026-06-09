@@ -8,6 +8,7 @@ import { useRouter } from "next/navigation";
 import { fetchJson } from "@/lib/api/fetch-json";
 import { ITALIAN_PROVINCES, type ItalianProvince } from "@/lib/locations/italian-provinces";
 import {
+  CATEGORY_IMAGE_FALLBACK,
   findProfessionCategory,
   mergeProfessionCategories,
   professionCategoryKey,
@@ -17,12 +18,12 @@ import {
   type ProfessionSubcategory,
 } from "@/lib/professions/taxonomy";
 
-import { ProfessionCardIcon, ProfessionCardVisual } from "./profession-card-icon";
+import { ProfessionCardIcon } from "./profession-card-icon";
 
 type CategoriesResponse = { categories: DbProfessionCategory[] };
 type ProvincesResponse = { provinces: ItalianProvince[] };
 
-function isRenderableImage(url: string | null) {
+function isRenderableImage(url: string | null): url is string {
   return Boolean(url && (url.startsWith("https://") || url.startsWith("/")));
 }
 
@@ -145,7 +146,9 @@ export function ProfessionSearchFlow() {
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
         {visibleCategories.map((category) => {
           const selected = professionCategoryKey(category) === selectedCategoryKey;
-          const hasImage = isRenderableImage(category.image_url);
+          const imageUrl = isRenderableImage(category.image_url)
+            ? category.image_url
+            : CATEGORY_IMAGE_FALLBACK;
 
           return (
             <button
@@ -159,26 +162,19 @@ export function ProfessionSearchFlow() {
               ].join(" ")}
               onClick={() => selectCategory(category)}
             >
-              {hasImage ? (
-                <Image
-                  src={category.image_url ?? ""}
-                  alt={category.name}
-                  fill
-                  sizes="(min-width: 1024px) 33vw, 100vw"
-                  className="object-cover transition-transform duration-500 group-hover:scale-110"
-                />
-              ) : (
-                <ProfessionCardVisual
-                  name={category.icon}
-                  className="absolute inset-0 h-full w-full transition-transform duration-500 group-hover:scale-105"
-                />
-              )}
-              <div className="absolute inset-0 bg-gradient-to-t from-[#001b3e]/95 via-primary/45 to-transparent" />
-              <div className="absolute inset-0 bg-[linear-gradient(120deg,rgba(255,255,255,0.1)_0%,transparent_34%,rgba(255,255,255,0.08)_72%,transparent_100%)] opacity-80" />
-              <div className="absolute right-4 top-4 flex h-[62px] w-[62px] items-center justify-center rounded-[20px] border border-white/30 bg-white/16 text-white shadow-[0_10px_30px_rgba(0,0,0,0.18)] backdrop-blur-md transition-transform duration-300 group-hover:scale-105">
+              <Image
+                src={imageUrl}
+                alt={category.name}
+                fill
+                sizes="(min-width: 1024px) 33vw, (min-width: 640px) 50vw, 100vw"
+                className="object-cover saturate-[1.04] transition-transform duration-500 group-hover:scale-110"
+              />
+              <div className="absolute inset-0 bg-gradient-to-t from-[#001b3e]/95 via-[#001b3e]/48 to-[#001b3e]/12" />
+              <div className="absolute inset-0 bg-[radial-gradient(circle_at_20%_10%,rgba(255,255,255,0.16),transparent_32%),linear-gradient(120deg,rgba(255,255,255,0.08)_0%,transparent_36%,rgba(255,255,255,0.06)_74%,transparent_100%)]" />
+              <div className="absolute right-4 top-4 flex h-12 w-12 items-center justify-center rounded-[18px] border border-white/28 bg-white/14 text-white shadow-[0_10px_30px_rgba(0,0,0,0.18)] backdrop-blur-md transition-transform duration-300 group-hover:scale-105">
                 <ProfessionCardIcon
                   name={category.icon}
-                  className="h-10 w-10 drop-shadow-[0_4px_14px_rgba(0,0,0,0.35)]"
+                  className="h-7 w-7 drop-shadow-[0_4px_14px_rgba(0,0,0,0.35)]"
                 />
               </div>
               <div className="absolute bottom-5 left-5 right-5">
