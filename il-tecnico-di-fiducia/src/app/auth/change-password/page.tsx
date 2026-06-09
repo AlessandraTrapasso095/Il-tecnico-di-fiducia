@@ -73,7 +73,7 @@ export default function ChangePasswordPage() {
   }
 
   return (
-    <div className="mx-auto w-full max-w-md bg-surface-container-lowest rounded-[20px] p-6 shadow-[0_4px_20px_rgba(8,43,95,0.08)] border border-outline-variant/30">
+    <div className="mx-auto w-full max-w-[448px] bg-surface-container-lowest rounded-[20px] p-6 shadow-[0_4px_20px_rgba(8,43,95,0.08)] border border-outline-variant/30">
         <h1 className="font-headline-md text-headline-md text-primary mb-2">
           Aggiorna password
         </h1>

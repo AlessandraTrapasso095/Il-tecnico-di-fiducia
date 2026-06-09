@@ -1,10 +1,11 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Image from "next/image";
 import Link from "next/link";
 
 const navLinks = [
-  { href: "#esplora", label: "Esplora" },
+  { href: "#professioni", label: "Esplora" },
   { href: "#come-funziona", label: "Come funziona" },
   { href: "#professioni", label: "Professioni" },
   { href: "#supporto", label: "Supporto" },
@@ -24,7 +25,15 @@ export function TopNav() {
   return (
     <header className="fixed top-0 left-0 right-0 z-50 h-[100px] bg-surface-container-lowest/80 backdrop-blur-md shadow-sm">
       <div className="h-full w-full max-w-[1280px] mx-auto px-4 sm:px-6 lg:px-8 flex items-center justify-between gap-4">
-        <Link href="/" className="flex items-center gap-2 min-w-0">
+        <Link href="/" className="flex items-center gap-3 min-w-0">
+          <Image
+            src="/img/logo.png"
+            alt="Il Tecnico di Fiducia"
+            width={72}
+            height={48}
+            className="h-12 w-auto shrink-0 object-contain"
+            priority
+          />
           <span className="font-headline-sm text-headline-sm font-bold text-primary truncate">
             Il tecnico di fiducia
           </span>

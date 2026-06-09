@@ -697,7 +697,7 @@ export default function MessagesClient({
       >
         {!activeId ? (
           <div className="flex-1 flex items-center justify-center p-6">
-            <div className="max-w-md text-center">
+            <div className="max-w-[448px] text-center">
               <div className="text-headline-sm text-primary mb-2">
                 Seleziona una conversazione
               </div>
@@ -911,7 +911,7 @@ export default function MessagesClient({
                   className="absolute inset-0 bg-inverse-surface/40 backdrop-blur-sm"
                   onClick={() => setConfirmDeleteOpen(false)}
                 />
-                <div className="relative w-full max-w-md bg-surface-container-lowest rounded-2xl border border-outline-variant/30 shadow-[0_12px_40px_rgba(8,43,95,0.18)] p-6">
+                <div className="relative w-full max-w-[448px] bg-surface-container-lowest rounded-2xl border border-outline-variant/30 shadow-[0_12px_40px_rgba(8,43,95,0.18)] p-6">
                   <div className="font-headline-sm text-primary mb-2">
                     Cancellare la chat?
                   </div>

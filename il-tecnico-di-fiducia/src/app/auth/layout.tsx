@@ -28,7 +28,7 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
               </span>
             </Link>
 
-            <div className="max-w-xl text-balance">
+            <div className="w-full max-w-[560px] text-balance">
               <h2 className="font-display-lg text-display-lg text-on-primary mb-4">
                 Bentornato
               </h2>
@@ -39,7 +39,7 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
             </div>
           </div>
 
-          <div className="bg-white/15 backdrop-blur-md border border-white/20 p-4 rounded-2xl max-w-sm">
+          <div className="w-full max-w-[384px] bg-white/15 backdrop-blur-md border border-white/20 p-4 rounded-2xl">
             <p className="font-label-md text-label-md text-primary-fixed mb-1">
               CERTIFICAZIONE DI QUALITÀ
             </p>
@@ -51,7 +51,7 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
       </aside>
 
       <section className="min-w-0 bg-surface-container-low px-4 sm:px-6 lg:px-12 py-10 sm:py-12 flex flex-col justify-center">
-        <div className="mx-auto w-full max-w-2xl">
+        <div className="mx-auto w-full max-w-[672px]">
           <Link href="/" className="lg:hidden inline-flex items-center gap-3 mb-6 sm:mb-8">
             <div className="w-12 h-12 bg-primary rounded-full flex items-center justify-center">
               <span className="text-on-primary text-[28px] font-bold">✓</span>

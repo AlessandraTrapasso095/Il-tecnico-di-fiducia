@@ -23,11 +23,31 @@ function nextPathByRole(role: UserRole) {
   return "/customer";
 }
 
+function routeBelongsToRole(path: string, role: UserRole) {
+  const pathname = path.split(/[?#]/, 1)[0] || "/";
+  if (pathname === "/admin" || pathname.startsWith("/admin/")) return role === "admin";
+  if (pathname === "/professional" || pathname.startsWith("/professional/")) {
+    return role === "professional";
+  }
+  if (pathname === "/customer" || pathname.startsWith("/customer/")) return role === "customer";
+  return true;
+}
+
+function safeNextPath(raw: string | null | undefined, role: UserRole) {
+  if (!raw) return null;
+  if (!raw.startsWith("/") || raw.startsWith("//")) return null;
+  if (/[\r\n]/.test(raw)) return null;
+  if (raw === "/auth/login" || raw.startsWith("/auth/login?")) return null;
+  if (!routeBelongsToRole(raw, role)) return null;
+  return raw;
+}
+
 type LoginClientProps = {
   initialRole: "customer" | "professional";
+  nextPath?: string | null;
 };
 
-export default function LoginClient({ initialRole }: LoginClientProps) {
+export default function LoginClient({ initialRole, nextPath }: LoginClientProps) {
   const router = useRouter();
 
   const [roleHint, setRoleHint] = useState<"customer" | "professional">(initialRole);
@@ -54,7 +74,7 @@ export default function LoginClient({ initialRole }: LoginClientProps) {
         return;
       }
 
-      router.push(nextPathByRole(res.profile.role));
+      router.push(safeNextPath(nextPath, res.profile.role) ?? nextPathByRole(res.profile.role));
     } catch (err) {
       setError(err instanceof Error ? err.message : "Errore imprevisto.");
     } finally {

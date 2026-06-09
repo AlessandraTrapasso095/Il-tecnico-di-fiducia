@@ -113,6 +113,13 @@ function sanitizeQuery(raw: string) {
 
 type CustomerDashboardClientProps = {
   profile: CustomerProfileLite;
+  initialFilters?: {
+    q?: string;
+    provinceCode?: string;
+    categoryId?: string;
+    remote?: boolean;
+    travel?: boolean;
+  };
 };
 
 type ContactModalState = {
@@ -120,14 +127,21 @@ type ContactModalState = {
   professional: ProfessionalRow | null;
 };
 
-export default function CustomerDashboardClient({ profile }: CustomerDashboardClientProps) {
+export default function CustomerDashboardClient({
+  profile,
+  initialFilters,
+}: CustomerDashboardClientProps) {
   const router = useRouter();
 
-  const [q, setQ] = useState("");
-  const [provinceCode, setProvinceCode] = useState<string>("");
-  const [categoryId, setCategoryId] = useState<string>("");
-  const [remote, setRemote] = useState(false);
-  const [travel, setTravel] = useState(false);
+  const [q, setQ] = useState(() => initialFilters?.q ?? "");
+  const [provinceCode, setProvinceCode] = useState<string>(
+    () => initialFilters?.provinceCode ?? "",
+  );
+  const [categoryId, setCategoryId] = useState<string>(
+    () => initialFilters?.categoryId ?? "",
+  );
+  const [remote, setRemote] = useState(() => initialFilters?.remote ?? false);
+  const [travel, setTravel] = useState(() => initialFilters?.travel ?? false);
 
   const [provinces, setProvinces] = useState<Province[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
