@@ -8,10 +8,11 @@ import { useRouter } from "next/navigation";
 import { fetchJson } from "@/lib/api/fetch-json";
 
 type Category = {
-  id: number;
+  id: number | null;
   name: string;
   slug: string;
   image_url: string | null;
+  source?: "database" | "catalog";
 };
 
 type Province = {
@@ -21,6 +22,19 @@ type Province = {
 
 type CategoriesResponse = { categories: Category[] };
 type ProvincesResponse = { provinces: Province[] };
+
+const defaultCategories = [
+  { name: "Ingegneri", slug: "ingegneri" },
+  { name: "Architetti", slug: "architetti" },
+  { name: "Geometri", slug: "geometri" },
+  { name: "Informatici", slug: "informatici" },
+  { name: "Avvocati", slug: "avvocati" },
+  { name: "Elettricisti", slug: "elettricisti" },
+  { name: "Idraulici", slug: "idraulici" },
+  { name: "Termotecnici", slug: "termotecnici" },
+  { name: "Muratori", slug: "muratori" },
+  { name: "Fabbri", slug: "fabbri" },
+] satisfies Array<Pick<Category, "name" | "slug">>;
 
 const categoryImageBySlug: Record<string, string> = {
   architetti:
@@ -50,20 +64,58 @@ function safeImageUrl(category: Category) {
   return categoryImageBySlug[category.slug] || fallbackCategoryImage;
 }
 
-function selectedCategoryLabel(categories: Category[], categoryId: string) {
-  return categories.find((category) => String(category.id) === categoryId)?.name ?? "";
+function normalizeDbCategory(category: Category): Category {
+  return {
+    ...category,
+    source: "database",
+  };
+}
+
+function defaultCategory(slug: string, name: string): Category {
+  return {
+    id: null,
+    name,
+    slug,
+    image_url: categoryImageBySlug[slug] || null,
+    source: "catalog",
+  };
+}
+
+function mergeWithDefaultCategories(categories: Category[]) {
+  const normalized = categories.map(normalizeDbCategory);
+  const knownSlugs = new Set(normalized.map((category) => category.slug));
+  const fallback = defaultCategories
+    .filter((category) => !knownSlugs.has(category.slug))
+    .map((category) => defaultCategory(category.slug, category.name));
+
+  return [...normalized, ...fallback];
+}
+
+function categoryKey(category: Category) {
+  return category.id === null ? `catalog:${category.slug}` : `db:${category.id}`;
+}
+
+function selectedCategory(categories: Category[], selectedKey: string) {
+  return categories.find((category) => categoryKey(category) === selectedKey) ?? null;
 }
 
 function buildCustomerPath(input: {
-  categoryId: string;
+  category: Category | null;
   query: string;
   provinceCode: string;
   remote: boolean;
   travel: boolean;
 }) {
   const params = new URLSearchParams();
-  const q = input.query.replace(/\s+/g, " ").trim().slice(0, 64);
-  if (input.categoryId) params.set("category_id", input.categoryId);
+  const queryParts = [input.category?.id === null ? input.category.name : "", input.query]
+    .join(" ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, 64);
+  const q = queryParts;
+  if (input.category?.id !== null && input.category?.id !== undefined) {
+    params.set("category_id", String(input.category.id));
+  }
   if (q) params.set("q", q);
   if (input.provinceCode) params.set("province_code", input.provinceCode);
   if (input.remote) params.set("remote", "true");
@@ -79,38 +131,43 @@ export function ProfessionSearchFlow() {
 
   const [categories, setCategories] = useState<Category[]>([]);
   const [provinces, setProvinces] = useState<Province[]>([]);
-  const [categoryId, setCategoryId] = useState("");
+  const [selectedCategoryKey, setSelectedCategoryKey] = useState("");
   const [query, setQuery] = useState("");
   const [provinceCode, setProvinceCode] = useState("");
   const [remote, setRemote] = useState(false);
   const [travel, setTravel] = useState(false);
   const [showAll, setShowAll] = useState(false);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     let alive = true;
 
     async function loadOptions() {
       setLoading(true);
-      setError(null);
-      try {
-        const [categoriesRes, provincesRes] = await Promise.all([
-          fetchJson<CategoriesResponse>("/api/categories", { method: "GET" }),
-          fetchJson<ProvincesResponse>("/api/provinces", { method: "GET" }),
-        ]);
-        if (!alive) return;
-        setCategories(categoriesRes.categories ?? []);
-        setProvinces(provincesRes.provinces ?? []);
-      } catch (e) {
-        if (!alive) return;
-        setError(e instanceof Error ? e.message : "Impossibile caricare le categorie.");
-      } finally {
-        if (alive) setLoading(false);
-      }
+      const [categoriesResult, provincesResult] = await Promise.allSettled([
+        fetchJson<CategoriesResponse>("/api/categories", { method: "GET" }),
+        fetchJson<ProvincesResponse>("/api/provinces", { method: "GET" }),
+      ]);
+      if (!alive) return;
+
+      const loadedCategories =
+        categoriesResult.status === "fulfilled" ? categoriesResult.value.categories ?? [] : [];
+      const loadedProvinces =
+        provincesResult.status === "fulfilled" ? provincesResult.value.provinces ?? [] : [];
+
+      setCategories(mergeWithDefaultCategories(loadedCategories));
+      setProvinces(loadedProvinces);
+      setLoading(false);
     }
 
-    void loadOptions();
+    void loadOptions().catch(() => {
+      if (alive) {
+        setCategories(mergeWithDefaultCategories([]));
+        setProvinces([]);
+        setLoading(false);
+      }
+    });
+
     return () => {
       alive = false;
     };
@@ -121,10 +178,11 @@ export function ProfessionSearchFlow() {
     [categories, showAll],
   );
 
-  const categoryLabel = selectedCategoryLabel(categories, categoryId);
+  const currentCategory = selectedCategory(categories, selectedCategoryKey);
+  const categoryLabel = currentCategory?.name ?? "";
 
-  function selectCategory(nextCategoryId: string) {
-    setCategoryId(nextCategoryId);
+  function selectCategory(nextCategory: Category) {
+    setSelectedCategoryKey(categoryKey(nextCategory));
     window.requestAnimationFrame(() => {
       formRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
     });
@@ -133,7 +191,7 @@ export function ProfessionSearchFlow() {
   function submitSearch(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const customerPath = buildCustomerPath({
-      categoryId,
+      category: currentCategory,
       query,
       provinceCode,
       remote,
@@ -153,12 +211,6 @@ export function ProfessionSearchFlow() {
           disponibilità.
         </p>
       </div>
-
-      {error ? (
-        <div className="rounded-[20px] border border-error/20 bg-error-container p-5 text-on-error-container text-center">
-          {error}
-        </div>
-      ) : null}
 
       {loading ? (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -182,17 +234,17 @@ export function ProfessionSearchFlow() {
         <>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
             {visibleCategories.map((category) => {
-              const selected = String(category.id) === categoryId;
+              const selected = categoryKey(category) === selectedCategoryKey;
               return (
                 <button
-                  key={category.id}
+                  key={categoryKey(category)}
                   type="button"
                   className={[
                     "group relative h-[260px] rounded-[26px] overflow-hidden shadow-md text-left",
                     "focus:outline-none focus:ring-4 focus:ring-on-tertiary-container/30",
                     selected ? "ring-4 ring-on-tertiary-container" : "",
                   ].join(" ")}
-                  onClick={() => selectCategory(String(category.id))}
+                  onClick={() => selectCategory(category)}
                 >
                   <Image
                     src={safeImageUrl(category)}
@@ -255,12 +307,12 @@ export function ProfessionSearchFlow() {
             </span>
             <select
               className="w-full px-4 py-3 bg-surface-container-lowest border border-outline-variant rounded-xl focus:ring-2 focus:ring-primary focus:border-primary outline-none transition-all font-body-md text-body-md"
-              value={categoryId}
-              onChange={(event) => setCategoryId(event.target.value)}
+              value={selectedCategoryKey}
+              onChange={(event) => setSelectedCategoryKey(event.target.value)}
             >
               <option value="">Tutte le categorie</option>
               {categories.map((category) => (
-                <option key={category.id} value={String(category.id)}>
+                <option key={categoryKey(category)} value={categoryKey(category)}>
                   {category.name}
                 </option>
               ))}

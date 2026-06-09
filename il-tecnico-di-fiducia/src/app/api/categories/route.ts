@@ -11,12 +11,8 @@ export async function GET() {
     .order("name", { ascending: true });
 
   if (error) {
-    return NextResponse.json(
-      { error: "Failed to load categories" },
-      { status: 500 },
-    );
+    return NextResponse.json({ categories: [] });
   }
 
   return NextResponse.json({ categories: data ?? [] });
 }
-

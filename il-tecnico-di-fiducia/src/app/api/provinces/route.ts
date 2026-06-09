@@ -11,12 +11,8 @@ export async function GET() {
     .order("name", { ascending: true });
 
   if (error) {
-    return NextResponse.json(
-      { error: "Failed to load provinces" },
-      { status: 500 },
-    );
+    return NextResponse.json({ provinces: [] });
   }
 
   return NextResponse.json({ provinces: data ?? [] });
 }
-
