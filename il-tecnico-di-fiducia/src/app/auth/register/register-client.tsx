@@ -5,10 +5,15 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 
 import { fetchJson } from "@/lib/api/fetch-json";
+import {
+  ITALIAN_PROVINCES_BY_NAME,
+  normalizeItalianProvinceCode,
+  type ItalianProvince,
+} from "@/lib/locations/italian-provinces";
 
 type Role = "customer" | "professional";
 
-type ProvincesResponse = { provinces: { code: string; name: string }[] };
+type ProvincesResponse = { provinces: ItalianProvince[] };
 
 type SignUpResponse = {
   ok: true;
@@ -55,7 +60,7 @@ export default function RegisterClient({ initialRole }: RegisterClientProps) {
 
   const [otp, setOtp] = useState("");
 
-  const [provinces, setProvinces] = useState<{ code: string; name: string }[]>([]);
+  const [provinces, setProvinces] = useState<ItalianProvince[]>(ITALIAN_PROVINCES_BY_NAME);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [otpError, setOtpError] = useState<string | null>(null);
@@ -68,7 +73,9 @@ export default function RegisterClient({ initialRole }: RegisterClientProps) {
     fetchJson<ProvincesResponse>("/api/provinces", { method: "GET" })
       .then((res) => {
         if (!mounted) return;
-        setProvinces(res.provinces ?? []);
+        if (Array.isArray(res.provinces) && res.provinces.length > 0) {
+          setProvinces(res.provinces);
+        }
       })
       .catch(() => {
         // optional
@@ -83,6 +90,13 @@ export default function RegisterClient({ initialRole }: RegisterClientProps) {
     setError(null);
     setOtpError(null);
     setOtpInfo(null);
+
+    const normalizedProvinceCode = normalizeItalianProvinceCode(provinceCode);
+    if (!normalizedProvinceCode) {
+      setError("Seleziona la tua provincia.");
+      return;
+    }
+
     setLoading(true);
 
     try {
@@ -94,7 +108,7 @@ export default function RegisterClient({ initialRole }: RegisterClientProps) {
           password,
           first_name: firstName,
           last_name: lastName,
-          province_code: provinceCode || null,
+          province_code: normalizedProvinceCode,
           phone: phone || null,
           accept_terms: acceptTerms,
         }),
@@ -262,8 +276,9 @@ export default function RegisterClient({ initialRole }: RegisterClientProps) {
                   className="w-full px-4 py-3 bg-surface-container-lowest border border-outline-variant rounded-xl focus:ring-2 focus:ring-primary focus:border-primary outline-none transition-all font-body-md text-body-md"
                   value={provinceCode}
                   onChange={(e) => setProvinceCode(e.target.value)}
+                  required
                 >
-                  <option value="">Seleziona la tua provincia</option>
+                  <option value="">Seleziona provincia</option>
                   {provinces.map((p) => (
                     <option key={p.code} value={p.code}>
                       {p.name}

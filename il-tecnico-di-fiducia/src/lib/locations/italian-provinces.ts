@@ -112,3 +112,16 @@ export const ITALIAN_PROVINCES: ItalianProvince[] = [
   { code: "VT", name: "Viterbo" },
   { code: "VV", name: "Vibo Valentia" },
 ];
+
+const italianProvinceCollator = new Intl.Collator("it");
+
+export const ITALIAN_PROVINCES_BY_NAME = [...ITALIAN_PROVINCES].sort((left, right) =>
+  italianProvinceCollator.compare(left.name, right.name),
+);
+
+const ITALIAN_PROVINCE_CODES = new Set(ITALIAN_PROVINCES.map((province) => province.code));
+
+export function normalizeItalianProvinceCode(code: string | null | undefined) {
+  const normalized = code?.trim().toUpperCase() ?? "";
+  return ITALIAN_PROVINCE_CODES.has(normalized) ? normalized : null;
+}

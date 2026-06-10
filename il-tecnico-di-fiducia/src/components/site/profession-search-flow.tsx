@@ -6,7 +6,10 @@ import Image from "next/image";
 import { useRouter } from "next/navigation";
 
 import { fetchJson } from "@/lib/api/fetch-json";
-import { ITALIAN_PROVINCES, type ItalianProvince } from "@/lib/locations/italian-provinces";
+import {
+  ITALIAN_PROVINCES_BY_NAME,
+  type ItalianProvince,
+} from "@/lib/locations/italian-provinces";
 import {
   CATEGORY_IMAGE_FALLBACK,
   findProfessionCategory,
@@ -56,7 +59,7 @@ export function ProfessionSearchFlow() {
   const [categories, setCategories] = useState<ProfessionCategory[]>(() =>
     mergeProfessionCategories([]),
   );
-  const [provinces, setProvinces] = useState<ItalianProvince[]>(ITALIAN_PROVINCES);
+  const [provinces, setProvinces] = useState<ItalianProvince[]>(ITALIAN_PROVINCES_BY_NAME);
   const [selectedCategoryKey, setSelectedCategoryKey] = useState("");
   const [selectedSubcategorySlug, setSelectedSubcategorySlug] = useState("");
   const [provinceCode, setProvinceCode] = useState("");

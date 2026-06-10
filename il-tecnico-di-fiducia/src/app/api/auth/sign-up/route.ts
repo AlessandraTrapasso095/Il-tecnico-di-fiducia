@@ -6,6 +6,7 @@ import {
   hashRateLimitId,
 } from "@/lib/api/rate-limit";
 import { isNonEmptyString } from "@/lib/api/validation";
+import { normalizeItalianProvinceCode } from "@/lib/locations/italian-provinces";
 import { createClient } from "@/lib/supabase/server";
 
 type SignUpPayload = {
@@ -14,7 +15,7 @@ type SignUpPayload = {
   password: string;
   first_name: string;
   last_name: string;
-  province_code?: string | null;
+  province_code: string;
   phone?: string | null;
   accept_terms: boolean;
 };
@@ -80,6 +81,16 @@ export async function POST(request: Request) {
     );
   }
 
+  if (!isNonEmptyString(payload.province_code)) {
+    return NextResponse.json({ error: "Province is required" }, { status: 400 });
+  }
+
+  const rawProvinceCode = payload.province_code.trim();
+  const provinceCode = normalizeItalianProvinceCode(rawProvinceCode);
+  if (!provinceCode) {
+    return NextResponse.json({ error: "Invalid province" }, { status: 400 });
+  }
+
   const { data, error } = await supabase.auth.signUp({
     email: payload.email.trim(),
     password: payload.password,
@@ -88,7 +99,7 @@ export async function POST(request: Request) {
         role: payload.role,
         first_name: payload.first_name.trim(),
         last_name: payload.last_name.trim(),
-        province_code: payload.province_code ?? null,
+        province_code: provinceCode,
         phone: payload.phone ?? null,
       },
     },
