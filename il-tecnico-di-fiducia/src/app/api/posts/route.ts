@@ -87,6 +87,8 @@ export async function GET(request: NextRequest) {
   }
 
   const authorIdSet = Array.from(new Set((posts ?? []).map((p) => p.author_id)));
+  const postIds = (posts ?? []).map((p) => p.id);
+
   const { data: authors } =
     authorIdSet.length > 0
       ? await supabase
@@ -95,7 +97,33 @@ export async function GET(request: NextRequest) {
           .in("id", authorIdSet)
       : { data: [] };
 
+  const [{ data: likes }, { data: comments }] =
+    postIds.length > 0
+      ? await Promise.all([
+          supabase.from("post_likes").select("post_id, user_id").in("post_id", postIds),
+          supabase.from("post_comments").select("post_id").in("post_id", postIds),
+        ])
+      : [{ data: [] }, { data: [] }];
+
   const authorsById = new Map((authors ?? []).map((a) => [a.id, a]));
+  const likesCountByPostId = new Map<string, number>();
+  const commentsCountByPostId = new Map<string, number>();
+  const likedByMe = new Set<string>();
+
+  for (const like of likes ?? []) {
+    likesCountByPostId.set(
+      like.post_id,
+      (likesCountByPostId.get(like.post_id) ?? 0) + 1,
+    );
+    if (like.user_id === user.id) likedByMe.add(like.post_id);
+  }
+
+  for (const comment of comments ?? []) {
+    commentsCountByPostId.set(
+      comment.post_id,
+      (commentsCountByPostId.get(comment.post_id) ?? 0) + 1,
+    );
+  }
 
   return NextResponse.json({
     page,
@@ -103,6 +131,9 @@ export async function GET(request: NextRequest) {
     posts: (posts ?? []).map((p) => ({
       ...p,
       author: authorsById.get(p.author_id) ?? null,
+      likes_count: likesCountByPostId.get(p.id) ?? 0,
+      comments_count: commentsCountByPostId.get(p.id) ?? 0,
+      liked_by_me: likedByMe.has(p.id),
     })),
   });
 }

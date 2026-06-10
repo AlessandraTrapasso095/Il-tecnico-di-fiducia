@@ -37,8 +37,8 @@ export async function POST(request: Request) {
           professional_id: user.id,
         },
       },
-      success_url: `${baseUrl}/?billing=success&session_id={CHECKOUT_SESSION_ID}`,
-      cancel_url: `${baseUrl}/?billing=cancel`,
+      success_url: `${baseUrl}/professionista/impostazioni/abbonamento?billing=success&session_id={CHECKOUT_SESSION_ID}`,
+      cancel_url: `${baseUrl}/professionista/impostazioni/abbonamento?billing=cancel`,
     });
   } catch (err) {
     const message =
