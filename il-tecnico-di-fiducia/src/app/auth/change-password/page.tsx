@@ -4,17 +4,12 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 
 import { fetchJson } from "@/lib/api/fetch-json";
+import { nextPathByRole } from "@/lib/routes/role-paths";
 
 type MeResponse = {
   user: { id: string; email: string | null };
   profile: { id: string; role: "customer" | "professional" | "admin"; must_change_password: boolean };
 };
-
-function nextPathByRole(role: MeResponse["profile"]["role"]) {
-  if (role === "admin") return "/admin";
-  if (role === "professional") return "/professional";
-  return "/customer";
-}
 
 export default function ChangePasswordPage() {
   const router = useRouter();

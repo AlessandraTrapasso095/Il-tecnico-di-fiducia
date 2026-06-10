@@ -10,6 +10,7 @@ import {
   normalizeItalianProvinceCode,
   type ItalianProvince,
 } from "@/lib/locations/italian-provinces";
+import { nextPathByRole } from "@/lib/routes/role-paths";
 
 type Role = "customer" | "professional";
 
@@ -32,12 +33,6 @@ function normalizeEmail(raw: string) {
 
 function normalizeOtp(raw: string) {
   return raw.replace(/\s+/g, "").trim();
-}
-
-function nextPathByRole(role: string) {
-  if (role === "admin") return "/admin";
-  if (role === "professional") return "/professional";
-  return "/customer";
 }
 
 type RegisterClientProps = {

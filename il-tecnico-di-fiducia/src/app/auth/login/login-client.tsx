@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 
 import { fetchJson } from "@/lib/api/fetch-json";
+import { nextPathByRole, routeBelongsToRole } from "@/lib/routes/role-paths";
 
 type UserRole = "customer" | "professional" | "admin";
 
@@ -15,22 +16,6 @@ type SignInResponse = {
 
 function normalizeEmail(raw: string) {
   return raw.trim().toLowerCase();
-}
-
-function nextPathByRole(role: UserRole) {
-  if (role === "admin") return "/admin";
-  if (role === "professional") return "/professional";
-  return "/customer";
-}
-
-function routeBelongsToRole(path: string, role: UserRole) {
-  const pathname = path.split(/[?#]/, 1)[0] || "/";
-  if (pathname === "/admin" || pathname.startsWith("/admin/")) return role === "admin";
-  if (pathname === "/professional" || pathname.startsWith("/professional/")) {
-    return role === "professional";
-  }
-  if (pathname === "/customer" || pathname.startsWith("/customer/")) return role === "customer";
-  return true;
 }
 
 function safeNextPath(raw: string | null | undefined, role: UserRole) {

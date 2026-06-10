@@ -4,6 +4,7 @@ import type { SupabaseClient, User } from "@supabase/supabase-js";
 import { redirect } from "next/navigation";
 
 import type { UserRole, ViewerProfile } from "@/lib/api/auth";
+import { nextPathByRole } from "@/lib/routes/role-paths";
 import { createClient } from "@/lib/supabase/server";
 
 export type PageAuthContext = {
@@ -16,12 +17,6 @@ type RequirePageAuthOptions = {
   allowedRoles?: UserRole[];
   allowMustChangePassword?: boolean;
 };
-
-function nextPathByRole(role: UserRole) {
-  if (role === "admin") return "/admin";
-  if (role === "professional") return "/professional";
-  return "/customer";
-}
 
 export async function requirePageAuth(
   options: RequirePageAuthOptions = {},
@@ -68,4 +63,3 @@ export async function requirePageAuth(
 
   return { supabase, user, profile: profile as ViewerProfile };
 }
-

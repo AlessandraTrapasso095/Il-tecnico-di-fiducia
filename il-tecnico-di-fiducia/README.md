@@ -14,6 +14,62 @@ Copy `.env.example` to `.env.local` and fill the values:
 
 Migrations live in `supabase/migrations/` and reference data lives in `supabase/seed/`.
 
+### Supabase Auth emails
+
+Supabase sends authentication emails from the default "Supabase Auth" sender until
+custom SMTP is enabled in the Supabase dashboard. This cannot be changed from the
+Next.js codebase alone.
+
+Required production sender:
+
+- Sender name: `Il Tecnico di Fiducia`
+- Sender email: `info@iltecnicodifiducia.it`
+
+Manual Supabase configuration:
+
+1. Open Supabase Dashboard.
+2. Select the project.
+3. Go to `Authentication` → `Settings` → `SMTP Settings` / `Custom SMTP`.
+4. Enable custom SMTP.
+5. Configure:
+   - `Sender email` / `Admin email`: `info@iltecnicodifiducia.it`
+   - `Sender name`: `Il Tecnico di Fiducia`
+   - `SMTP host`: value from the email provider
+   - `SMTP port`: usually `587` with STARTTLS, or provider-specific value
+   - `SMTP user`: value from the email provider
+   - `SMTP password`: value from the email provider
+6. Save and send a test email from Supabase.
+7. Go to `Authentication` → `Email Templates` and update these templates:
+   - `Confirm signup`
+   - `Reset password`
+   - `Magic Link / OTP` if enabled
+   - `Invite user` if admins invite users
+
+Recommended SMTP providers:
+
+- Resend, Postmark, AWS SES, SendGrid, Brevo, or any provider supporting SMTP.
+- Prefer a transactional email provider, not a personal mailbox.
+
+DNS records to configure on `iltecnicodifiducia.it`:
+
+- SPF: TXT record required by the SMTP provider.
+- DKIM: TXT/CNAME records required by the SMTP provider.
+- DMARC: TXT record on `_dmarc.iltecnicodifiducia.it`, for example:
+  `v=DMARC1; p=none; rua=mailto:info@iltecnicodifiducia.it`
+- Optional bounce/return-path records if requested by the provider.
+
+After DNS verification, repeat tests for:
+
+- Signup OTP email.
+- Resend OTP email.
+- Password reset email.
+- Admin-created user confirmation/reset emails.
+
+References:
+
+- Supabase custom SMTP: https://supabase.com/docs/guides/auth/auth-smtp
+- Supabase email templates: https://supabase.com/docs/guides/auth/auth-email-templates
+
 First, run the development server:
 
 ```bash
