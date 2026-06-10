@@ -5,6 +5,7 @@ import {
   getClientIp,
   hashRateLimitId,
 } from "@/lib/api/rate-limit";
+import { mapSupabaseAuthError } from "@/lib/api/auth-errors";
 import { getRequestBaseUrl } from "@/lib/api/base-url";
 import { isNonEmptyString } from "@/lib/api/validation";
 import { createClient } from "@/lib/supabase/server";
@@ -22,7 +23,7 @@ export async function POST(request: Request) {
     key: `v1:auth:reset:ip:${ip}`,
     maxHits: 10,
     windowSeconds: 600,
-    errorMessage: "Too many requests. Please try again later.",
+    errorMessage: "IP password reset rate limit exceeded. Please try again later.",
   });
   if (ipLimited) return ipLimited;
 
@@ -44,14 +45,14 @@ export async function POST(request: Request) {
     key: `v1:auth:reset:email:${emailHash}`,
     maxHits: 3,
     windowSeconds: 600,
-    errorMessage: "Too many requests for this email. Please try again later.",
+    errorMessage: "Email password reset rate limit exceeded. Please try again later.",
   });
   if (emailLimited) return emailLimited;
 
   const redirectTo = `${getRequestBaseUrl(request)}/auth/callback?next=/auth/reset-password`;
   const { error } = await supabase.auth.resetPasswordForEmail(email, { redirectTo });
   if (error) {
-    return NextResponse.json({ error: error.message }, { status: 400 });
+    return NextResponse.json({ error: mapSupabaseAuthError(error.message) }, { status: 400 });
   }
 
   return NextResponse.json({ ok: true });

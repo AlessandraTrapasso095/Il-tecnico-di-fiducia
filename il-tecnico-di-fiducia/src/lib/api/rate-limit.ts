@@ -51,6 +51,10 @@ export async function enforceRateLimit({
   windowSeconds,
   errorMessage = "Too many requests",
 }: EnforceRateLimitArgs): Promise<NextResponse | null> {
+  if (process.env.NODE_ENV !== "production") {
+    return null;
+  }
+
   const builder = supabase.rpc("rate_limit_check", {
     p_key: key,
     p_max_hits: maxHits,

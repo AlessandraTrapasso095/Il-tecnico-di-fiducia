@@ -26,7 +26,7 @@ export async function POST(request: Request) {
     key: `v1:auth:confirm_otp:ip:${ip}`,
     maxHits: 20,
     windowSeconds: 600,
-    errorMessage: "Too many verification attempts. Please try again later.",
+    errorMessage: "IP OTP verification rate limit exceeded. Please try again later.",
   });
   if (ipLimited) return ipLimited;
 
@@ -51,7 +51,7 @@ export async function POST(request: Request) {
     key: `v1:auth:confirm_otp:email:${emailHash}`,
     maxHits: 10,
     windowSeconds: 600,
-    errorMessage: "Too many verification attempts for this email. Please try again later.",
+    errorMessage: "Email OTP verification rate limit exceeded. Please try again later.",
   });
   if (emailLimited) return emailLimited;
 

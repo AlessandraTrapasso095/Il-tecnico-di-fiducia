@@ -5,6 +5,7 @@ import {
   getClientIp,
   hashRateLimitId,
 } from "@/lib/api/rate-limit";
+import { mapSupabaseAuthError } from "@/lib/api/auth-errors";
 import { isNonEmptyString } from "@/lib/api/validation";
 import { normalizeItalianProvinceCode } from "@/lib/locations/italian-provinces";
 import { createClient } from "@/lib/supabase/server";
@@ -20,14 +21,6 @@ type SignUpPayload = {
   accept_terms: boolean;
 };
 
-function mapSignUpError(message: string) {
-  if (message === "Database error saving new user") {
-    return "Unable to complete signup. Check Supabase profile trigger and province seed.";
-  }
-
-  return message;
-}
-
 export async function POST(request: Request) {
   const supabase = await createClient();
 
@@ -38,7 +31,7 @@ export async function POST(request: Request) {
     key: `v1:auth:signup:ip:${ip}`,
     maxHits: 8,
     windowSeconds: 60,
-    errorMessage: "Too many signup attempts. Please try again later.",
+    errorMessage: "IP signup rate limit exceeded. Please try again later.",
   });
   if (ipLimited) return ipLimited;
 
@@ -75,7 +68,7 @@ export async function POST(request: Request) {
     key: `v1:auth:signup:email:${emailHash}`,
     maxHits: 3,
     windowSeconds: 600,
-    errorMessage: "Too many signup attempts for this email. Please try again later.",
+    errorMessage: "Email signup rate limit exceeded. Please try again later.",
   });
   if (emailLimited) return emailLimited;
 
@@ -134,7 +127,7 @@ export async function POST(request: Request) {
   });
 
   if (error) {
-    return NextResponse.json({ error: mapSignUpError(error.message) }, { status: 400 });
+    return NextResponse.json({ error: mapSupabaseAuthError(error.message) }, { status: 400 });
   }
 
   // Enforce "Confirm email" flow: session must be null until OTP confirmation.

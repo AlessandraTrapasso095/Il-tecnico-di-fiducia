@@ -5,6 +5,7 @@ import {
   getClientIp,
   hashRateLimitId,
 } from "@/lib/api/rate-limit";
+import { mapSupabaseAuthError } from "@/lib/api/auth-errors";
 import { isNonEmptyString } from "@/lib/api/validation";
 import { createClient } from "@/lib/supabase/server";
 
@@ -21,7 +22,7 @@ export async function POST(request: Request) {
     key: `v1:auth:resend_otp:ip:${ip}`,
     maxHits: 10,
     windowSeconds: 600,
-    errorMessage: "Too many requests. Please try again later.",
+    errorMessage: "IP OTP resend rate limit exceeded. Please try again later.",
   });
   if (ipLimited) return ipLimited;
 
@@ -43,7 +44,7 @@ export async function POST(request: Request) {
     key: `v1:auth:resend_otp:email:${emailHash}`,
     maxHits: 3,
     windowSeconds: 600,
-    errorMessage: "Too many OTP resend requests for this email. Please try again later.",
+    errorMessage: "Email OTP resend rate limit exceeded. Please try again later.",
   });
   if (emailLimited) return emailLimited;
 
@@ -53,7 +54,7 @@ export async function POST(request: Request) {
   });
 
   if (error) {
-    return NextResponse.json({ error: error.message }, { status: 400 });
+    return NextResponse.json({ error: mapSupabaseAuthError(error.message) }, { status: 400 });
   }
 
   return NextResponse.json({ ok: true });
