@@ -20,6 +20,14 @@ type SignUpPayload = {
   accept_terms: boolean;
 };
 
+function mapSignUpError(message: string) {
+  if (message === "Database error saving new user") {
+    return "Unable to complete signup. Check Supabase profile trigger and province seed.";
+  }
+
+  return message;
+}
+
 export async function POST(request: Request) {
   const supabase = await createClient();
 
@@ -91,6 +99,26 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Invalid province" }, { status: 400 });
   }
 
+  const { data: province, error: provinceError } = await supabase
+    .from("provinces")
+    .select("code")
+    .eq("code", provinceCode)
+    .maybeSingle();
+
+  if (provinceError) {
+    return NextResponse.json(
+      { error: "Unable to validate province" },
+      { status: 500 },
+    );
+  }
+
+  if (!province) {
+    return NextResponse.json(
+      { error: "Selected province is not configured in Supabase" },
+      { status: 400 },
+    );
+  }
+
   const { data, error } = await supabase.auth.signUp({
     email: payload.email.trim(),
     password: payload.password,
@@ -106,7 +134,7 @@ export async function POST(request: Request) {
   });
 
   if (error) {
-    return NextResponse.json({ error: error.message }, { status: 400 });
+    return NextResponse.json({ error: mapSignUpError(error.message) }, { status: 400 });
   }
 
   // Enforce "Confirm email" flow: session must be null until OTP confirmation.
