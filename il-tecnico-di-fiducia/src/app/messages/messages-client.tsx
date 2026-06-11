@@ -23,6 +23,7 @@ type MessagesClientProps = {
   initialConversations: ConversationRow[];
   initialConversationsError?: string | null;
   initialActiveConversationId?: string | null;
+  embedded?: boolean;
 };
 
 type ContactRequestSummary = {
@@ -32,6 +33,16 @@ type ContactRequestSummary = {
   responded_at: string | null;
   created_at: string;
   updated_at: string;
+};
+
+type RequestAttachment = {
+  path: string;
+  signed_url: string;
+  expires_at: string;
+};
+
+type AttachmentsResponse = {
+  attachments: RequestAttachment[];
 };
 
 type PresencePayload = {
@@ -69,7 +80,7 @@ function formatDay(iso: string) {
   }).format(d);
 }
 
-function statusLabel(status: RequestStatus) {
+function statusLabel(status: string | null | undefined) {
   switch (status) {
     case "pending":
       return "In attesa";
@@ -77,12 +88,16 @@ function statusLabel(status: RequestStatus) {
       return "Accettata";
     case "rejected":
       return "Rifiutata";
+    case "concluded":
+    case "closed":
+    case "completed":
+      return "Conclusa";
     default:
-      return status;
+      return status ?? "Sconosciuto";
   }
 }
 
-function statusBadgeClass(status: RequestStatus) {
+function statusBadgeClass(status: string | null | undefined) {
   switch (status) {
     case "pending":
       return "bg-tertiary-fixed text-on-tertiary-fixed-variant";
@@ -90,9 +105,26 @@ function statusBadgeClass(status: RequestStatus) {
       return "bg-primary-fixed text-on-primary-fixed-variant";
     case "rejected":
       return "bg-error-container text-on-error-container";
+    case "concluded":
+    case "closed":
+    case "completed":
+      return "bg-surface-container-high text-on-surface-variant";
     default:
       return "bg-surface-container-highest text-on-surface-variant";
   }
+}
+
+function isReadOnlyStatus(status: string | null | undefined) {
+  return (
+    status === "rejected" ||
+    status === "concluded" ||
+    status === "closed" ||
+    status === "completed"
+  );
+}
+
+function fileNameFromPath(path: string) {
+  return decodeURIComponent(path.split("/").pop() ?? "allegato");
 }
 
 function sortConversations(rows: ConversationRow[]) {
@@ -109,6 +141,7 @@ export default function MessagesClient({
   initialConversations,
   initialConversationsError,
   initialActiveConversationId,
+  embedded = false,
 }: MessagesClientProps) {
   const supabase = useMemo(() => createClient(), []);
 
@@ -132,10 +165,12 @@ export default function MessagesClient({
     null,
   );
   const [messages, setMessages] = useState<MessageRow[]>([]);
+  const [attachments, setAttachments] = useState<RequestAttachment[]>([]);
   const [messagesError, setMessagesError] = useState<string | null>(null);
   const [draft, setDraft] = useState("");
   const [sendError, setSendError] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
+  const [uploadingAttachment, setUploadingAttachment] = useState(false);
 
   const [menuOpen, setMenuOpen] = useState(false);
   const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
@@ -158,7 +193,8 @@ export default function MessagesClient({
     if (!q) return true;
     const name = fullName(c.participant).toLowerCase();
     const last = (c.last_message_body ?? "").toLowerCase();
-    return name.includes(q) || last.includes(q);
+    const subject = (c.request_subject ?? "").toLowerCase();
+    return name.includes(q) || last.includes(q) || subject.includes(q);
   });
 
   function scrollToBottom() {
@@ -185,7 +221,11 @@ export default function MessagesClient({
         if (prev.some((c) => c.id === id)) return prev;
         return sortConversations([
           ...prev,
-          { ...detail.conversation, participant: detail.participant ?? null },
+          {
+            ...detail.conversation,
+            participant: detail.participant ?? null,
+            request_subject: detail.request?.subject ?? null,
+          },
         ]);
       });
       setConversationsError(null);
@@ -201,9 +241,24 @@ export default function MessagesClient({
       });
       setActiveDetail(detail);
       setMessagesError(null);
+
+      if (detail.request?.id) {
+        try {
+          const attachmentData = await fetchJson<AttachmentsResponse>(
+            `/api/contact-requests/${detail.request.id}/attachments`,
+            { method: "GET" },
+          );
+          setAttachments(attachmentData.attachments ?? []);
+        } catch {
+          setAttachments([]);
+        }
+      } else {
+        setAttachments([]);
+      }
     } catch (e) {
       setActiveDetail(null);
       setMessages([]);
+      setAttachments([]);
       setMessagesError(e instanceof Error ? e.message : "Errore imprevisto.");
       return;
     }
@@ -254,6 +309,7 @@ export default function MessagesClient({
 
   async function sendMessage() {
     if (!activeId || !draft.trim()) return;
+    if (!chatEnabled) return;
     setSendError(null);
     setSending(true);
     try {
@@ -458,6 +514,7 @@ export default function MessagesClient({
     setActiveId(id);
     setActiveDetail(null);
     setMessages([]);
+    setAttachments([]);
     setMessagesError(null);
     setSendError(null);
     setDeleteError(null);
@@ -589,12 +646,53 @@ export default function MessagesClient({
   const activeConvListRow = activeId
     ? conversations.find((c) => c.id === activeId) ?? null
     : null;
+  const currentRequestStatus =
+    activeDetail?.request?.status ??
+    activeDetail?.conversation.status ??
+    activeConvListRow?.status ??
+    null;
+  const chatEnabled = currentRequestStatus === "accepted";
+  const chatReadOnly = isReadOnlyStatus(currentRequestStatus);
+
+  async function uploadAttachments(files: FileList | null) {
+    const requestId = activeDetail?.request?.id ?? null;
+    if (!requestId || !files || files.length === 0) return;
+
+    setUploadingAttachment(true);
+    setSendError(null);
+    try {
+      const formData = new FormData();
+      Array.from(files).forEach((file) => formData.append("files", file));
+      const response = await fetch(`/api/contact-requests/${requestId}/attachments`, {
+        method: "POST",
+        body: formData,
+      });
+      const payload = (await response.json().catch(() => ({}))) as { error?: string };
+      if (!response.ok) {
+        throw new Error(payload.error ?? "Impossibile caricare gli allegati.");
+      }
+      const attachmentData = await fetchJson<AttachmentsResponse>(
+        `/api/contact-requests/${requestId}/attachments`,
+        { method: "GET" },
+      );
+      setAttachments(attachmentData.attachments ?? []);
+    } catch (e) {
+      setSendError(e instanceof Error ? e.message : "Errore imprevisto.");
+    } finally {
+      setUploadingAttachment(false);
+    }
+  }
 
   const showListOnMobile = mobilePanel === "list";
   const showChatOnMobile = mobilePanel === "chat";
 
   return (
-    <main className="h-screen flex flex-col md:flex-row overflow-hidden bg-background">
+    <main
+      className={[
+        embedded ? "h-[calc(100vh-80px)]" : "h-screen",
+        "flex flex-col overflow-hidden bg-background md:flex-row",
+      ].join(" ")}
+    >
       <section
         className={[
           showListOnMobile ? "flex" : "hidden",
@@ -665,7 +763,7 @@ export default function MessagesClient({
                         {fullName(c.participant)}
                       </div>
                       <div className="text-[12px] text-on-surface-variant truncate">
-                        {c.last_message_body ?? "—"}
+                        {c.last_message_body ?? c.request_subject ?? "Richiesta di contatto"}
                       </div>
                     </div>
                     <div className="shrink-0 text-[10px] text-outline">
@@ -832,6 +930,40 @@ export default function MessagesClient({
                 </div>
               ) : null}
 
+              {!chatEnabled && activeDetail?.request ? (
+                <div className="mx-auto max-w-[640px] rounded-2xl border border-outline-variant/30 bg-surface-container-lowest p-4 text-sm text-on-surface-variant shadow-sm">
+                  {activeDetail.request.status === "pending"
+                    ? "La richiesta è in attesa: accettala per abilitare la chat."
+                    : chatReadOnly
+                      ? "Questa richiesta non è più modificabile: la chat è in sola lettura."
+                      : "La chat sarà disponibile quando la richiesta verrà accettata."}
+                </div>
+              ) : null}
+
+              {attachments.length > 0 ? (
+                <div className="mx-auto max-w-[720px] rounded-2xl border border-outline-variant/30 bg-surface-container-lowest p-4 shadow-sm">
+                  <div className="mb-3 text-[11px] font-bold uppercase tracking-widest text-on-surface-variant">
+                    Allegati condivisi
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    {attachments.map((attachment) => (
+                      <a
+                        key={attachment.path}
+                        href={attachment.signed_url}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="inline-flex max-w-full items-center gap-2 rounded-full bg-primary-fixed px-3 py-2 text-sm font-bold text-on-primary-fixed-variant hover:underline"
+                      >
+                        <span className="material-symbols-outlined text-[18px]">
+                          attach_file
+                        </span>
+                        <span className="truncate">{fileNameFromPath(attachment.path)}</span>
+                      </a>
+                    ))}
+                  </div>
+                </div>
+              ) : null}
+
               {messages.map((m) => {
                 const mine = meId ? m.sender_id === meId : false;
                 return (
@@ -882,19 +1014,46 @@ export default function MessagesClient({
                   void sendMessage();
                 }}
               >
+                <label
+                  className={[
+                    "flex h-12 w-12 shrink-0 cursor-pointer items-center justify-center rounded-full border border-outline-variant/40 text-primary transition-colors",
+                    chatEnabled
+                      ? "hover:bg-surface-container-low"
+                      : "cursor-not-allowed opacity-50",
+                  ].join(" ")}
+                  title="Allega file"
+                >
+                  <span className="material-symbols-outlined">attach_file</span>
+                  <input
+                    type="file"
+                    className="sr-only"
+                    multiple
+                    disabled={!chatEnabled || uploadingAttachment}
+                    accept="image/png,image/jpeg,image/webp,video/mp4,video/quicktime"
+                    onChange={(event) => {
+                      void uploadAttachments(event.target.files);
+                      event.target.value = "";
+                    }}
+                  />
+                </label>
                 <textarea
                   className="flex-1 px-4 py-3 bg-surface-container-low border border-outline-variant rounded-2xl focus:ring-2 focus:ring-primary focus:border-primary outline-none text-body-md resize-none min-h-[48px] max-h-[140px] transition-all"
-                  placeholder="Scrivi un messaggio…"
+                  placeholder={
+                    chatEnabled
+                      ? "Scrivi un messaggio…"
+                      : "Accetta la richiesta per abilitare la chat"
+                  }
                   value={draft}
                   onChange={(e) => onDraftChange(e.target.value)}
+                  disabled={!chatEnabled}
                   rows={1}
                 />
                 <button
                   type="submit"
-                  disabled={sending || !draft.trim()}
+                  disabled={sending || !draft.trim() || !chatEnabled}
                   className={[
                     "w-12 h-12 rounded-full flex items-center justify-center text-white shadow-md transition-all",
-                    sending || !draft.trim()
+                    sending || !draft.trim() || !chatEnabled
                       ? "bg-outline-variant cursor-not-allowed"
                       : "bg-[#FF8500] hover:bg-[#FF9A2B] active:scale-[0.98]",
                   ].join(" ")}

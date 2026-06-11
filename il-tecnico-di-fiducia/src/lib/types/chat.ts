@@ -1,5 +1,5 @@
 export type UserRole = "customer" | "professional" | "admin";
-export type RequestStatus = "pending" | "accepted" | "rejected";
+export type RequestStatus = "pending" | "accepted" | "rejected" | "concluded";
 
 export type MeResponse = {
   user: { id: string; email?: string | null };
@@ -31,6 +31,7 @@ export type ConversationRow = {
   last_message_sender_id: string | null;
   created_at: string;
   updated_at: string;
+  request_subject?: string | null;
   participant?: Participant | null;
 };
 
@@ -62,4 +63,3 @@ export type MessageRow = {
 };
 
 export type MessagesResponse = { messages: MessageRow[] };
-
