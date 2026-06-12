@@ -62,6 +62,7 @@ const NAV_ITEMS = [
     label: "Impostazioni e Abbonamento",
     icon: "settings",
   },
+  { href: "/professionista/supporto", label: "Supporto", icon: "help" },
 ] as const;
 
 function fullName(person: { first_name: string; last_name: string } | null | undefined) {
@@ -251,13 +252,6 @@ export default function ProfessionalShell({ profile, children }: ProfessionalShe
           </Link>
         );
       })}
-      <a
-        href="#supporto"
-        className="flex items-center gap-3 rounded-2xl px-4 py-3 font-label-md text-on-surface-variant transition hover:bg-surface-container-high hover:text-primary"
-      >
-        <span className="material-symbols-outlined">help</span>
-        Supporto
-      </a>
       <SignOutButton className="flex items-center gap-3 rounded-2xl px-4 py-3 text-left font-label-md text-error transition hover:bg-error-container/40">
         <span className="material-symbols-outlined">logout</span>
         Esci
@@ -436,16 +430,6 @@ export default function ProfessionalShell({ profile, children }: ProfessionalShe
         ) : null}
       </header>
 
-      <aside className="fixed bottom-0 left-0 top-20 z-40 hidden w-[280px] flex-col border-r border-outline-variant/30 bg-surface-container-low px-4 py-6 lg:flex">
-        <div className="mb-8 px-2">
-          <p className="font-headline-sm text-[22px] text-primary">Il Tecnico</p>
-          <p className="font-label-md text-[12px] text-on-surface-variant">
-            Account Professionista
-          </p>
-        </div>
-        {sidebar}
-      </aside>
-
       {sidebarOpen ? (
         <div className="fixed inset-0 z-[60] bg-inverse-surface/45 backdrop-blur-sm lg:hidden">
           <div className="h-full w-[min(320px,86vw)] bg-surface-container-low p-5 shadow-2xl">
@@ -465,7 +449,19 @@ export default function ProfessionalShell({ profile, children }: ProfessionalShe
         </div>
       ) : null}
 
-      <main className="min-h-[calc(100vh-80px)] pt-20 lg:pl-[280px]">{children}</main>
+      <div className="pt-20 lg:flex lg:items-start">
+        <aside className="sticky top-20 hidden h-[calc(100vh-80px)] w-[280px] shrink-0 flex-col border-r border-outline-variant/30 bg-surface-container-low px-4 py-6 lg:flex">
+          <div className="mb-8 px-2">
+            <p className="font-headline-sm text-[22px] text-primary">Il Tecnico</p>
+            <p className="font-label-md text-[12px] text-on-surface-variant">
+              Account Professionista
+            </p>
+          </div>
+          {sidebar}
+        </aside>
+
+        <main className="min-h-[calc(100vh-80px)] min-w-0 flex-1">{children}</main>
+      </div>
       <Footer />
     </div>
   );
