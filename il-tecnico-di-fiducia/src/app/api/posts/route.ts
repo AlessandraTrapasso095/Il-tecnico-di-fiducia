@@ -7,6 +7,28 @@ type CreatePostPayload = {
   body: string;
 };
 
+type PostAttachmentRow = {
+  id: string;
+  post_id: string;
+  public_url: string;
+  media_type: "image" | "video";
+  mime_type: string;
+  file_name: string | null;
+  file_size: number | null;
+  created_at: string;
+};
+
+type PostAttachmentDbRow = {
+  id: string;
+  post_id: string;
+  file_url: string;
+  file_type: "image" | "video";
+  mime_type: string | null;
+  file_name: string | null;
+  file_size: number | null;
+  created_at: string;
+};
+
 export async function GET(request: NextRequest) {
   const auth = await requireAuth();
   if (!auth.ok) return auth.response;
@@ -105,9 +127,19 @@ export async function GET(request: NextRequest) {
         ])
       : [{ data: [] }, { data: [] }];
 
+  const { data: attachments } =
+    postIds.length > 0
+      ? await supabase
+          .from("post_attachments")
+          .select("id, post_id, file_url, file_type, mime_type, file_name, file_size, created_at")
+          .in("post_id", postIds)
+          .order("created_at", { ascending: true })
+      : { data: [] };
+
   const authorsById = new Map((authors ?? []).map((a) => [a.id, a]));
   const likesCountByPostId = new Map<string, number>();
   const commentsCountByPostId = new Map<string, number>();
+  const attachmentsByPostId = new Map<string, PostAttachmentRow[]>();
   const likedByMe = new Set<string>();
 
   for (const like of likes ?? []) {
@@ -125,6 +157,23 @@ export async function GET(request: NextRequest) {
     );
   }
 
+  for (const attachment of (attachments ?? []) as PostAttachmentDbRow[]) {
+    const existing = attachmentsByPostId.get(attachment.post_id) ?? [];
+    attachmentsByPostId.set(attachment.post_id, [
+      ...existing,
+      {
+        id: attachment.id,
+        post_id: attachment.post_id,
+        public_url: attachment.file_url,
+        media_type: attachment.file_type,
+        mime_type: attachment.mime_type ?? "",
+        file_name: attachment.file_name,
+        file_size: attachment.file_size,
+        created_at: attachment.created_at,
+      },
+    ]);
+  }
+
   return NextResponse.json({
     page,
     page_size: pageSize,
@@ -134,6 +183,7 @@ export async function GET(request: NextRequest) {
       likes_count: likesCountByPostId.get(p.id) ?? 0,
       comments_count: commentsCountByPostId.get(p.id) ?? 0,
       liked_by_me: likedByMe.has(p.id),
+      attachments: attachmentsByPostId.get(p.id) ?? [],
     })),
   });
 }

@@ -1,6 +1,58 @@
 import { NextResponse } from "next/server";
 
 import { requireAuth } from "@/lib/api/auth";
+import { isNonEmptyString } from "@/lib/api/validation";
+import { normalizeItalianProvinceCode } from "@/lib/locations/italian-provinces";
+
+type UpdateProfessionalPayload = {
+  first_name?: string;
+  last_name?: string;
+  province_code?: string | null;
+  phone?: string | null;
+  headline?: string | null;
+  bio?: string | null;
+  public_email?: string | null;
+  specializations?: string[];
+  services_offered?: string[];
+  operational_provinces?: string[];
+  education?: unknown[];
+  work_experiences?: unknown[];
+  certifications?: unknown[];
+  available_remote?: boolean;
+  available_travel?: boolean;
+};
+
+function optionalText(value: unknown, maxLength: number) {
+  if (value === null) return null;
+  if (typeof value !== "string") return undefined;
+  const clean = value.replace(/\s+/g, " ").trim();
+  return clean.length > maxLength ? clean.slice(0, maxLength) : clean;
+}
+
+function optionalLongText(value: unknown, maxLength: number) {
+  if (value === null) return null;
+  if (typeof value !== "string") return undefined;
+  const clean = value.trim();
+  return clean.length > maxLength ? clean.slice(0, maxLength) : clean;
+}
+
+function optionalStringArray(value: unknown, maxItems = 30, maxLength = 80) {
+  if (!Array.isArray(value)) return undefined;
+  return value
+    .filter((item): item is string => typeof item === "string")
+    .map((item) => item.replace(/\s+/g, " ").trim())
+    .filter(Boolean)
+    .slice(0, maxItems)
+    .map((item) => (item.length > maxLength ? item.slice(0, maxLength) : item));
+}
+
+function optionalJsonList(value: unknown, maxItems = 30) {
+  if (!Array.isArray(value)) return undefined;
+  return value.slice(0, maxItems).map((item) => {
+    if (!item || typeof item !== "object" || Array.isArray(item)) return {};
+    return item;
+  });
+}
 
 export async function GET(
   _request: Request,
@@ -107,4 +159,123 @@ export async function GET(
       is_saved: isSaved,
     },
   });
+}
+
+export async function PATCH(
+  request: Request,
+  { params }: { params: Promise<{ id: string }> },
+) {
+  const auth = await requireAuth({ allowedRoles: ["professional", "admin"] });
+  if (!auth.ok) return auth.response;
+
+  const { supabase, user, profile } = auth.ctx;
+
+  const { id } = await params;
+  if (!id) {
+    return NextResponse.json({ error: "Missing id" }, { status: 400 });
+  }
+
+  if (profile.role !== "admin" && id !== user.id) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
+
+  let payload: UpdateProfessionalPayload;
+  try {
+    payload = (await request.json()) as UpdateProfessionalPayload;
+  } catch {
+    return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
+  }
+
+  const profileUpdates: Record<string, unknown> = {};
+  const professionalUpdates: Record<string, unknown> = {};
+
+  const firstName = optionalText(payload.first_name, 80);
+  const lastName = optionalText(payload.last_name, 80);
+  const provinceCode = optionalText(payload.province_code, 2);
+  const phone = optionalText(payload.phone, 40);
+
+  if (firstName !== undefined) {
+    if (!isNonEmptyString(firstName)) {
+      return NextResponse.json({ error: "first_name is required" }, { status: 400 });
+    }
+    profileUpdates.first_name = firstName;
+  }
+  if (lastName !== undefined) {
+    if (!isNonEmptyString(lastName)) {
+      return NextResponse.json({ error: "last_name is required" }, { status: 400 });
+    }
+    profileUpdates.last_name = lastName;
+  }
+  if (provinceCode !== undefined) {
+    const normalizedProvince = provinceCode ? normalizeItalianProvinceCode(provinceCode) : null;
+    if (provinceCode && !normalizedProvince) {
+      return NextResponse.json({ error: "Invalid province" }, { status: 400 });
+    }
+    profileUpdates.province_code = normalizedProvince;
+  }
+  if (phone !== undefined) profileUpdates.phone = phone || null;
+
+  const headline = optionalText(payload.headline, 140);
+  const bio = optionalLongText(payload.bio, 3000);
+  const publicEmail = optionalText(payload.public_email, 160);
+  const specializations = optionalStringArray(payload.specializations);
+  const servicesOffered = optionalStringArray(payload.services_offered);
+  const operationalProvinces = optionalStringArray(payload.operational_provinces, 110, 2);
+  const education = optionalJsonList(payload.education);
+  const workExperiences = optionalJsonList(payload.work_experiences);
+  const certifications = optionalJsonList(payload.certifications);
+
+  if (headline !== undefined) professionalUpdates.headline = headline || null;
+  if (bio !== undefined) professionalUpdates.bio = bio || null;
+  if (publicEmail !== undefined) professionalUpdates.public_email = publicEmail || null;
+  if (specializations !== undefined) professionalUpdates.specializations = specializations;
+  if (servicesOffered !== undefined) professionalUpdates.services_offered = servicesOffered;
+  if (operationalProvinces !== undefined) {
+    const normalizedOperationalProvinces = operationalProvinces.map((code) =>
+      normalizeItalianProvinceCode(code),
+    );
+    if (normalizedOperationalProvinces.some((code) => !code)) {
+      return NextResponse.json(
+        { error: "Invalid operational province" },
+        { status: 400 },
+      );
+    }
+    professionalUpdates.operational_provinces = normalizedOperationalProvinces;
+  }
+  if (education !== undefined) professionalUpdates.education = education;
+  if (workExperiences !== undefined) professionalUpdates.work_experiences = workExperiences;
+  if (certifications !== undefined) professionalUpdates.certifications = certifications;
+  if (typeof payload.available_remote === "boolean") {
+    professionalUpdates.available_remote = payload.available_remote;
+  }
+  if (typeof payload.available_travel === "boolean") {
+    professionalUpdates.available_travel = payload.available_travel;
+  }
+
+  if (Object.keys(profileUpdates).length > 0) {
+    const { error } = await supabase.from("profiles").update(profileUpdates).eq("id", id);
+    if (error) {
+      return NextResponse.json({ error: error.message }, { status: 400 });
+    }
+  }
+
+  if (Object.keys(professionalUpdates).length > 0) {
+    const { error } = await supabase
+      .from("professional_profiles")
+      .update(professionalUpdates)
+      .eq("id", id);
+    if (error) {
+      return NextResponse.json({ error: error.message }, { status: 400 });
+    }
+  }
+
+  const { data: professional } = await supabase
+    .from("professional_profiles")
+    .select(
+      "id, headline, bio, specializations, avatar_url, cover_url, public_email, education, work_experiences, certifications, services_offered, operational_provinces, available_remote, available_travel, updated_at",
+    )
+    .eq("id", id)
+    .maybeSingle();
+
+  return NextResponse.json({ professional });
 }

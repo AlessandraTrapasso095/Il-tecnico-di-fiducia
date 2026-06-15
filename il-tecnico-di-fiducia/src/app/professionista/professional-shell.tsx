@@ -17,6 +17,7 @@ type ProfessionalShellProfile = {
   last_name: string;
   province_code: string | null;
   phone: string | null;
+  avatar_url?: string | null;
 };
 
 type NotificationRow = {
@@ -142,6 +143,7 @@ function LogoWordmark() {
 
 export default function ProfessionalShell({ profile, children }: ProfessionalShellProps) {
   const pathname = usePathname();
+  const [shellProfile, setShellProfile] = useState(profile);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
@@ -155,6 +157,20 @@ export default function ProfessionalShell({ profile, children }: ProfessionalShe
     () => notifications.filter((notification) => !notification.read_at).length,
     [notifications],
   );
+
+  useEffect(() => {
+    function onAvatarUpdated(event: Event) {
+      const avatarUrl = (event as CustomEvent<{ avatar_url?: string | null }>).detail
+        ?.avatar_url;
+      if (avatarUrl === undefined) return;
+      setShellProfile((current) => ({ ...current, avatar_url: avatarUrl }));
+    }
+
+    window.addEventListener("professional-avatar-updated", onAvatarUpdated);
+    return () => {
+      window.removeEventListener("professional-avatar-updated", onAvatarUpdated);
+    };
+  }, []);
 
   useEffect(() => {
     let mounted = true;
@@ -304,11 +320,11 @@ export default function ProfessionalShell({ profile, children }: ProfessionalShe
               ) : null}
             </button>
             <Link
-              href="/professionista"
+              href="/professionista/profilo"
               className="rounded-full transition hover:scale-95"
               aria-label="Vai al profilo professionista"
             >
-              <Avatar person={profile} />
+              <Avatar person={shellProfile} />
             </Link>
           </div>
         </div>
@@ -398,9 +414,11 @@ export default function ProfessionalShell({ profile, children }: ProfessionalShe
                 </p>
               ) : null}
               {searchResults.map((professional) => (
-                <div
+                <Link
                   key={professional.id}
+                  href={`/professionisti/${professional.id}`}
                   className="flex gap-3 rounded-2xl bg-surface-container-low p-3"
+                  onClick={() => setSearchOpen(false)}
                 >
                   <Avatar person={professional} />
                   <div className="min-w-0">
@@ -423,7 +441,7 @@ export default function ProfessionalShell({ profile, children }: ProfessionalShe
                       ) : null}
                     </div>
                   </div>
-                </div>
+                </Link>
               ))}
             </div>
           </div>

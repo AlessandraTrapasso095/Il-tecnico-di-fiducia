@@ -11,7 +11,12 @@ export default async function ProfessionalAreaLayout({
 }: {
   children: ReactNode;
 }) {
-  const { profile } = await requirePageAuth({ allowedRoles: ["professional"] });
+  const { supabase, profile } = await requirePageAuth({ allowedRoles: ["professional"] });
+  const { data: professionalProfile } = await supabase
+    .from("professional_profiles")
+    .select("avatar_url")
+    .eq("id", profile.id)
+    .maybeSingle();
 
   return (
     <ProfessionalShell
@@ -22,6 +27,7 @@ export default async function ProfessionalAreaLayout({
         email: profile.email,
         province_code: profile.province_code,
         phone: profile.phone,
+        avatar_url: professionalProfile?.avatar_url ?? null,
       }}
     >
       {children}

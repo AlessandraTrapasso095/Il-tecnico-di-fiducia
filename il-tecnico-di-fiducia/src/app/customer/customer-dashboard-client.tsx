@@ -668,10 +668,10 @@ export default function CustomerDashboardClient({
                             Contatta
                           </button>
                           <Link
-                            href="/messages"
+                            href={`/professionisti/${p.id}`}
                             className="flex-1 text-center border-2 border-primary text-primary font-button text-button py-3 rounded-full hover:bg-primary hover:text-white transition-colors"
                           >
-                            Apri messaggi
+                            Vedi profilo
                           </Link>
                         </div>
                       </div>
@@ -858,12 +858,12 @@ export default function CustomerDashboardClient({
 
                   <div className="space-y-2">
                     <label className="font-label-md text-label-md text-on-surface-variant">
-                      Foto e video (opzionale, max 10)
+                      Foto, video o PDF (opzionale, max 10)
                     </label>
                     <input
                       type="file"
                       multiple
-                      accept="image/jpeg,image/png,image/webp,video/mp4,video/quicktime"
+                      accept="image/jpeg,image/png,image/webp,video/mp4,video/quicktime,application/pdf"
                       onChange={(e) => setContactFiles(Array.from(e.target.files ?? []))}
                     />
                     {contactFiles.length > 0 ? (

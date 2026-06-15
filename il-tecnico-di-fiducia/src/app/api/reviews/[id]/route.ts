@@ -24,7 +24,7 @@ export async function GET(
 
   const { data, error } = await supabase
     .from("reviews")
-    .select("id, request_id, professional_id, customer_id, rating, body, created_at, updated_at")
+    .select("id, request_id, professional_id, customer_id, rating, body, professional_reply, professional_replied_at, created_at, updated_at")
     .eq("id", id)
     .maybeSingle();
 
@@ -73,7 +73,7 @@ export async function PATCH(
     .from("reviews")
     .update({ rating: Math.round(rating), body: payload.body.trim() })
     .eq("id", id)
-    .select("id, request_id, professional_id, customer_id, rating, body, created_at, updated_at")
+    .select("id, request_id, professional_id, customer_id, rating, body, professional_reply, professional_replied_at, created_at, updated_at")
     .single();
 
   if (error) {

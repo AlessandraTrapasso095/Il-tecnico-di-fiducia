@@ -1,7 +1,11 @@
 import { NextResponse } from "next/server";
 
 import { requireAuth } from "@/lib/api/auth";
-import { sniffImageMime, sniffIsoBmffVideoMime } from "@/lib/api/file-signatures";
+import {
+  isPdfFile,
+  sniffImageMime,
+  sniffIsoBmffVideoMime,
+} from "@/lib/api/file-signatures";
 import { sanitizeFileName } from "@/lib/api/validation";
 
 const MAX_FILES = 10;
@@ -13,6 +17,7 @@ const ALLOWED_ATTACHMENT_TYPES = new Set([
   "image/webp",
   "video/mp4",
   "video/quicktime", // iOS .mov
+  "application/pdf",
 ]);
 
 export async function POST(
@@ -73,13 +78,16 @@ export async function POST(
     if (!contentType) {
       contentType = await sniffIsoBmffVideoMime(item);
     }
+    if (!contentType && (await isPdfFile(item))) {
+      contentType = "application/pdf";
+    }
     if (!contentType) {
       contentType = item.type || null;
     }
 
     if (!contentType || !ALLOWED_ATTACHMENT_TYPES.has(contentType)) {
       return NextResponse.json(
-        { error: "Unsupported file type (allowed: JPG/PNG/WebP/MP4/MOV)" },
+        { error: "Unsupported file type (allowed: JPG/PNG/WebP/MP4/MOV/PDF)" },
         { status: 400 },
       );
     }

@@ -2,6 +2,7 @@ import { NextResponse, type NextRequest } from "next/server";
 
 import { requireAuth } from "@/lib/api/auth";
 import { clampInt, isNonEmptyString } from "@/lib/api/validation";
+import { createServiceClient } from "@/lib/supabase/service";
 
 type CreateCommentPayload = {
   body: string;
@@ -37,7 +38,23 @@ export async function GET(
     );
   }
 
-  return NextResponse.json({ comments: data ?? [] });
+  const authorIds = Array.from(new Set((data ?? []).map((comment) => comment.author_id)));
+  const service = createServiceClient();
+  const { data: authors } =
+    authorIds.length > 0
+      ? await service
+          .from("profiles")
+          .select("id, first_name, last_name")
+          .in("id", authorIds)
+      : { data: [] };
+  const authorsById = new Map((authors ?? []).map((author) => [author.id, author]));
+
+  return NextResponse.json({
+    comments: (data ?? []).map((comment) => ({
+      ...comment,
+      author: authorsById.get(comment.author_id) ?? null,
+    })),
+  });
 }
 
 export async function POST(
@@ -47,7 +64,7 @@ export async function POST(
   const auth = await requireAuth();
   if (!auth.ok) return auth.response;
 
-  const { supabase, user } = auth.ctx;
+  const { supabase, user, profile } = auth.ctx;
 
   const { id } = await params;
   if (!id) {
@@ -75,5 +92,14 @@ export async function POST(
     return NextResponse.json({ error: error.message }, { status: 400 });
   }
 
-  return NextResponse.json({ comment: data });
+  return NextResponse.json({
+    comment: {
+      ...data,
+      author: {
+        id: profile.id,
+        first_name: profile.first_name,
+        last_name: profile.last_name,
+      },
+    },
+  });
 }

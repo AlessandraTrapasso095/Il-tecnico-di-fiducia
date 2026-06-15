@@ -5,6 +5,13 @@ import Link from "next/link";
 import type { FormEvent } from "react";
 import { useCallback, useEffect, useState } from "react";
 
+import {
+  ConfirmActionModal,
+  PostAttachmentGrid,
+  PostEditModal,
+  PostMediaViewer,
+  type PostMediaAttachment,
+} from "@/components/posts/post-media-ui";
 import { fetchJson } from "@/lib/api/fetch-json";
 
 type ProfessionalProfileLite = {
@@ -37,6 +44,13 @@ type PostAuthor = {
   province_code: string | null;
 };
 
+type PostAttachment = PostMediaAttachment & {
+  id: string;
+  public_url: string;
+  media_type: "image" | "video";
+  mime_type: string;
+};
+
 type PostRow = {
   id: string;
   author_id: string;
@@ -47,6 +61,7 @@ type PostRow = {
   comments_count: number;
   liked_by_me: boolean;
   author: PostAuthor | null;
+  attachments?: PostAttachment[];
 };
 
 type PostsResponse = {
@@ -190,10 +205,13 @@ export default function ProfessionalDashboardClient({
   const [photoFiles, setPhotoFiles] = useState<File[]>([]);
   const [videoFiles, setVideoFiles] = useState<File[]>([]);
   const [postError, setPostError] = useState<string | null>(null);
+  const [postActionError, setPostActionError] = useState<string | null>(null);
   const [dashboardError, setDashboardError] = useState<string | null>(null);
   const [commentDrafts, setCommentDrafts] = useState<Record<string, string>>({});
-  const [editingPostId, setEditingPostId] = useState<string | null>(null);
-  const [editBody, setEditBody] = useState("");
+  const [editingPost, setEditingPost] = useState<PostRow | null>(null);
+  const [deleteTargetPost, setDeleteTargetPost] = useState<PostRow | null>(null);
+  const [mediaViewerAttachment, setMediaViewerAttachment] =
+    useState<PostMediaAttachment | null>(null);
   const [loading, setLoading] = useState(true);
   const [posting, setPosting] = useState(false);
   const [busyPostId, setBusyPostId] = useState<string | null>(null);
@@ -253,6 +271,20 @@ export default function ProfessionalDashboardClient({
     };
   }, [applyDashboardData, fetchDashboardData]);
 
+  async function uploadPostFiles(postId: string, files: File[]) {
+    if (files.length === 0) return;
+
+    const formData = new FormData();
+    files.forEach((file) => formData.append("files", file));
+    const response = await fetch(`/api/posts/${postId}/attachments`, {
+      method: "POST",
+      body: formData,
+      credentials: "same-origin",
+    });
+    const payload = (await response.json().catch(() => ({}))) as { error?: string };
+    if (!response.ok) throw new Error(payload.error ?? "Upload media non riuscito.");
+  }
+
   async function createPost(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setPostError(null);
@@ -263,19 +295,14 @@ export default function ProfessionalDashboardClient({
       return;
     }
 
-    if (photoFiles.length > 0 || videoFiles.length > 0) {
-      setPostError(
-        "I file sono selezionati correttamente, ma l’API media dei post non è ancora disponibile: rimuovili per pubblicare solo testo.",
-      );
-      return;
-    }
-
     setPosting(true);
     try {
-      await fetchJson<{ post: PostRow }>("/api/posts", {
+      const created = await fetchJson<{ post: PostRow }>("/api/posts", {
         method: "POST",
         body: JSON.stringify({ body }),
       });
+      const files = [...photoFiles, ...videoFiles];
+      await uploadPostFiles(created.post.id, files);
       setPostBody("");
       setPhotoFiles([]);
       setVideoFiles([]);
@@ -335,16 +362,29 @@ export default function ProfessionalDashboardClient({
     }
   }
 
-  async function savePostEdit(postId: string) {
-    const body = editBody.replace(/\s+/g, " ").trim();
+  async function savePostEdit(
+    postId: string,
+    bodyValue: string,
+    removedAttachmentIds: string[],
+    newFiles: File[],
+  ) {
+    const body = bodyValue.replace(/\s+/g, " ").trim();
     if (!body) return;
 
     setBusyPostId(postId);
+    setPostActionError(null);
     try {
       const response = await fetchJson<{ post: PostRow }>(`/api/posts/${postId}`, {
         method: "PATCH",
         body: JSON.stringify({ body }),
       });
+      for (const attachmentId of removedAttachmentIds) {
+        await fetchJson<{ ok: true }>(
+          `/api/posts/${postId}/attachments/${attachmentId}`,
+          { method: "DELETE" },
+        );
+      }
+      await uploadPostFiles(postId, newFiles);
       setPosts((current) =>
         current.map((post) =>
           post.id === postId
@@ -352,20 +392,23 @@ export default function ProfessionalDashboardClient({
             : post,
         ),
       );
-      setEditingPostId(null);
-      setEditBody("");
+      setEditingPost(null);
+      await loadDashboard();
     } finally {
       setBusyPostId(null);
     }
   }
 
   async function deletePost(postId: string) {
-    if (!window.confirm("Vuoi eliminare questo post?")) return;
-
     setBusyPostId(postId);
+    setPostActionError(null);
     try {
       await fetchJson<{ ok: true }>(`/api/posts/${postId}`, { method: "DELETE" });
       setPosts((current) => current.filter((post) => post.id !== postId));
+      setDeleteTargetPost(null);
+    } catch (error) {
+      setPostActionError(error instanceof Error ? error.message : "Eliminazione non riuscita.");
+      throw error;
     } finally {
       setBusyPostId(null);
     }
@@ -477,7 +520,7 @@ export default function ProfessionalDashboardClient({
               <input
                 id="post-videos"
                 type="file"
-                accept="video/mp4,video/webm,video/quicktime"
+                accept="video/mp4,video/quicktime"
                 multiple
                 className="sr-only"
                 onChange={(event) => setVideoFiles(Array.from(event.target.files ?? []))}
@@ -527,6 +570,11 @@ export default function ProfessionalDashboardClient({
             </div>
           ) : (
             <div className="space-y-4">
+              {postActionError ? (
+                <div className="rounded-2xl bg-error-container p-3 text-sm text-on-error-container">
+                  {postActionError}
+                </div>
+              ) : null}
               {posts.map((post) => {
                 const isAuthor = post.author_id === profile.id;
                 return (
@@ -564,10 +612,7 @@ export default function ProfessionalDashboardClient({
                           <button
                             type="button"
                             className="rounded-full px-3 py-2 text-sm font-bold text-primary hover:bg-primary-fixed"
-                            onClick={() => {
-                              setEditingPostId(post.id);
-                              setEditBody(post.body);
-                            }}
+                            onClick={() => setEditingPost(post)}
                           >
                             Modifica
                           </button>
@@ -575,7 +620,7 @@ export default function ProfessionalDashboardClient({
                             type="button"
                             className="rounded-full px-3 py-2 text-sm font-bold text-error hover:bg-error-container/40"
                             disabled={busyPostId === post.id}
-                            onClick={() => void deletePost(post.id)}
+                            onClick={() => setDeleteTargetPost(post)}
                           >
                             Elimina
                           </button>
@@ -583,40 +628,14 @@ export default function ProfessionalDashboardClient({
                       ) : null}
                     </div>
 
-                    {editingPostId === post.id ? (
-                      <div className="space-y-3">
-                        <textarea
-                          className="min-h-28 w-full resize-none rounded-2xl border border-outline-variant bg-surface-container-lowest px-4 py-3 outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/20"
-                          value={editBody}
-                          onChange={(event) => setEditBody(event.target.value)}
-                          maxLength={1200}
-                        />
-                        <div className="flex justify-end gap-2">
-                          <button
-                            type="button"
-                            className="rounded-full px-5 py-2.5 font-button text-primary hover:bg-primary-fixed"
-                            onClick={() => {
-                              setEditingPostId(null);
-                              setEditBody("");
-                            }}
-                          >
-                            Annulla
-                          </button>
-                          <button
-                            type="button"
-                            disabled={busyPostId === post.id}
-                            className="rounded-full bg-primary px-5 py-2.5 font-button text-white disabled:opacity-60"
-                            onClick={() => void savePostEdit(post.id)}
-                          >
-                            Salva
-                          </button>
-                        </div>
-                      </div>
-                    ) : (
-                      <p className="whitespace-pre-wrap font-body-md text-body-md text-on-surface">
-                        {post.body}
-                      </p>
-                    )}
+                    <p className="whitespace-pre-wrap font-body-md text-body-md text-on-surface">
+                      {post.body}
+                    </p>
+
+                    <PostAttachmentGrid
+                      attachments={post.attachments}
+                      onOpen={setMediaViewerAttachment}
+                    />
 
                     <div className="mt-5 flex flex-wrap items-center gap-3 border-t border-outline-variant/30 pt-4">
                       <button
@@ -670,6 +689,37 @@ export default function ProfessionalDashboardClient({
           )}
         </div>
       </section>
+
+      {deleteTargetPost ? (
+        <ConfirmActionModal
+          title="Eliminare questo post?"
+          body="Questa azione non può essere annullata."
+          confirmLabel="Elimina post"
+          busy={busyPostId === deleteTargetPost.id}
+          error={postActionError}
+          onCancel={() => {
+            setDeleteTargetPost(null);
+            setPostActionError(null);
+          }}
+          onConfirm={() => void deletePost(deleteTargetPost.id)}
+        />
+      ) : null}
+
+      {editingPost ? (
+        <PostEditModal
+          post={editingPost}
+          busy={busyPostId === editingPost.id}
+          onCancel={() => setEditingPost(null)}
+          onSave={(body, removedAttachmentIds, newFiles) =>
+            savePostEdit(editingPost.id, body, removedAttachmentIds, newFiles)
+          }
+        />
+      ) : null}
+
+      <PostMediaViewer
+        attachment={mediaViewerAttachment}
+        onClose={() => setMediaViewerAttachment(null)}
+      />
     </div>
   );
 }

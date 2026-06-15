@@ -2,6 +2,7 @@ import { NextResponse, type NextRequest } from "next/server";
 
 import { requireAuth } from "@/lib/api/auth";
 import { clampInt, isNonEmptyString } from "@/lib/api/validation";
+import { createServiceClient } from "@/lib/supabase/service";
 
 type CreateReviewPayload = {
   request_id: string;
@@ -28,7 +29,7 @@ export async function GET(request: NextRequest) {
   let builder = supabase
     .from("reviews")
     .select(
-      "id, request_id, professional_id, customer_id, rating, body, created_at, updated_at",
+      "id, request_id, professional_id, customer_id, rating, body, professional_reply, professional_replied_at, created_at, updated_at",
       { count: "exact" },
     )
     .order("created_at", { ascending: false })
@@ -48,11 +49,26 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: "Failed to load reviews" }, { status: 500 });
   }
 
+  const rows = data ?? [];
+  const customerIds = Array.from(new Set(rows.map((review) => review.customer_id)));
+  const service = createServiceClient();
+  const { data: authors } =
+    customerIds.length > 0
+      ? await service
+          .from("profiles")
+          .select("id, first_name, last_name")
+          .in("id", customerIds)
+      : { data: [] };
+  const authorsById = new Map((authors ?? []).map((author) => [author.id, author]));
+
   return NextResponse.json({
     page,
     page_size: pageSize,
     total: count ?? 0,
-    reviews: data ?? [],
+    reviews: rows.map((review) => ({
+      ...review,
+      author: authorsById.get(review.customer_id) ?? null,
+    })),
   });
 }
 
@@ -78,9 +94,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "rating must be 1..5" }, { status: 400 });
   }
 
-  if (!isNonEmptyString(payload.body)) {
-    return NextResponse.json({ error: "body is required" }, { status: 400 });
-  }
+  const body = typeof payload.body === "string" ? payload.body.trim() : "";
 
   // Derive relationships from the request row to avoid client tampering.
   const { data: requestRow, error: requestError } = await supabase
@@ -111,9 +125,9 @@ export async function POST(request: Request) {
       professional_id: requestRow.professional_id,
       customer_id: requestRow.customer_id,
       rating: Math.round(rating),
-      body: payload.body.trim(),
+      body,
     })
-    .select("id, request_id, professional_id, customer_id, rating, body, created_at, updated_at")
+    .select("id, request_id, professional_id, customer_id, rating, body, professional_reply, professional_replied_at, created_at, updated_at")
     .single();
 
   if (error) {
