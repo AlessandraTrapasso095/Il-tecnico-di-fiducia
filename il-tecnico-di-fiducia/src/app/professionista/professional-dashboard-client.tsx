@@ -72,7 +72,7 @@ type ProfessionalDashboardClientProps = {
   profile: ProfessionalProfileLite;
 };
 
-const SUBSCRIPTION_SETTINGS_PATH = "/professionista/impostazioni/abbonamento";
+const SUBSCRIPTION_SETTINGS_PATH = "/professionista/abbonamento";
 
 function fullName(person: { first_name: string; last_name: string } | null | undefined) {
   if (!person) return "Utente";

@@ -1,7 +1,7 @@
 "use client";
 
 import Image from "next/image";
-import { useEffect, useState, type ChangeEvent } from "react";
+import { useEffect, useState, type ChangeEvent, type ReactNode } from "react";
 
 export type PostMediaAttachment = {
   id: string;
@@ -24,7 +24,9 @@ export function ConfirmActionModal({
   confirmLabel,
   cancelLabel = "Annulla",
   busy = false,
+  confirmDisabled = false,
   error,
+  children,
   onCancel,
   onConfirm,
 }: {
@@ -33,7 +35,9 @@ export function ConfirmActionModal({
   confirmLabel: string;
   cancelLabel?: string;
   busy?: boolean;
+  confirmDisabled?: boolean;
   error?: string | null;
+  children?: ReactNode;
   onCancel: () => void;
   onConfirm: () => void;
 }) {
@@ -72,6 +76,7 @@ export function ConfirmActionModal({
           {title}
         </h2>
         <p className="mt-2 text-on-surface-variant">{body}</p>
+        {children}
         {error ? (
           <div className="mt-4 rounded-2xl bg-error-container p-3 text-sm text-on-error-container">
             {error}
@@ -89,7 +94,7 @@ export function ConfirmActionModal({
           <button
             type="button"
             className="rounded-full bg-error px-6 py-3 font-button text-white shadow-lg shadow-error/20 transition hover:opacity-90 disabled:opacity-60"
-            disabled={busy}
+            disabled={busy || confirmDisabled}
             onClick={onConfirm}
           >
             {busy ? "Eliminazione…" : confirmLabel}

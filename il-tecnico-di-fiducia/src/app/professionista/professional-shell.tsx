@@ -4,7 +4,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import type { ReactNode } from "react";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 import { SignOutButton } from "@/components/auth/sign-out-button";
 import { Footer } from "@/components/site/footer";
@@ -58,11 +58,8 @@ type ProfessionalShellProps = {
 const NAV_ITEMS = [
   { href: "/professionista", label: "Dashboard", icon: "dashboard" },
   { href: "/professionista/messaggi", label: "Messaggi e Richieste", icon: "forum" },
-  {
-    href: "/professionista/impostazioni/abbonamento",
-    label: "Impostazioni e Abbonamento",
-    icon: "settings",
-  },
+  { href: "/professionista/impostazioni", label: "Impostazioni", icon: "settings" },
+  { href: "/professionista/abbonamento", label: "Abbonamento", icon: "workspace_premium" },
   { href: "/professionista/supporto", label: "Supporto", icon: "help" },
 ] as const;
 
@@ -152,6 +149,8 @@ export default function ProfessionalShell({ profile, children }: ProfessionalShe
   const [searchResults, setSearchResults] = useState<ProfessionalSearchRow[]>([]);
   const [searchLoading, setSearchLoading] = useState(false);
   const [searchError, setSearchError] = useState<string | null>(null);
+  const notificationsRef = useRef<HTMLDivElement | null>(null);
+  const searchRef = useRef<HTMLDivElement | null>(null);
 
   const unreadNotifications = useMemo(
     () => notifications.filter((notification) => !notification.read_at).length,
@@ -226,6 +225,26 @@ export default function ProfessionalShell({ profile, children }: ProfessionalShe
     };
   }, [searchOpen, searchQuery]);
 
+  useEffect(() => {
+    if (!notificationsOpen && !searchOpen) return;
+
+    function onPointerDown(event: PointerEvent) {
+      const target = event.target;
+      if (!(target instanceof Node)) return;
+
+      if (notificationsOpen && !notificationsRef.current?.contains(target)) {
+        setNotificationsOpen(false);
+      }
+
+      if (searchOpen && !searchRef.current?.contains(target)) {
+        setSearchOpen(false);
+      }
+    }
+
+    document.addEventListener("pointerdown", onPointerDown);
+    return () => document.removeEventListener("pointerdown", onPointerDown);
+  }, [notificationsOpen, searchOpen]);
+
   async function markNotificationsRead() {
     const ids = notifications
       .filter((notification) => !notification.read_at)
@@ -292,33 +311,153 @@ export default function ProfessionalShell({ profile, children }: ProfessionalShe
           </div>
 
           <div className="flex items-center gap-2 sm:gap-3">
-            <button
-              type="button"
-              className="flex h-11 w-11 items-center justify-center rounded-full text-primary transition hover:bg-surface-container-high"
-              aria-label="Cerca professionisti"
-              onClick={() => {
-                setSearchOpen((value) => !value);
-                setNotificationsOpen(false);
-              }}
-            >
-              <span className="material-symbols-outlined">search</span>
-            </button>
-            <button
-              type="button"
-              className="relative flex h-11 w-11 items-center justify-center rounded-full text-primary transition hover:bg-surface-container-high"
-              aria-label="Notifiche"
-              onClick={() => {
-                setNotificationsOpen((value) => !value);
-                setSearchOpen(false);
-              }}
-            >
-              <span className="material-symbols-outlined">notifications</span>
-              {unreadNotifications > 0 ? (
-                <span className="absolute right-1 top-1 flex h-5 min-w-5 items-center justify-center rounded-full bg-[#FF8500] px-1 text-[10px] font-bold text-white">
-                  {unreadNotifications}
-                </span>
+            <div ref={searchRef} className="relative">
+              <button
+                type="button"
+                className="flex h-11 w-11 items-center justify-center rounded-full text-primary transition hover:bg-surface-container-high"
+                aria-label="Cerca professionisti"
+                onClick={() => {
+                  setSearchOpen((value) => !value);
+                  setNotificationsOpen(false);
+                }}
+              >
+                <span className="material-symbols-outlined">search</span>
+              </button>
+              {searchOpen ? (
+                <div className="absolute right-0 top-[56px] w-[min(440px,calc(100vw-32px))] rounded-[24px] border border-outline-variant/40 bg-surface-container-lowest p-4 shadow-2xl">
+                  <label className="font-label-md text-primary" htmlFor="professional-search">
+                    Cerca altri professionisti
+                  </label>
+                  <div className="relative mt-3">
+                    <span className="material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 text-outline">
+                      search
+                    </span>
+                    <input
+                      id="professional-search"
+                      className="w-full rounded-2xl border border-outline-variant bg-surface-container-lowest py-3 pl-12 pr-4 outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/20"
+                      value={searchQuery}
+                      onChange={(event) => {
+                        const value = event.target.value;
+                        setSearchQuery(value);
+                        if (value.trim().length < 2) {
+                          setSearchResults([]);
+                          setSearchError(null);
+                        }
+                      }}
+                      placeholder="Nome, cognome o specializzazione"
+                    />
+                  </div>
+                  <div className="mt-4 max-h-[420px] space-y-3 overflow-auto">
+                    {searchQuery.trim().length < 2 ? (
+                      <p className="rounded-2xl bg-surface-container-low p-4 text-sm text-on-surface-variant">
+                        Scrivi almeno 2 caratteri per cercare professionisti iscritti.
+                      </p>
+                    ) : null}
+                    {searchLoading ? (
+                      <p className="rounded-2xl bg-surface-container-low p-4 text-sm text-on-surface-variant">
+                        Ricerca in corso…
+                      </p>
+                    ) : null}
+                    {searchError ? (
+                      <p className="rounded-2xl bg-error-container p-4 text-sm text-on-error-container">
+                        {searchError}
+                      </p>
+                    ) : null}
+                    {!searchLoading && searchQuery.trim().length >= 2 && searchResults.length === 0 ? (
+                      <p className="rounded-2xl bg-surface-container-low p-4 text-sm text-on-surface-variant">
+                        Nessun professionista trovato.
+                      </p>
+                    ) : null}
+                    {searchResults.map((professional) => (
+                      <Link
+                        key={professional.id}
+                        href={`/professionisti/${professional.id}`}
+                        className="flex gap-3 rounded-2xl bg-surface-container-low p-3"
+                        onClick={() => setSearchOpen(false)}
+                      >
+                        <Avatar person={professional} />
+                        <div className="min-w-0">
+                          <div className="font-label-md text-primary">
+                            {fullName(professional)}
+                          </div>
+                          <div className="line-clamp-2 text-sm text-on-surface-variant">
+                            {professional.headline ?? "Profilo professionista"}
+                          </div>
+                          <div className="mt-2 flex flex-wrap gap-2">
+                            {professional.province_code ? (
+                              <span className="rounded-full bg-primary-fixed px-2.5 py-1 text-[11px] font-bold text-on-primary-fixed-variant">
+                                {professional.province_code}
+                              </span>
+                            ) : null}
+                            {professional.available_remote ? (
+                              <span className="rounded-full bg-secondary-fixed px-2.5 py-1 text-[11px] font-bold text-on-secondary-fixed-variant">
+                                Remoto
+                              </span>
+                            ) : null}
+                          </div>
+                        </div>
+                      </Link>
+                    ))}
+                  </div>
+                </div>
               ) : null}
-            </button>
+            </div>
+            <div ref={notificationsRef} className="relative">
+              <button
+                type="button"
+                className="relative flex h-11 w-11 items-center justify-center rounded-full text-primary transition hover:bg-surface-container-high"
+                aria-label="Notifiche"
+                onClick={() => {
+                  setNotificationsOpen((value) => !value);
+                  setSearchOpen(false);
+                }}
+              >
+                <span className="material-symbols-outlined">notifications</span>
+                {unreadNotifications > 0 ? (
+                  <span className="absolute right-1 top-1 flex h-5 min-w-5 items-center justify-center rounded-full bg-[#FF8500] px-1 text-[10px] font-bold text-white">
+                    {unreadNotifications}
+                  </span>
+                ) : null}
+              </button>
+              {notificationsOpen ? (
+                <div className="absolute right-0 top-[56px] w-[min(380px,calc(100vw-32px))] rounded-[24px] border border-outline-variant/40 bg-surface-container-lowest p-4 shadow-2xl">
+                  <div className="mb-3 flex items-center justify-between">
+                    <div className="font-headline-sm text-[20px] text-primary">Notifiche</div>
+                    <button
+                      type="button"
+                      className="text-xs font-bold text-primary hover:underline"
+                      onClick={() => void markNotificationsRead()}
+                    >
+                      Segna lette
+                    </button>
+                  </div>
+                  {notifications.length === 0 ? (
+                    <p className="rounded-2xl bg-surface-container-low p-4 text-sm text-on-surface-variant">
+                      Nessuna notifica.
+                    </p>
+                  ) : (
+                    <div className="max-h-[360px] space-y-2 overflow-auto">
+                      {notifications.map((notification) => (
+                        <div
+                          key={notification.id}
+                          className="rounded-2xl bg-surface-container-low p-3 text-sm"
+                        >
+                          <div className="flex items-center gap-2">
+                            {!notification.read_at ? (
+                              <span className="h-2 w-2 rounded-full bg-[#FF8500]" />
+                            ) : null}
+                            <span className="font-label-md text-primary">{notification.type}</span>
+                          </div>
+                          <div className="mt-1 text-xs text-on-surface-variant">
+                            {formatTime(notification.created_at)}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              ) : null}
+            </div>
             <Link
               href="/professionista/profilo"
               className="rounded-full transition hover:scale-95"
@@ -329,123 +468,6 @@ export default function ProfessionalShell({ profile, children }: ProfessionalShe
           </div>
         </div>
 
-        {notificationsOpen ? (
-          <div className="absolute right-4 top-[72px] w-[min(380px,calc(100vw-32px))] rounded-[24px] border border-outline-variant/40 bg-surface-container-lowest p-4 shadow-2xl">
-            <div className="mb-3 flex items-center justify-between">
-              <div className="font-headline-sm text-[20px] text-primary">Notifiche</div>
-              <button
-                type="button"
-                className="text-xs font-bold text-primary hover:underline"
-                onClick={() => void markNotificationsRead()}
-              >
-                Segna lette
-              </button>
-            </div>
-            {notifications.length === 0 ? (
-              <p className="rounded-2xl bg-surface-container-low p-4 text-sm text-on-surface-variant">
-                Nessuna notifica.
-              </p>
-            ) : (
-              <div className="max-h-[360px] space-y-2 overflow-auto">
-                {notifications.map((notification) => (
-                  <div
-                    key={notification.id}
-                    className="rounded-2xl bg-surface-container-low p-3 text-sm"
-                  >
-                    <div className="flex items-center gap-2">
-                      {!notification.read_at ? (
-                        <span className="h-2 w-2 rounded-full bg-[#FF8500]" />
-                      ) : null}
-                      <span className="font-label-md text-primary">{notification.type}</span>
-                    </div>
-                    <div className="mt-1 text-xs text-on-surface-variant">
-                      {formatTime(notification.created_at)}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        ) : null}
-
-        {searchOpen ? (
-          <div className="absolute right-4 top-[72px] w-[min(440px,calc(100vw-32px))] rounded-[24px] border border-outline-variant/40 bg-surface-container-lowest p-4 shadow-2xl">
-            <label className="font-label-md text-primary" htmlFor="professional-search">
-              Cerca altri professionisti
-            </label>
-            <div className="relative mt-3">
-              <span className="material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 text-outline">
-                search
-              </span>
-              <input
-                id="professional-search"
-                className="w-full rounded-2xl border border-outline-variant bg-surface-container-lowest py-3 pl-12 pr-4 outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/20"
-                value={searchQuery}
-                onChange={(event) => {
-                  const value = event.target.value;
-                  setSearchQuery(value);
-                  if (value.trim().length < 2) {
-                    setSearchResults([]);
-                    setSearchError(null);
-                  }
-                }}
-                placeholder="Nome, cognome o specializzazione"
-              />
-            </div>
-            <div className="mt-4 max-h-[420px] space-y-3 overflow-auto">
-              {searchQuery.trim().length < 2 ? (
-                <p className="rounded-2xl bg-surface-container-low p-4 text-sm text-on-surface-variant">
-                  Scrivi almeno 2 caratteri per cercare professionisti iscritti.
-                </p>
-              ) : null}
-              {searchLoading ? (
-                <p className="rounded-2xl bg-surface-container-low p-4 text-sm text-on-surface-variant">
-                  Ricerca in corso…
-                </p>
-              ) : null}
-              {searchError ? (
-                <p className="rounded-2xl bg-error-container p-4 text-sm text-on-error-container">
-                  {searchError}
-                </p>
-              ) : null}
-              {!searchLoading && searchQuery.trim().length >= 2 && searchResults.length === 0 ? (
-                <p className="rounded-2xl bg-surface-container-low p-4 text-sm text-on-surface-variant">
-                  Nessun professionista trovato.
-                </p>
-              ) : null}
-              {searchResults.map((professional) => (
-                <Link
-                  key={professional.id}
-                  href={`/professionisti/${professional.id}`}
-                  className="flex gap-3 rounded-2xl bg-surface-container-low p-3"
-                  onClick={() => setSearchOpen(false)}
-                >
-                  <Avatar person={professional} />
-                  <div className="min-w-0">
-                    <div className="font-label-md text-primary">
-                      {fullName(professional)}
-                    </div>
-                    <div className="line-clamp-2 text-sm text-on-surface-variant">
-                      {professional.headline ?? "Profilo professionista"}
-                    </div>
-                    <div className="mt-2 flex flex-wrap gap-2">
-                      {professional.province_code ? (
-                        <span className="rounded-full bg-primary-fixed px-2.5 py-1 text-[11px] font-bold text-on-primary-fixed-variant">
-                          {professional.province_code}
-                        </span>
-                      ) : null}
-                      {professional.available_remote ? (
-                        <span className="rounded-full bg-secondary-fixed px-2.5 py-1 text-[11px] font-bold text-on-secondary-fixed-variant">
-                          Remoto
-                        </span>
-                      ) : null}
-                    </div>
-                  </div>
-                </Link>
-              ))}
-            </div>
-          </div>
-        ) : null}
       </header>
 
       {sidebarOpen ? (

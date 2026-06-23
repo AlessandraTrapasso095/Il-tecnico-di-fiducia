@@ -35,8 +35,7 @@ type EditSection =
   | "contact"
   | "education"
   | "work"
-  | "certifications"
-  | "availability";
+  | "certifications";
 
 type Viewer = {
   id: string;
@@ -293,6 +292,7 @@ export default function ProfessionalProfileClient({
   const [editDraft, setEditDraft] = useState<Record<string, string | boolean>>({});
   const [savingProfile, setSavingProfile] = useState(false);
   const [profileError, setProfileError] = useState<string | null>(null);
+  const [uploadingImage, setUploadingImage] = useState(false);
 
   const [posts, setPosts] = useState<PostRow[]>([]);
   const [postsLoading, setPostsLoading] = useState(false);
@@ -321,6 +321,8 @@ export default function ProfessionalProfileClient({
 
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const cameraInputRef = useRef<HTMLInputElement | null>(null);
+  const coverMenuRef = useRef<HTMLDivElement | null>(null);
+  const avatarMenuRef = useRef<HTMLDivElement | null>(null);
 
   const isOwner = profileAccess.is_owner;
   const canViewFull = profileAccess.can_view_full_profile;
@@ -383,6 +385,22 @@ export default function ProfessionalProfileClient({
     return () => window.clearTimeout(handle);
   }, [loadPosts, loadReviews]);
 
+  useEffect(() => {
+    if (!mediaMenu) return;
+
+    function onPointerDown(event: PointerEvent) {
+      const target = event.target;
+      if (!(target instanceof Node)) return;
+      const activeRef = mediaMenu === "cover" ? coverMenuRef : avatarMenuRef;
+      if (!activeRef.current?.contains(target)) {
+        setMediaMenu(null);
+      }
+    }
+
+    document.addEventListener("pointerdown", onPointerDown);
+    return () => document.removeEventListener("pointerdown", onPointerDown);
+  }, [mediaMenu]);
+
   function openEdit(section: EditSection) {
     setEditSection(section);
     setProfileError(null);
@@ -417,6 +435,8 @@ export default function ProfessionalProfileClient({
         payload.headline = editDraft.headline;
         payload.bio = editDraft.bio;
         payload.province_code = editDraft.province_code || null;
+        payload.available_remote = Boolean(editDraft.available_remote);
+        payload.available_travel = Boolean(editDraft.available_travel);
       }
       if (editSection === "services") {
         payload.services_offered = splitLines(String(editDraft.services_offered ?? ""));
@@ -435,14 +455,6 @@ export default function ProfessionalProfileClient({
       if (editSection === "certifications") {
         payload.certifications = jsonFromLines(String(editDraft.certifications ?? ""));
       }
-      if (editSection === "availability") {
-        payload.available_remote = Boolean(editDraft.available_remote);
-        payload.available_travel = Boolean(editDraft.available_travel);
-        payload.operational_provinces = splitLines(
-          String(editDraft.operational_provinces ?? ""),
-        ).map((code) => code.toUpperCase());
-      }
-
       await fetchJson<{ professional: unknown }>(`/api/professionals/${profile.id}`, {
         method: "PATCH",
         body: JSON.stringify(payload),
@@ -506,6 +518,7 @@ export default function ProfessionalProfileClient({
   async function uploadCroppedImage() {
     if (!cropState) return;
     setProfileError(null);
+    setUploadingImage(true);
     try {
       const cropped = await cropImageToFile(cropState);
       const formData = new FormData();
@@ -540,6 +553,8 @@ export default function ProfessionalProfileClient({
       setCropState(null);
     } catch (error) {
       setProfileError(error instanceof Error ? error.message : "Upload non riuscito.");
+    } finally {
+      setUploadingImage(false);
     }
   }
 
@@ -817,7 +832,7 @@ export default function ProfessionalProfileClient({
             )}
             <div className="absolute inset-0 bg-primary/20" />
             {isOwner ? (
-              <div className="absolute right-4 top-4">
+              <div ref={coverMenuRef} className="absolute right-4 top-4">
                 <button
                   type="button"
                   className="flex h-11 w-11 items-center justify-center rounded-full bg-white/85 text-primary shadow-lg backdrop-blur"
@@ -826,6 +841,13 @@ export default function ProfessionalProfileClient({
                 >
                   <span className="material-symbols-outlined">more_horiz</span>
                 </button>
+                {mediaMenu === "cover" ? (
+                  <MediaMenu
+                    className="absolute right-0 top-14"
+                    onCamera={() => cameraInputRef.current?.click()}
+                    onDevice={() => fileInputRef.current?.click()}
+                  />
+                ) : null}
               </div>
             ) : null}
           </div>
@@ -848,14 +870,23 @@ export default function ProfessionalProfileClient({
                     </div>
                   )}
                   {isOwner ? (
-                    <button
-                      type="button"
-                      className="absolute bottom-2 right-2 flex h-10 w-10 items-center justify-center rounded-full bg-[#FF8500] text-white shadow-lg"
-                      onClick={() => setMediaMenu(mediaMenu === "avatar" ? null : "avatar")}
-                      aria-label="Modifica foto profilo"
-                    >
-                      <span className="material-symbols-outlined">more_horiz</span>
-                    </button>
+                    <div ref={avatarMenuRef} className="absolute bottom-2 right-2">
+                      <button
+                        type="button"
+                        className="flex h-10 w-10 items-center justify-center rounded-full bg-[#FF8500] text-white shadow-lg"
+                        onClick={() => setMediaMenu(mediaMenu === "avatar" ? null : "avatar")}
+                        aria-label="Modifica foto profilo"
+                      >
+                        <span className="material-symbols-outlined">more_horiz</span>
+                      </button>
+                      {mediaMenu === "avatar" ? (
+                        <MediaMenu
+                          className="absolute bottom-12 right-0"
+                          onCamera={() => cameraInputRef.current?.click()}
+                          onDevice={() => fileInputRef.current?.click()}
+                        />
+                      ) : null}
+                    </div>
                   ) : null}
                 </div>
 
@@ -906,43 +937,18 @@ export default function ProfessionalProfileClient({
           </div>
         </section>
 
-        {mediaMenu ? (
-          <div className="fixed inset-0 z-[90]" onClick={() => setMediaMenu(null)}>
-            <div
-              className="absolute right-6 top-28 w-72 rounded-2xl border border-outline-variant/30 bg-surface-container-lowest p-3 shadow-2xl"
-              onClick={(event) => event.stopPropagation()}
-            >
-              <button
-                type="button"
-                className="flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left text-primary hover:bg-surface-container-low"
-                onClick={() => cameraInputRef.current?.click()}
-              >
-                <span className="material-symbols-outlined">photo_camera</span>
-                Scatta foto
-              </button>
-              <button
-                type="button"
-                className="flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left text-primary hover:bg-surface-container-low"
-                onClick={() => fileInputRef.current?.click()}
-              >
-                <span className="material-symbols-outlined">upload</span>
-                Scegli foto da dispositivo
-              </button>
-            </div>
-          </div>
-        ) : null}
         <input
           ref={fileInputRef}
           className="sr-only"
           type="file"
-          accept="image/jpeg,image/png,image/webp"
+          accept="image/*"
           onChange={onPickImage}
         />
         <input
           ref={cameraInputRef}
           className="sr-only"
           type="file"
-          accept="image/jpeg,image/png,image/webp"
+          accept="image/*"
           capture="environment"
           onChange={onPickImage}
         />
@@ -1022,45 +1028,6 @@ export default function ProfessionalProfileClient({
                       )}
                     </div>
 
-                    <div>
-                      <h3 className="font-label-md text-primary">Province operative</h3>
-                      {profile.operational_provinces.length > 0 ? (
-                        <div className="mt-2 flex flex-wrap gap-2">
-                          {profile.operational_provinces.map((code) => (
-                            <span
-                              key={code}
-                              className="rounded-full bg-surface-container-low px-3 py-1 text-sm font-bold text-primary"
-                            >
-                              {provinceName(code)}
-                            </span>
-                          ))}
-                        </div>
-                      ) : (
-                        <p className="mt-2 rounded-2xl bg-surface-container-low p-4 text-on-surface-variant">
-                          Non indicato
-                        </p>
-                      )}
-                    </div>
-
-                    <div>
-                      <h3 className="font-label-md text-primary">Servizi e sottocategorie</h3>
-                      {services.length > 0 ? (
-                        <div className="mt-2 flex flex-wrap gap-2">
-                          {services.map((service) => (
-                            <span
-                              key={service}
-                              className="rounded-full bg-primary-fixed px-4 py-2 text-sm font-bold text-on-primary-fixed-variant"
-                            >
-                              {service}
-                            </span>
-                          ))}
-                        </div>
-                      ) : (
-                        <p className="mt-2 rounded-2xl bg-surface-container-low p-4 text-on-surface-variant">
-                          Non indicato
-                        </p>
-                      )}
-                    </div>
                   </div>
                 </SectionCard>
 
@@ -1114,37 +1081,13 @@ export default function ProfessionalProfileClient({
                 </SectionCard>
 
                 <SectionCard
-                  title="Disponibilità e zone operative"
+                  title="Dati di contatto"
                   editable={isOwner}
-                  onEdit={() => openEdit("availability")}
+                  onEdit={() => openEdit("contact")}
                 >
                   <div className="grid gap-3 sm:grid-cols-2">
-                    <InfoPill
-                      icon="language"
-                      label="Da remoto"
-                      value={profile.available_remote ? "Disponibile" : "Non disponibile"}
-                    />
-                    <InfoPill
-                      icon="commute"
-                      label="Trasferte"
-                      value={profile.available_travel ? "Disponibile" : "Non disponibile"}
-                    />
-                  </div>
-                  <div className="mt-4 flex flex-wrap gap-2">
-                    {profile.operational_provinces.length > 0 ? (
-                      profile.operational_provinces.map((code) => (
-                        <span
-                          key={code}
-                          className="rounded-full bg-surface-container-low px-3 py-1 text-sm font-bold text-primary"
-                        >
-                          {provinceName(code)}
-                        </span>
-                      ))
-                    ) : (
-                      <p className="text-on-surface-variant">
-                        Province operative non ancora indicate.
-                      </p>
-                    )}
+                    <InfoPill icon="phone" label="Telefono" value={profile.phone || "Non indicato"} />
+                    <InfoPill icon="mail" label="Email" value={contactEmail || "Non indicato"} />
                   </div>
                 </SectionCard>
               </>
@@ -1283,6 +1226,7 @@ export default function ProfessionalProfileClient({
               <button
                 type="button"
                 className="rounded-full px-5 py-3 font-button text-primary hover:bg-primary-fixed"
+                disabled={uploadingImage}
                 onClick={() => {
                   URL.revokeObjectURL(cropState.previewUrl);
                   setCropState(null);
@@ -1293,9 +1237,10 @@ export default function ProfessionalProfileClient({
               <button
                 type="button"
                 className="rounded-full bg-[#FF8500] px-6 py-3 font-button text-white hover:bg-[#FF9A2B]"
+                disabled={uploadingImage}
                 onClick={() => void uploadCroppedImage()}
               >
-                Conferma
+                {uploadingImage ? "Caricamento…" : "Conferma"}
               </button>
             </div>
           </div>
@@ -1370,6 +1315,39 @@ function Slider({
   );
 }
 
+function MediaMenu({
+  className,
+  onCamera,
+  onDevice,
+}: {
+  className: string;
+  onCamera: () => void;
+  onDevice: () => void;
+}) {
+  return (
+    <div
+      className={`${className} z-[95] w-72 rounded-2xl border border-outline-variant/30 bg-surface-container-lowest p-3 shadow-2xl`}
+    >
+      <button
+        type="button"
+        className="flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left text-primary hover:bg-surface-container-low"
+        onClick={onCamera}
+      >
+        <span className="material-symbols-outlined">photo_camera</span>
+        Scatta foto
+      </button>
+      <button
+        type="button"
+        className="flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left text-primary hover:bg-surface-container-low"
+        onClick={onDevice}
+      >
+        <span className="material-symbols-outlined">upload</span>
+        Scegli foto da dispositivo
+      </button>
+    </div>
+  );
+}
+
 function InfoPill({ icon, label, value }: { icon: string; label: string; value: string }) {
   return (
     <div className="flex items-center gap-3 rounded-2xl bg-surface-container-low p-3">
@@ -1429,7 +1407,6 @@ function EditModal({
     education: "Studi/Formazione",
     work: "Esperienze lavorative",
     certifications: "Certificazioni",
-    availability: "Disponibilità e province operative",
   };
 
   function setValue(key: string, value: string | boolean) {
@@ -1454,6 +1431,22 @@ function EditModal({
                 value={String(draft.province_code ?? "")}
                 onChange={(value) => setValue("province_code", value)}
               />
+              <label className="flex items-center gap-3 rounded-2xl bg-surface-container-low p-4 text-primary">
+                <input
+                  type="checkbox"
+                  checked={Boolean(draft.available_remote)}
+                  onChange={(event) => setValue("available_remote", event.target.checked)}
+                />
+                Disponibile da remoto
+              </label>
+              <label className="flex items-center gap-3 rounded-2xl bg-surface-container-low p-4 text-primary">
+                <input
+                  type="checkbox"
+                  checked={Boolean(draft.available_travel)}
+                  onChange={(event) => setValue("available_travel", event.target.checked)}
+                />
+                Disponibile a trasferte
+              </label>
               <TextArea label="Bio" value={String(draft.bio ?? "")} onChange={(v) => setValue("bio", v)} />
             </>
           ) : null}
@@ -1477,27 +1470,6 @@ function EditModal({
           ) : null}
           {section === "certifications" ? (
             <TextArea label="Certificazioni (una voce per riga)" value={String(draft.certifications ?? "")} onChange={(v) => setValue("certifications", v)} />
-          ) : null}
-          {section === "availability" ? (
-            <>
-              <label className="flex items-center gap-3 rounded-2xl bg-surface-container-low p-4">
-                <input
-                  type="checkbox"
-                  checked={Boolean(draft.available_remote)}
-                  onChange={(event) => setValue("available_remote", event.target.checked)}
-                />
-                Disponibile da remoto
-              </label>
-              <label className="flex items-center gap-3 rounded-2xl bg-surface-container-low p-4">
-                <input
-                  type="checkbox"
-                  checked={Boolean(draft.available_travel)}
-                  onChange={(event) => setValue("available_travel", event.target.checked)}
-                />
-                Disponibile a trasferte
-              </label>
-              <TextArea label="Province operative (codici, uno per riga)" value={String(draft.operational_provinces ?? "")} onChange={(v) => setValue("operational_provinces", v)} />
-            </>
           ) : null}
         </div>
         {error ? (

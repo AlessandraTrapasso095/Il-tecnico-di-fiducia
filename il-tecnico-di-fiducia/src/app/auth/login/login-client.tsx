@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 
+import { PasswordField } from "@/components/auth/password-field";
 import { fetchJson } from "@/lib/api/fetch-json";
 import { nextPathByRole, routeBelongsToRole } from "@/lib/routes/role-paths";
 
@@ -134,11 +135,10 @@ export default function LoginClient({ initialRole, nextPath }: LoginClientProps)
                     Dimenticata?
                   </Link>
                 </div>
-                <input
-                  className="w-full px-4 py-3 bg-surface-container-lowest border border-outline-variant rounded-xl focus:ring-2 focus:ring-primary focus:border-primary outline-none transition-all font-body-md text-body-md"
-                  type="password"
+                <PasswordField
+                  label=""
                   value={password}
-                  onChange={(e) => setPassword(e.target.value)}
+                  onChange={setPassword}
                   autoComplete="current-password"
                   placeholder="••••••••"
                   required

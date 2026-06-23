@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 
+import { PasswordField } from "@/components/auth/password-field";
 import { fetchJson } from "@/lib/api/fetch-json";
 import {
   ITALIAN_PROVINCES_BY_NAME,
@@ -295,21 +296,15 @@ export default function RegisterClient({ initialRole }: RegisterClientProps) {
               </div>
             </div>
 
-            <div className="space-y-2">
-              <label className="font-label-md text-label-md text-on-surface-variant">
-                Password
-              </label>
-              <input
-                className="w-full px-4 py-3 bg-surface-container-lowest border border-outline-variant rounded-xl focus:ring-2 focus:ring-primary focus:border-primary outline-none transition-all font-body-md text-body-md"
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                autoComplete="new-password"
-                placeholder="Minimo 8 caratteri"
-                minLength={8}
-                required
-              />
-            </div>
+            <PasswordField
+              label="Password"
+              value={password}
+              onChange={setPassword}
+              autoComplete="new-password"
+              placeholder="Minimo 8 caratteri"
+              minLength={8}
+              required
+            />
 
             <label className="flex items-start gap-3 text-on-surface-variant">
               <input

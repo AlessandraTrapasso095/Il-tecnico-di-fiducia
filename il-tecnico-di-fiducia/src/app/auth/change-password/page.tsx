@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 
+import { PasswordField } from "@/components/auth/password-field";
 import { fetchJson } from "@/lib/api/fetch-json";
 import { nextPathByRole } from "@/lib/routes/role-paths";
 
@@ -95,32 +96,20 @@ export default function ChangePasswordPage() {
           <div className="text-on-surface-variant">Password aggiornata.</div>
         ) : (
           <form className="space-y-4" onSubmit={onSubmit}>
-            <div className="space-y-2">
-              <label className="font-label-md text-label-md text-on-surface-variant">
-                Nuova password
-              </label>
-              <input
-                className="w-full px-4 py-3 bg-surface-container-lowest border border-outline-variant rounded-xl focus:ring-2 focus:ring-primary focus:border-primary outline-none transition-all font-body-md text-body-md"
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                autoComplete="new-password"
-                required
-              />
-            </div>
-            <div className="space-y-2">
-              <label className="font-label-md text-label-md text-on-surface-variant">
-                Conferma password
-              </label>
-              <input
-                className="w-full px-4 py-3 bg-surface-container-lowest border border-outline-variant rounded-xl focus:ring-2 focus:ring-primary focus:border-primary outline-none transition-all font-body-md text-body-md"
-                type="password"
-                value={confirm}
-                onChange={(e) => setConfirm(e.target.value)}
-                autoComplete="new-password"
-                required
-              />
-            </div>
+            <PasswordField
+              label="Nuova password"
+              value={password}
+              onChange={setPassword}
+              autoComplete="new-password"
+              required
+            />
+            <PasswordField
+              label="Conferma password"
+              value={confirm}
+              onChange={setConfirm}
+              autoComplete="new-password"
+              required
+            />
 
             {error ? (
               <div className="text-on-error-container bg-error-container border border-error/20 rounded-xl px-4 py-3 text-sm">
