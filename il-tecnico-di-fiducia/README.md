@@ -14,6 +14,29 @@ Copy `.env.example` to `.env.local` and fill the values:
 
 Migrations live in `supabase/migrations/` and reference data lives in `supabase/seed/`.
 
+### Admin area
+
+The admin area has a dedicated login at `/admin/login`; do not use the customer or
+professional login page for admin access.
+
+Admin users are normal Supabase Auth users whose `public.profiles.role` is `admin`.
+Create or promote the first admin from Supabase/server-side tooling only, never from
+frontend code. Recommended bootstrap values:
+
+- `INITIAL_ADMIN_EMAIL=admin@iltecnicodifiducia.it`
+- `INITIAL_ADMIN_TEMP_PASSWORD` set locally/securely, then force password change
+
+After creating the first admin in Supabase Auth, ensure the related row in
+`public.profiles` has:
+
+- `role = 'admin'`
+- `must_change_password = true`
+- `is_banned = false`
+
+The app blocks full admin access while `must_change_password` is true and redirects
+the admin to the password-change flow. Admin pages and admin APIs verify the role
+server-side.
+
 ### Supabase Auth emails
 
 Supabase sends authentication emails from the default "Supabase Auth" sender until

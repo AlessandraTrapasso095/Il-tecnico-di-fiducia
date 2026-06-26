@@ -85,6 +85,17 @@ export async function GET(request: NextRequest) {
       : { data: [] };
   const subscriptionById = new Map((subs ?? []).map((s) => [s.professional_id, s]));
 
+  const { data: professionalDirectoryRows } =
+    professionalIds.length > 0
+      ? await supabase
+          .from("professional_directory")
+          .select("id, headline, specializations, available_remote, available_travel")
+          .in("id", professionalIds)
+      : { data: [] };
+  const professionalDirectoryById = new Map(
+    (professionalDirectoryRows ?? []).map((row) => [row.id, row]),
+  );
+
   // Metrics (batched)
   const customerIds = rows.filter((u) => u.role === "customer").map((u) => u.id);
 
@@ -158,6 +169,8 @@ export async function GET(request: NextRequest) {
         Date.now() - new Date(lastSeenAt).getTime() <= onlineWindowMs;
 
       const subscription = u.role === "professional" ? (subscriptionById.get(u.id) ?? null) : null;
+      const professional_directory =
+        u.role === "professional" ? (professionalDirectoryById.get(u.id) ?? null) : null;
 
       const customerMetrics =
         u.role === "customer"
@@ -181,9 +194,9 @@ export async function GET(request: NextRequest) {
         ...u,
         activity: { last_seen_at: lastSeenAt, is_online: isOnline },
         subscription,
+        professional_directory,
         metrics: customerMetrics ?? professionalMetrics,
       };
     }),
   });
 }
-

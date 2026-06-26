@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 
+import { writeAuditLog } from "@/lib/api/audit-log";
 import { requireAuth } from "@/lib/api/auth";
 import { isNonEmptyString } from "@/lib/api/validation";
 
@@ -14,7 +15,7 @@ export async function PATCH(
   const auth = await requireAuth({ allowedRoles: ["admin"] });
   if (!auth.ok) return auth.response;
 
-  const { supabase } = auth.ctx;
+  const { supabase, profile } = auth.ctx;
 
   const { id: professionalId } = await params;
   if (!isNonEmptyString(professionalId)) {
@@ -60,6 +61,14 @@ export async function PATCH(
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 400 });
   }
+
+  await writeAuditLog(supabase, {
+    actorId: profile.id,
+    action: "admin.update_subscription",
+    targetType: "professional_subscription",
+    targetId: professionalId,
+    metadata: { status: payload.status },
+  });
 
   return NextResponse.json({ subscription: data });
 }

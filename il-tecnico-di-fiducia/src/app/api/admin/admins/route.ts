@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 
+import { writeAuditLog } from "@/lib/api/audit-log";
 import { requireAuth } from "@/lib/api/auth";
 import { isNonEmptyString } from "@/lib/api/validation";
 import { createServiceClient } from "@/lib/supabase/service";
@@ -14,6 +15,8 @@ type CreateAdminPayload = {
 export async function POST(request: Request) {
   const auth = await requireAuth({ allowedRoles: ["admin"] });
   if (!auth.ok) return auth.response;
+
+  const { supabase, profile } = auth.ctx;
 
   let payload: CreateAdminPayload;
   try {
@@ -88,6 +91,14 @@ export async function POST(request: Request) {
   // Ensure the admin is not present in customer/professional directory tables.
   await service.from("customer_directory").delete().eq("id", userId);
   await service.from("professional_directory").delete().eq("id", userId);
+
+  await writeAuditLog(supabase, {
+    actorId: profile.id,
+    action: "admin.create_admin",
+    targetType: "profile",
+    targetId: userId,
+    metadata: { email: payload.email.trim() },
+  });
 
   return NextResponse.json({
     ok: true,

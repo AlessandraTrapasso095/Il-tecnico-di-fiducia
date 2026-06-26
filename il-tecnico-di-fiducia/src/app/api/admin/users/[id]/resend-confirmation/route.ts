@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 
+import { writeAuditLog } from "@/lib/api/audit-log";
 import { requireAuth } from "@/lib/api/auth";
 import { isNonEmptyString } from "@/lib/api/validation";
 import { createServiceClient } from "@/lib/supabase/service";
@@ -11,7 +12,7 @@ export async function POST(
   const auth = await requireAuth({ allowedRoles: ["admin"] });
   if (!auth.ok) return auth.response;
 
-  const { supabase } = auth.ctx;
+  const { supabase, profile: adminProfile } = auth.ctx;
 
   const { id: targetUserId } = await params;
   if (!isNonEmptyString(targetUserId)) {
@@ -42,6 +43,12 @@ export async function POST(
     return NextResponse.json({ error: error.message }, { status: 400 });
   }
 
+  await writeAuditLog(supabase, {
+    actorId: adminProfile.id,
+    action: "admin.resend_confirmation",
+    targetType: "profile",
+    targetId: targetUserId,
+  });
+
   return NextResponse.json({ ok: true });
 }
-

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { assertNotLastAdmin } from "@/lib/api/admin-guards";
+import { writeAuditLog } from "@/lib/api/audit-log";
 import { requireAuth } from "@/lib/api/auth";
 import { isNonEmptyString } from "@/lib/api/validation";
 import { createServiceClient } from "@/lib/supabase/service";
@@ -75,6 +76,13 @@ export async function DELETE(
   if (deleteError) {
     return NextResponse.json({ error: deleteError.message }, { status: 500 });
   }
+
+  await writeAuditLog(supabase, {
+    actorId: auth.ctx.profile.id,
+    action: "admin.delete_user",
+    targetType: "profile",
+    targetId: targetUserId,
+  });
 
   return NextResponse.json({ ok: true });
 }
@@ -165,6 +173,19 @@ export async function PATCH(
       // ignore
     }
   }
+
+  await writeAuditLog(supabase, {
+    actorId: auth.ctx.profile.id,
+    action:
+      payload.is_banned === true
+        ? "admin.suspend_user"
+        : payload.is_banned === false
+          ? "admin.reactivate_user"
+          : "admin.update_user",
+    targetType: "profile",
+    targetId: targetUserId,
+    metadata: updates,
+  });
 
   return NextResponse.json({ profile: updated });
 }

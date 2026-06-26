@@ -1,48 +1,152 @@
 import Link from "next/link";
 
-import { SignOutButton } from "@/components/auth/sign-out-button";
+import { AdminShell } from "@/components/admin/admin-shell";
 import { requirePageAuth } from "@/lib/server/require-page-auth";
 
 export const dynamic = "force-dynamic";
 
-export default async function AdminPage() {
-  const { profile } = await requirePageAuth({ allowedRoles: ["admin"] });
-
-  return (
-    <main className="min-h-screen pt-10 pb-16 px-4 bg-background">
-      <div className="max-w-[960px] mx-auto">
-        <header className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8">
-          <div>
-            <div className="font-headline-md text-headline-md text-primary">
-              Admin Panel
-            </div>
-            <div className="text-on-surface-variant">
-              Ciao {profile.first_name || "Admin"}.
-            </div>
-          </div>
-
-          <div className="flex items-center gap-3">
-            <Link
-              href="/messages"
-              className="font-button text-button border-2 border-primary text-primary px-5 py-3 rounded-full hover:bg-primary hover:text-white transition-colors"
-            >
-              Messaggi
-            </Link>
-            <SignOutButton className="font-button text-button text-error px-5 py-3 rounded-full hover:bg-error-container/30 transition-colors">
-              Logout
-            </SignOutButton>
-          </div>
-        </header>
-
-        <section className="bg-surface-container-lowest rounded-[20px] p-6 shadow-[0_4px_20px_rgba(8,43,95,0.08)] border border-outline-variant/30">
-          <div className="font-headline-sm text-primary mb-2">Azioni</div>
-          <ul className="list-disc list-inside text-on-surface-variant space-y-1">
-            <li>Gestione utenti e ticket (UI completa nel prossimo step).</li>
-            <li>Forzatura/sospensione abbonamenti professionisti.</li>
-          </ul>
-        </section>
-      </div>
-    </main>
-  );
+async function countRows(
+  supabase: Awaited<ReturnType<typeof requirePageAuth>>["supabase"],
+  table: string,
+  filters: Array<[string, string, unknown]> = [],
+) {
+  let query = supabase.from(table).select("id", { count: "exact", head: true });
+  for (const [column, operator, value] of filters) {
+    if (operator === "eq") query = query.eq(column, value);
+    if (operator === "neq") query = query.neq(column, value);
+    if (operator === "in" && Array.isArray(value)) query = query.in(column, value);
+  }
+  const { count, error } = await query;
+  if (error) return null;
+  return count ?? 0;
 }
 
+function MetricCard({
+  icon,
+  label,
+  value,
+  tone = "blue",
+  href,
+}: {
+  icon: string;
+  label: string;
+  value: number | null;
+  tone?: "blue" | "orange" | "green" | "red";
+  href?: string;
+}) {
+  const colors = {
+    blue: "bg-primary-fixed text-primary",
+    orange: "bg-tertiary-fixed text-on-tertiary-fixed-variant",
+    green: "bg-emerald-50 text-emerald-700",
+    red: "bg-error-container text-error",
+  };
+
+  const content = (
+    <div className="rounded-[24px] border border-outline-variant/30 bg-surface-container-lowest p-5 shadow-[0_4px_20px_rgba(8,43,95,0.08)] transition hover:-translate-y-0.5 hover:shadow-xl">
+      <div className="mb-5 flex items-center justify-between gap-4">
+        <span className={`flex h-12 w-12 items-center justify-center rounded-2xl ${colors[tone]}`}>
+          <span className="material-symbols-outlined">{icon}</span>
+        </span>
+        {href ? (
+          <span className="material-symbols-outlined text-outline">arrow_forward</span>
+        ) : null}
+      </div>
+      <p className="font-label-md text-sm text-on-surface-variant">{label}</p>
+      <p className="mt-2 font-headline-md text-[34px] text-primary">
+        {value === null ? "—" : value.toLocaleString("it-IT")}
+      </p>
+    </div>
+  );
+
+  return href ? <Link href={href}>{content}</Link> : content;
+}
+
+export default async function AdminPage() {
+  const { supabase, profile } = await requirePageAuth({
+    allowedRoles: ["admin"],
+    loginPath: "/admin/login",
+  });
+
+  const [
+    clients,
+    professionals,
+    admins,
+    activeSubscriptions,
+    inactiveSubscriptions,
+    openTickets,
+    contactRequests,
+    activeConversations,
+  ] = await Promise.all([
+    countRows(supabase, "profiles", [["role", "eq", "customer"]]),
+    countRows(supabase, "profiles", [["role", "eq", "professional"]]),
+    countRows(supabase, "profiles", [["role", "eq", "admin"]]),
+    countRows(supabase, "professional_subscriptions", [
+      ["status", "in", ["stripe_active", "admin_forced_active"]],
+    ]),
+    countRows(supabase, "professional_subscriptions", [["status", "eq", "none"]]),
+    countRows(supabase, "support_tickets", [["status", "eq", "open"]]),
+    countRows(supabase, "contact_requests"),
+    countRows(supabase, "conversations", [["status", "eq", "accepted"]]),
+  ]);
+
+  return (
+    <AdminShell
+      title="Dashboard"
+      subtitle="Panoramica reale della piattaforma."
+      adminName={profile.first_name || profile.email}
+    >
+      <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <MetricCard icon="group" label="Clienti" value={clients} href="/admin/clienti" />
+        <MetricCard
+          icon="engineering"
+          label="Professionisti"
+          value={professionals}
+          href="/admin/professionisti"
+        />
+        <MetricCard icon="shield_person" label="Admin" value={admins} href="/admin/impostazioni" />
+        <MetricCard
+          icon="support_agent"
+          label="Ticket aperti"
+          value={openTickets}
+          tone="orange"
+          href="/admin/supporto"
+        />
+        <MetricCard
+          icon="verified"
+          label="Professionisti abbonati"
+          value={activeSubscriptions}
+          tone="green"
+          href="/admin/professionisti"
+        />
+        <MetricCard
+          icon="block"
+          label="Professionisti non abbonati"
+          value={inactiveSubscriptions}
+          tone="red"
+          href="/admin/professionisti"
+        />
+        <MetricCard
+          icon="outgoing_mail"
+          label="Richieste inviate"
+          value={contactRequests}
+          href="/admin/professionisti"
+        />
+        <MetricCard
+          icon="forum"
+          label="Conversazioni attive"
+          value={activeConversations}
+          href="/admin/supporto"
+        />
+      </section>
+
+      <section className="mt-8 rounded-[28px] border border-outline-variant/30 bg-primary p-6 text-white shadow-[0_12px_40px_rgba(8,43,95,0.18)]">
+        <p className="font-label-md text-primary-fixed">Sicurezza admin</p>
+        <h2 className="mt-2 font-headline-sm text-[28px]">Azioni sensibili protette</h2>
+        <p className="mt-2 max-w-[760px] text-primary-fixed">
+          Eliminazione account, sospensioni, reset password, email conferma e forzature
+          abbonamento passano da API server con controllo ruolo admin.
+        </p>
+      </section>
+    </AdminShell>
+  );
+}

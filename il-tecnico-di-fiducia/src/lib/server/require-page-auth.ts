@@ -16,6 +16,7 @@ export type PageAuthContext = {
 type RequirePageAuthOptions = {
   allowedRoles?: UserRole[];
   allowMustChangePassword?: boolean;
+  loginPath?: string;
 };
 
 export async function requirePageAuth(
@@ -28,13 +29,13 @@ export async function requirePageAuth(
   } = await supabase.auth.getUser();
 
   if (!user) {
-    redirect("/auth/login");
+    redirect(options.loginPath ?? "/auth/login");
   }
 
   const { data: isActive } = await supabase.rpc("is_active_user");
   if (!isActive) {
     await supabase.auth.signOut();
-    redirect("/auth/login");
+    redirect(options.loginPath ?? "/auth/login");
   }
 
   const { data: profile } = await supabase
@@ -46,7 +47,7 @@ export async function requirePageAuth(
     .maybeSingle();
 
   if (!profile) {
-    redirect("/auth/login");
+    redirect(options.loginPath ?? "/auth/login");
   }
 
   if (options.allowedRoles && !options.allowedRoles.includes(profile.role)) {

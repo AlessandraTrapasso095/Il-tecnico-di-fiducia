@@ -5,13 +5,17 @@ import Link from "next/link";
 import {
   useCallback,
   useEffect,
+  useLayoutEffect,
   useRef,
   useState,
+  type CSSProperties,
   type ChangeEvent,
   type Dispatch,
   type ReactNode,
+  type RefObject,
   type SetStateAction,
 } from "react";
+import { createPortal } from "react-dom";
 
 import {
   ConfirmActionModal,
@@ -323,6 +327,10 @@ export default function ProfessionalProfileClient({
   const cameraInputRef = useRef<HTMLInputElement | null>(null);
   const coverMenuRef = useRef<HTMLDivElement | null>(null);
   const avatarMenuRef = useRef<HTMLDivElement | null>(null);
+  const coverMenuButtonRef = useRef<HTMLButtonElement | null>(null);
+  const avatarMenuButtonRef = useRef<HTMLButtonElement | null>(null);
+  const mediaMenuPortalRef = useRef<HTMLDivElement | null>(null);
+  const pendingMediaTargetRef = useRef<MediaTarget | null>(null);
 
   const isOwner = profileAccess.is_owner;
   const canViewFull = profileAccess.can_view_full_profile;
@@ -392,7 +400,7 @@ export default function ProfessionalProfileClient({
       const target = event.target;
       if (!(target instanceof Node)) return;
       const activeRef = mediaMenu === "cover" ? coverMenuRef : avatarMenuRef;
-      if (!activeRef.current?.contains(target)) {
+      if (!activeRef.current?.contains(target) && !mediaMenuPortalRef.current?.contains(target)) {
         setMediaMenu(null);
       }
     }
@@ -508,11 +516,20 @@ export default function ProfessionalProfileClient({
   function onPickImage(event: ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0];
     event.target.value = "";
-    const target = mediaMenu;
+    const target = pendingMediaTargetRef.current ?? mediaMenu;
+    pendingMediaTargetRef.current = null;
     if (!file || !target) return;
     const previewUrl = URL.createObjectURL(file);
     setMediaMenu(null);
     setCropState({ target, file, previewUrl, zoom: 1, offsetX: 0, offsetY: 0 });
+  }
+
+  function openMediaPicker(source: "camera" | "device") {
+    if (!mediaMenu) return;
+    pendingMediaTargetRef.current = mediaMenu;
+    setMediaMenu(null);
+    const input = source === "camera" ? cameraInputRef.current : fileInputRef.current;
+    window.setTimeout(() => input?.click(), 0);
   }
 
   async function uploadCroppedImage() {
@@ -834,20 +851,15 @@ export default function ProfessionalProfileClient({
             {isOwner ? (
               <div ref={coverMenuRef} className="absolute right-4 top-4">
                 <button
+                  ref={coverMenuButtonRef}
                   type="button"
                   className="flex h-11 w-11 items-center justify-center rounded-full bg-white/85 text-primary shadow-lg backdrop-blur"
                   onClick={() => setMediaMenu(mediaMenu === "cover" ? null : "cover")}
                   aria-label="Modifica cover"
+                  aria-expanded={mediaMenu === "cover"}
                 >
                   <span className="material-symbols-outlined">more_horiz</span>
                 </button>
-                {mediaMenu === "cover" ? (
-                  <MediaMenu
-                    className="absolute right-0 top-14"
-                    onCamera={() => cameraInputRef.current?.click()}
-                    onDevice={() => fileInputRef.current?.click()}
-                  />
-                ) : null}
               </div>
             ) : null}
           </div>
@@ -872,20 +884,15 @@ export default function ProfessionalProfileClient({
                   {isOwner ? (
                     <div ref={avatarMenuRef} className="absolute bottom-2 right-2">
                       <button
+                        ref={avatarMenuButtonRef}
                         type="button"
                         className="flex h-10 w-10 items-center justify-center rounded-full bg-[#FF8500] text-white shadow-lg"
                         onClick={() => setMediaMenu(mediaMenu === "avatar" ? null : "avatar")}
                         aria-label="Modifica foto profilo"
+                        aria-expanded={mediaMenu === "avatar"}
                       >
                         <span className="material-symbols-outlined">more_horiz</span>
                       </button>
-                      {mediaMenu === "avatar" ? (
-                        <MediaMenu
-                          className="absolute bottom-12 right-0"
-                          onCamera={() => cameraInputRef.current?.click()}
-                          onDevice={() => fileInputRef.current?.click()}
-                        />
-                      ) : null}
                     </div>
                   ) : null}
                 </div>
@@ -952,6 +959,14 @@ export default function ProfessionalProfileClient({
           capture="environment"
           onChange={onPickImage}
         />
+        {mediaMenu ? (
+          <MediaMenu
+            anchorRef={mediaMenu === "cover" ? coverMenuButtonRef : avatarMenuButtonRef}
+            menuRef={mediaMenuPortalRef}
+            onCamera={() => openMediaPicker("camera")}
+            onDevice={() => openMediaPicker("device")}
+          />
+        ) : null}
 
         <div className="mt-8 border-b border-outline-variant/40">
           <div className="flex gap-3 overflow-x-auto">
@@ -1316,17 +1331,72 @@ function Slider({
 }
 
 function MediaMenu({
-  className,
+  anchorRef,
+  menuRef,
   onCamera,
   onDevice,
 }: {
-  className: string;
+  anchorRef: RefObject<HTMLButtonElement | null>;
+  menuRef: RefObject<HTMLDivElement | null>;
   onCamera: () => void;
   onDevice: () => void;
 }) {
-  return (
+  const [style, setStyle] = useState<CSSProperties | null>(null);
+
+  useLayoutEffect(() => {
+    function updatePosition() {
+      const anchor = anchorRef.current;
+      if (!anchor) return;
+
+      const rect = anchor.getBoundingClientRect();
+      const gutter = 12;
+      const menuWidth = Math.min(288, Math.max(240, window.innerWidth - gutter * 2));
+      const estimatedMenuHeight = 132;
+      const maxLeft = Math.max(gutter, window.innerWidth - menuWidth - gutter);
+      const left = Math.min(
+        Math.max(rect.right - menuWidth, gutter),
+        maxLeft,
+      );
+      const belowTop = rect.bottom + 8;
+      const top =
+        belowTop + estimatedMenuHeight > window.innerHeight - gutter
+          ? Math.max(gutter, rect.top - estimatedMenuHeight - 8)
+          : belowTop;
+
+      setStyle({
+        left,
+        position: "fixed",
+        top,
+        width: menuWidth,
+        zIndex: 1000,
+      });
+    }
+
+    updatePosition();
+    window.addEventListener("resize", updatePosition);
+    window.addEventListener("scroll", updatePosition, true);
+    return () => {
+      window.removeEventListener("resize", updatePosition);
+      window.removeEventListener("scroll", updatePosition, true);
+    };
+  }, [anchorRef]);
+
+  if (typeof document === "undefined") return null;
+
+  const menuStyle: CSSProperties = style ?? {
+    left: 0,
+    position: "fixed",
+    top: 0,
+    visibility: "hidden",
+    width: 288,
+    zIndex: 1000,
+  };
+
+  return createPortal(
     <div
-      className={`${className} z-[95] w-72 rounded-2xl border border-outline-variant/30 bg-surface-container-lowest p-3 shadow-2xl`}
+      ref={menuRef}
+      style={menuStyle}
+      className="rounded-2xl border border-outline-variant/30 bg-surface-container-lowest p-3 shadow-2xl"
     >
       <button
         type="button"
@@ -1344,7 +1414,8 @@ function MediaMenu({
         <span className="material-symbols-outlined">upload</span>
         Scegli foto da dispositivo
       </button>
-    </div>
+    </div>,
+    document.body,
   );
 }
 

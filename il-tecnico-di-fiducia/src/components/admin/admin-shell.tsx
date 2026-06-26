@@ -1,0 +1,122 @@
+"use client";
+
+import Link from "next/link";
+import { usePathname } from "next/navigation";
+import type { ReactNode } from "react";
+
+import { SignOutButton } from "@/components/auth/sign-out-button";
+
+type AdminShellProps = {
+  children: ReactNode;
+  title: string;
+  subtitle?: string;
+  adminName?: string;
+};
+
+const NAV_ITEMS = [
+  { href: "/admin", label: "Dashboard", icon: "dashboard" },
+  { href: "/admin/clienti", label: "Clienti", icon: "groups" },
+  { href: "/admin/professionisti", label: "Professionisti", icon: "engineering" },
+  { href: "/admin/supporto", label: "Supporto", icon: "support_agent" },
+  { href: "/admin/impostazioni", label: "Impostazioni", icon: "settings" },
+];
+
+function isActive(pathname: string, href: string) {
+  if (href === "/admin") return pathname === href;
+  return pathname === href || pathname.startsWith(`${href}/`);
+}
+
+export function AdminShell({ children, title, subtitle, adminName }: AdminShellProps) {
+  const pathname = usePathname();
+
+  return (
+    <div className="min-h-screen bg-background text-on-surface">
+      <header className="sticky top-0 z-40 border-b border-outline-variant/30 bg-surface-container-lowest/85 backdrop-blur-xl lg:ml-72">
+        <div className="flex min-h-20 flex-col gap-3 px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-6 lg:px-8">
+          <div>
+            <p className="font-label-md text-sm uppercase tracking-[0.16em] text-[#FF8500]">
+              Admin Panel
+            </p>
+            <h1 className="font-headline-md text-[30px] leading-tight text-primary">
+              {title}
+            </h1>
+            {subtitle ? (
+              <p className="mt-1 text-sm text-on-surface-variant">{subtitle}</p>
+            ) : null}
+          </div>
+          <div className="flex items-center gap-3">
+            <div className="hidden rounded-full border border-outline-variant/40 bg-surface-container-low px-4 py-2 text-sm text-on-surface-variant sm:block">
+              {adminName || "Admin"}
+            </div>
+            <SignOutButton className="inline-flex items-center gap-2 rounded-full border border-error/30 px-4 py-2 font-button text-error transition hover:bg-error-container">
+              <span className="material-symbols-outlined text-[20px]">logout</span>
+              Esci
+            </SignOutButton>
+          </div>
+        </div>
+      </header>
+
+      <aside className="fixed left-0 top-0 z-50 hidden h-screen w-72 border-r border-outline-variant/30 bg-surface-container-low p-5 lg:flex lg:flex-col">
+        <Link href="/admin" className="mb-8 flex items-center gap-3 px-2">
+          <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-primary text-white shadow-lg">
+            <span className="material-symbols-outlined">admin_panel_settings</span>
+          </span>
+          <span>
+            <span className="block font-headline-sm text-[22px] leading-none text-primary">
+              Il Tecnico
+            </span>
+            <span className="block font-label-md text-[#FF8500]">Admin</span>
+          </span>
+        </Link>
+
+        <nav className="space-y-2">
+          {NAV_ITEMS.map((item) => {
+            const active = isActive(pathname, item.href);
+            return (
+              <Link
+                key={item.href}
+                href={item.href}
+                className={[
+                  "flex items-center gap-3 rounded-2xl px-4 py-3 font-label-md transition",
+                  active
+                    ? "bg-primary text-white shadow-lg shadow-primary/15"
+                    : "text-on-surface-variant hover:bg-surface-container-high hover:text-primary",
+                ].join(" ")}
+              >
+                <span className="material-symbols-outlined">{item.icon}</span>
+                {item.label}
+              </Link>
+            );
+          })}
+        </nav>
+
+        <div className="mt-auto rounded-[24px] border border-outline-variant/30 bg-white/60 p-4 text-sm text-on-surface-variant">
+          Tutte le azioni sensibili passano da API protette con ruolo admin.
+        </div>
+      </aside>
+
+      <nav className="fixed bottom-0 left-0 right-0 z-50 grid grid-cols-5 border-t border-outline-variant/30 bg-surface-container-lowest/90 px-2 py-2 backdrop-blur-xl lg:hidden">
+        {NAV_ITEMS.map((item) => {
+          const active = isActive(pathname, item.href);
+          return (
+            <Link
+              key={item.href}
+              href={item.href}
+              className={[
+                "flex flex-col items-center gap-1 rounded-2xl px-2 py-2 text-[10px]",
+                active ? "text-primary" : "text-on-surface-variant",
+              ].join(" ")}
+            >
+              <span className="material-symbols-outlined text-[22px]">{item.icon}</span>
+              <span className="truncate">{item.label}</span>
+            </Link>
+          );
+        })}
+      </nav>
+
+      <main className="px-4 py-6 pb-28 sm:px-6 lg:ml-72 lg:px-8 lg:pb-10">
+        {children}
+      </main>
+    </div>
+  );
+}

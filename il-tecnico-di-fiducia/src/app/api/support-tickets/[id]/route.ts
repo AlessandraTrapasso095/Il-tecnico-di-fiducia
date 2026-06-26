@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 
+import { writeAuditLog } from "@/lib/api/audit-log";
 import { requireAuth } from "@/lib/api/auth";
 
 type UpdateTicketPayload = {
@@ -94,6 +95,16 @@ export async function PATCH(
 
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 400 });
+  }
+
+  if (profile.role === "admin" && payload.status) {
+    await writeAuditLog(supabase, {
+      actorId: profile.id,
+      action: "admin.update_support_ticket",
+      targetType: "support_ticket",
+      targetId: id,
+      metadata: { status: payload.status },
+    });
   }
 
   return NextResponse.json({ ticket: data });
