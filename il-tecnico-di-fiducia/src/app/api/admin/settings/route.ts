@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 
+import { writeAuditLog } from "@/lib/api/audit-log";
 import { requireAuth } from "@/lib/api/auth";
 import { isNonEmptyString } from "@/lib/api/validation";
 
@@ -7,6 +8,12 @@ type AdminSettingsPayload = {
   first_name?: string;
   last_name?: string;
   email?: string;
+  notifications?: {
+    new_requests?: boolean;
+    messages?: boolean;
+    reviews?: boolean;
+    email?: boolean;
+  };
 };
 
 export async function PATCH(request: Request) {
@@ -50,6 +57,47 @@ export async function PATCH(request: Request) {
       return NextResponse.json({ error: error.message }, { status: 400 });
     }
   }
+
+  if (payload.notifications !== undefined) {
+    const notificationUpdates: Record<string, boolean> = {};
+    for (const key of ["new_requests", "messages", "reviews", "email"] as const) {
+      const value = payload.notifications[key];
+      if (value !== undefined) {
+        if (typeof value !== "boolean") {
+          return NextResponse.json(
+            { error: `notifications.${key} must be boolean` },
+            { status: 400 },
+          );
+        }
+        notificationUpdates[key] = value;
+      }
+    }
+
+    if (Object.keys(notificationUpdates).length > 0) {
+      const { error } = await supabase.from("notification_preferences").upsert(
+        {
+          user_id: profile.id,
+          ...notificationUpdates,
+        },
+        { onConflict: "user_id" },
+      );
+      if (error) {
+        return NextResponse.json({ error: error.message }, { status: 400 });
+      }
+    }
+  }
+
+  await writeAuditLog(supabase, {
+    actorId: profile.id,
+    action: "admin.update_own_settings",
+    targetType: "profile",
+    targetId: profile.id,
+    metadata: {
+      profile_fields: Object.keys(updates),
+      notifications_changed: payload.notifications !== undefined,
+      email_update_pending: emailUpdatePending,
+    },
+  });
 
   return NextResponse.json({ ok: true, email_update_pending: emailUpdatePending });
 }

@@ -17,6 +17,7 @@ export type ViewerProfile = {
   phone: string | null;
   must_change_password: boolean;
   is_banned: boolean;
+  suspended_until: string | null;
 };
 
 export type ApiAuthContext = {
@@ -77,7 +78,7 @@ export async function requireAuth(
   const { data: profile, error: profileError } = await supabase
     .from("profiles")
     .select(
-      "id, role, email, first_name, last_name, province_code, phone, must_change_password, is_banned",
+      "id, role, email, first_name, last_name, province_code, phone, must_change_password, is_banned, suspended_until",
     )
     .eq("id", user.id)
     .maybeSingle();

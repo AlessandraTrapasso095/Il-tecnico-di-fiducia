@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { assertNotLastAdmin } from "@/lib/api/admin-guards";
+import { writeAuditLog } from "@/lib/api/audit-log";
 import { createServiceClient } from "@/lib/supabase/service";
 import { createClient } from "@/lib/supabase/server";
 import { deleteAllStorageObjectsForUser } from "@/lib/storage/delete-user-storage";
@@ -27,6 +28,13 @@ export async function DELETE() {
       err instanceof Error ? err.message : "Failed to validate admin safety";
     return NextResponse.json({ error: message }, { status: 500 });
   }
+
+  await writeAuditLog(supabase, {
+    actorId: user.id,
+    action: "account.delete_own_account",
+    targetType: "profile",
+    targetId: user.id,
+  });
 
   // Best-effort sign-out so cookies are cleared even if deletion fails later.
   await supabase.auth.signOut();

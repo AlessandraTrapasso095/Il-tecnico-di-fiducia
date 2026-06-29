@@ -67,26 +67,11 @@ export default async function AdminPage() {
     loginPath: "/admin/login",
   });
 
-  const [
-    clients,
-    professionals,
-    admins,
-    activeSubscriptions,
-    inactiveSubscriptions,
-    openTickets,
-    contactRequests,
-    activeConversations,
-  ] = await Promise.all([
+  const [clients, professionals, admins, tickets] = await Promise.all([
     countRows(supabase, "profiles", [["role", "eq", "customer"]]),
     countRows(supabase, "profiles", [["role", "eq", "professional"]]),
     countRows(supabase, "profiles", [["role", "eq", "admin"]]),
-    countRows(supabase, "professional_subscriptions", [
-      ["status", "in", ["stripe_active", "admin_forced_active"]],
-    ]),
-    countRows(supabase, "professional_subscriptions", [["status", "eq", "none"]]),
-    countRows(supabase, "support_tickets", [["status", "eq", "open"]]),
-    countRows(supabase, "contact_requests"),
-    countRows(supabase, "conversations", [["status", "eq", "accepted"]]),
+    countRows(supabase, "support_tickets"),
   ]);
 
   return (
@@ -103,49 +88,14 @@ export default async function AdminPage() {
           value={professionals}
           href="/admin/professionisti"
         />
-        <MetricCard icon="shield_person" label="Admin" value={admins} href="/admin/impostazioni" />
+        <MetricCard icon="shield_person" label="Admin" value={admins} href="/admin/admin" />
         <MetricCard
           icon="support_agent"
-          label="Ticket aperti"
-          value={openTickets}
+          label="Ticket"
+          value={tickets}
           tone="orange"
           href="/admin/supporto"
         />
-        <MetricCard
-          icon="verified"
-          label="Professionisti abbonati"
-          value={activeSubscriptions}
-          tone="green"
-          href="/admin/professionisti"
-        />
-        <MetricCard
-          icon="block"
-          label="Professionisti non abbonati"
-          value={inactiveSubscriptions}
-          tone="red"
-          href="/admin/professionisti"
-        />
-        <MetricCard
-          icon="outgoing_mail"
-          label="Richieste inviate"
-          value={contactRequests}
-          href="/admin/professionisti"
-        />
-        <MetricCard
-          icon="forum"
-          label="Conversazioni attive"
-          value={activeConversations}
-          href="/admin/supporto"
-        />
-      </section>
-
-      <section className="mt-8 rounded-[28px] border border-outline-variant/30 bg-primary p-6 text-white shadow-[0_12px_40px_rgba(8,43,95,0.18)]">
-        <p className="font-label-md text-primary-fixed">Sicurezza admin</p>
-        <h2 className="mt-2 font-headline-sm text-[28px]">Azioni sensibili protette</h2>
-        <p className="mt-2 max-w-[760px] text-primary-fixed">
-          Eliminazione account, sospensioni, reset password, email conferma e forzature
-          abbonamento passano da API server con controllo ruolo admin.
-        </p>
       </section>
     </AdminShell>
   );

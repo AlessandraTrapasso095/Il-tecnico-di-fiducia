@@ -10,6 +10,7 @@ import { deleteAllStorageObjectsForUser } from "@/lib/storage/delete-user-storag
 type AdminUpdateUserPayload = {
   is_banned?: boolean;
   must_change_password?: boolean;
+  suspended_until?: string | null;
 };
 
 export async function DELETE(
@@ -115,6 +116,27 @@ export async function PATCH(
       return NextResponse.json({ error: "is_banned must be boolean" }, { status: 400 });
     }
     updates.is_banned = payload.is_banned;
+    if (payload.is_banned === false) {
+      updates.suspended_until = null;
+    }
+  }
+
+  if (payload.suspended_until !== undefined) {
+    if (payload.suspended_until !== null && typeof payload.suspended_until !== "string") {
+      return NextResponse.json(
+        { error: "suspended_until must be an ISO date or null" },
+        { status: 400 },
+      );
+    }
+    if (payload.suspended_until !== null) {
+      const date = new Date(payload.suspended_until);
+      if (Number.isNaN(date.getTime())) {
+        return NextResponse.json({ error: "Invalid suspended_until" }, { status: 400 });
+      }
+      updates.suspended_until = date.toISOString();
+    } else if (payload.is_banned !== false) {
+      updates.suspended_until = null;
+    }
   }
 
   if (payload.must_change_password !== undefined) {
@@ -153,7 +175,7 @@ export async function PATCH(
     .from("profiles")
     .update(updates)
     .eq("id", targetUserId)
-    .select("id, role, email, is_banned, must_change_password, created_at, updated_at")
+    .select("id, role, email, is_banned, suspended_until, must_change_password, created_at, updated_at")
     .maybeSingle();
 
   if (updateError) {

@@ -41,7 +41,7 @@ export async function requirePageAuth(
   const { data: profile } = await supabase
     .from("profiles")
     .select(
-      "id, role, email, first_name, last_name, province_code, phone, must_change_password, is_banned",
+      "id, role, email, first_name, last_name, province_code, phone, must_change_password, is_banned, suspended_until",
     )
     .eq("id", user.id)
     .maybeSingle();

@@ -6,6 +6,7 @@ import { isNonEmptyString } from "@/lib/api/validation";
 
 type ForceSubscriptionPayload = {
   status: "none" | "admin_forced_active" | "suspended";
+  current_period_end?: string | null;
 };
 
 export async function PATCH(
@@ -37,9 +38,29 @@ export async function PATCH(
     return NextResponse.json({ error: "Invalid status" }, { status: 400 });
   }
 
+  let currentPeriodEnd: string | null | undefined;
+  if (payload.current_period_end !== undefined) {
+    if (payload.current_period_end !== null && typeof payload.current_period_end !== "string") {
+      return NextResponse.json(
+        { error: "current_period_end must be an ISO date or null" },
+        { status: 400 },
+      );
+    }
+    if (payload.current_period_end !== null) {
+      const date = new Date(payload.current_period_end);
+      if (Number.isNaN(date.getTime())) {
+        return NextResponse.json({ error: "Invalid current_period_end" }, { status: 400 });
+      }
+      currentPeriodEnd = date.toISOString();
+    } else {
+      currentPeriodEnd = null;
+    }
+  }
+
   const baseRow = {
     professional_id: professionalId,
     status: payload.status,
+    ...(currentPeriodEnd !== undefined ? { current_period_end: currentPeriodEnd } : {}),
   };
 
   const nextRow: Record<string, unknown> =
@@ -67,7 +88,7 @@ export async function PATCH(
     action: "admin.update_subscription",
     targetType: "professional_subscription",
     targetId: professionalId,
-    metadata: { status: payload.status },
+    metadata: { status: payload.status, current_period_end: currentPeriodEnd ?? null },
   });
 
   return NextResponse.json({ subscription: data });

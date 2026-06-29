@@ -35,7 +35,7 @@ export async function GET(request: NextRequest) {
   let builder = supabase
     .from("profiles")
     .select(
-      "id, role, email, first_name, last_name, province_code, phone, must_change_password, is_banned, created_at, updated_at",
+      "id, role, email, first_name, last_name, province_code, phone, must_change_password, is_banned, suspended_until, created_at, updated_at",
       { count: "exact" },
     )
     .order("created_at", { ascending: false })
