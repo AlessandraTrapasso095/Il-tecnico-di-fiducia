@@ -5,7 +5,12 @@ import { requirePageAuth } from "@/lib/server/require-page-auth";
 export const dynamic = "force-dynamic";
 
 export default async function ProfessionalHomePage() {
-  const { profile } = await requirePageAuth({ allowedRoles: ["professional"] });
+  const { supabase, profile } = await requirePageAuth({ allowedRoles: ["professional"] });
+  const { data: professionalProfile } = await supabase
+    .from("professional_profiles")
+    .select("avatar_url")
+    .eq("id", profile.id)
+    .maybeSingle();
 
   return (
     <ProfessionalDashboardClient
@@ -16,6 +21,7 @@ export default async function ProfessionalHomePage() {
         email: profile.email,
         province_code: profile.province_code,
         phone: profile.phone,
+        avatar_url: professionalProfile?.avatar_url ?? null,
       }}
     />
   );

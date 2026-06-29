@@ -21,6 +21,7 @@ type ProfessionalProfileLite = {
   last_name: string;
   province_code: string | null;
   phone: string | null;
+  avatar_url: string | null;
 };
 
 type SubscriptionStatus = "none" | "stripe_active" | "admin_forced_active" | "suspended";
@@ -199,6 +200,7 @@ function Avatar({
 export default function ProfessionalDashboardClient({
   profile,
 }: ProfessionalDashboardClientProps) {
+  const [composerProfile, setComposerProfile] = useState(profile);
   const [subscription, setSubscription] = useState<SubscriptionResponse | null>(null);
   const [posts, setPosts] = useState<PostRow[]>([]);
   const [postBody, setPostBody] = useState("");
@@ -217,6 +219,20 @@ export default function ProfessionalDashboardClient({
   const [busyPostId, setBusyPostId] = useState<string | null>(null);
 
   const subscriptionCopy = subscriptionCardCopy(subscription);
+
+  useEffect(() => {
+    function onAvatarUpdated(event: Event) {
+      const avatarUrl = (event as CustomEvent<{ avatar_url?: string | null }>).detail
+        ?.avatar_url;
+      if (avatarUrl === undefined) return;
+      setComposerProfile((current) => ({ ...current, avatar_url: avatarUrl }));
+    }
+
+    window.addEventListener("professional-avatar-updated", onAvatarUpdated);
+    return () => {
+      window.removeEventListener("professional-avatar-updated", onAvatarUpdated);
+    };
+  }, []);
 
   const fetchDashboardData = useCallback(async () => {
     const [subscriptionRes, postsRes] = await Promise.all([
@@ -467,7 +483,7 @@ export default function ProfessionalDashboardClient({
           className="rounded-[28px] border border-outline-variant/30 bg-surface-container-lowest p-5 shadow-[0_4px_20px_rgba(8,43,95,0.08)] sm:p-6"
         >
           <div className="flex gap-4">
-            <Avatar person={profile} size="sm" />
+            <Avatar person={composerProfile} size="sm" />
             <div className="flex-1">
               <label className="sr-only" htmlFor="post-body">
                 Crea un post
@@ -580,6 +596,7 @@ export default function ProfessionalDashboardClient({
                 return (
                   <article
                     key={post.id}
+                    id={`post-${post.id}`}
                     className="rounded-[24px] border border-outline-variant/30 bg-surface-container-low p-4 sm:p-5"
                   >
                     <div className="mb-4 flex items-start justify-between gap-4">

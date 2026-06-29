@@ -22,11 +22,20 @@ type ProfessionalShellProfile = {
 
 type NotificationRow = {
   id: string;
+  actor_id: string | null;
   type: string;
   entity_type: string | null;
   entity_id: string | null;
   created_at: string;
   read_at: string | null;
+  href: string;
+  actor: {
+    id: string;
+    role: string;
+    first_name: string;
+    last_name: string;
+    avatar_url: string | null;
+  } | null;
 };
 
 type NotificationsResponse = {
@@ -82,6 +91,40 @@ function formatTime(value: string | null | undefined) {
     hour: "2-digit",
     minute: "2-digit",
   }).format(new Date(value));
+}
+
+function notificationText(notification: NotificationRow) {
+  const actor = fullName(notification.actor);
+
+  if (notification.type === "follow_started") {
+    return `${actor} ha iniziato a seguirti`;
+  }
+
+  if (notification.type === "post_commented") {
+    return `${actor} ha commentato il tuo post`;
+  }
+
+  if (notification.type === "post_liked") {
+    return `${actor} ha messo like al tuo post`;
+  }
+
+  if (notification.type === "contact_request_created") {
+    return `${actor} ti ha inviato una richiesta`;
+  }
+
+  if (notification.type === "contact_request_accepted") {
+    return `${actor} ha accettato la richiesta`;
+  }
+
+  if (notification.type === "contact_request_rejected") {
+    return `${actor} ha rifiutato la richiesta`;
+  }
+
+  if (notification.type === "review_created") {
+    return `${actor} ha lasciato una recensione`;
+  }
+
+  return "Nuova notifica";
 }
 
 function Avatar({
@@ -264,6 +307,35 @@ export default function ProfessionalShell({ profile, children }: ProfessionalShe
     );
   }
 
+  async function markNotificationRead(notificationId: string) {
+    const target = notifications.find((notification) => notification.id === notificationId);
+    if (!target || target.read_at) return;
+
+    const readAt = new Date().toISOString();
+    setNotifications((current) =>
+      current.map((notification) =>
+        notification.id === notificationId
+          ? { ...notification, read_at: readAt }
+          : notification,
+      ),
+    );
+
+    try {
+      await fetchJson<{ ok: true }>("/api/notifications", {
+        method: "PATCH",
+        body: JSON.stringify({ ids: [notificationId] }),
+      });
+    } catch {
+      setNotifications((current) =>
+        current.map((notification) =>
+          notification.id === notificationId
+            ? { ...notification, read_at: target.read_at }
+            : notification,
+        ),
+      );
+    }
+  }
+
   const sidebar = (
     <nav className="flex flex-col gap-2">
       {NAV_ITEMS.map((item) => {
@@ -438,20 +510,38 @@ export default function ProfessionalShell({ profile, children }: ProfessionalShe
                   ) : (
                     <div className="max-h-[360px] space-y-2 overflow-auto">
                       {notifications.map((notification) => (
-                        <div
+                        <Link
                           key={notification.id}
-                          className="rounded-2xl bg-surface-container-low p-3 text-sm"
+                          href={notification.href}
+                          className="flex gap-3 rounded-2xl bg-surface-container-low p-3 text-sm transition hover:bg-surface-container"
+                          onClick={() => {
+                            setNotificationsOpen(false);
+                            void markNotificationRead(notification.id);
+                          }}
                         >
-                          <div className="flex items-center gap-2">
-                            {!notification.read_at ? (
-                              <span className="h-2 w-2 rounded-full bg-[#FF8500]" />
-                            ) : null}
-                            <span className="font-label-md text-primary">{notification.type}</span>
+                          <Avatar
+                            person={
+                              notification.actor ?? {
+                                first_name: "Il Tecnico",
+                                last_name: "",
+                                avatar_url: null,
+                              }
+                            }
+                          />
+                          <div className="min-w-0 flex-1">
+                            <div className="flex items-start gap-2">
+                              <span className="font-label-md text-primary">
+                                {notificationText(notification)}
+                              </span>
+                              {!notification.read_at ? (
+                                <span className="mt-1.5 h-2 w-2 shrink-0 rounded-full bg-[#FF8500]" />
+                              ) : null}
+                            </div>
+                            <div className="mt-1 text-xs text-on-surface-variant">
+                              {formatTime(notification.created_at)}
+                            </div>
                           </div>
-                          <div className="mt-1 text-xs text-on-surface-variant">
-                            {formatTime(notification.created_at)}
-                          </div>
-                        </div>
+                        </Link>
                       ))}
                     </div>
                   )}

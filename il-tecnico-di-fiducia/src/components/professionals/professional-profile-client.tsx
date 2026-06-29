@@ -122,6 +122,31 @@ function initials(person: { first_name: string; last_name: string }) {
   );
 }
 
+function CompactAvatar({
+  person,
+}: {
+  person: { first_name: string; last_name: string; avatar_url?: string | null };
+}) {
+  if (person.avatar_url) {
+    return (
+      <Image
+        src={person.avatar_url}
+        alt={fullName(person)}
+        width={44}
+        height={44}
+        unoptimized
+        className="h-11 w-11 shrink-0 rounded-full border-2 border-primary-container object-cover"
+      />
+    );
+  }
+
+  return (
+    <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-primary text-sm font-bold text-white">
+      {initials(person)}
+    </div>
+  );
+}
+
 function formatDate(value: string | null | undefined) {
   if (!value) return "";
   return new Intl.DateTimeFormat("it-IT", {
@@ -1117,6 +1142,11 @@ export default function ProfessionalProfileClient({
                 setPostFiles={setPostFiles}
                 posting={posting}
                 postError={postError}
+                composerPerson={{
+                  first_name: profile.first_name,
+                  last_name: profile.last_name,
+                  avatar_url: profile.avatar_url,
+                }}
                 createPost={() => void createPost()}
                 toggleLike={toggleLike}
                 updatePost={updatePost}
@@ -1650,6 +1680,7 @@ function WorksTab({
   setPostFiles,
   posting,
   postError,
+  composerPerson,
   createPost,
   toggleLike,
   updatePost,
@@ -1666,6 +1697,7 @@ function WorksTab({
   setPostFiles: (files: File[]) => void;
   posting: boolean;
   postError: string | null;
+  composerPerson: { first_name: string; last_name: string; avatar_url?: string | null };
   createPost: () => void;
   toggleLike: (post: PostRow) => void;
   updatePost: (
@@ -1698,13 +1730,16 @@ function WorksTab({
     <div className="space-y-5">
       {isOwner ? (
         <section className="rounded-[24px] border border-outline-variant/30 bg-surface-container-lowest p-5 shadow-[0_4px_20px_rgba(8,43,95,0.08)]">
-          <textarea
-            className="min-h-28 w-full resize-none rounded-2xl border border-outline-variant px-4 py-3 outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
-            value={postBody}
-            onChange={(event) => setPostBody(event.target.value)}
-            placeholder="Racconta un lavoro, un aggiornamento o un consiglio professionale..."
-            maxLength={1200}
-          />
+          <div className="flex gap-4">
+            <CompactAvatar person={composerPerson} />
+            <textarea
+              className="min-h-28 w-full resize-none rounded-2xl border border-outline-variant px-4 py-3 outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
+              value={postBody}
+              onChange={(event) => setPostBody(event.target.value)}
+              placeholder="Racconta un lavoro, un aggiornamento o un consiglio professionale..."
+              maxLength={1200}
+            />
+          </div>
           {postError ? (
             <div className="mt-3 rounded-2xl bg-error-container p-3 text-sm text-on-error-container">
               {postError}
@@ -1755,6 +1790,7 @@ function WorksTab({
             {posts.map((post) => (
               <article
                 key={post.id}
+                id={`post-${post.id}`}
                 className="rounded-[22px] border border-outline-variant/30 bg-surface-container-low p-4"
               >
                 <p className="whitespace-pre-wrap text-on-surface">{post.body}</p>

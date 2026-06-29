@@ -2,10 +2,46 @@ import { NextResponse, type NextRequest } from "next/server";
 
 import { requireAuth } from "@/lib/api/auth";
 import { clampInt } from "@/lib/api/validation";
+import { createServiceClient } from "@/lib/supabase/service";
 
 type MarkReadPayload = {
   ids: string[];
 };
+
+type NotificationRow = {
+  id: string;
+  recipient_id: string;
+  actor_id: string | null;
+  type: string;
+  entity_type: string | null;
+  entity_id: string | null;
+  created_at: string;
+  read_at: string | null;
+};
+
+function notificationHref(notification: NotificationRow) {
+  if (notification.type === "follow_started" && notification.actor_id) {
+    return `/professionisti/${notification.actor_id}`;
+  }
+
+  if (
+    (notification.type === "post_commented" || notification.type === "post_liked") &&
+    notification.entity_type === "post" &&
+    notification.entity_id
+  ) {
+    return `/professionista#post-${notification.entity_id}`;
+  }
+
+  if (notification.entity_type === "contact_request") {
+    return "/professionista/messaggi";
+  }
+
+  if (notification.entity_type === "review") {
+    return "/professionista/profilo";
+  }
+
+  return "/professionista";
+}
 
 export async function GET(request: NextRequest) {
   const auth = await requireAuth();
@@ -36,7 +72,49 @@ export async function GET(request: NextRequest) {
     );
   }
 
-  return NextResponse.json({ notifications: data ?? [] });
+  const notifications = (data ?? []) as NotificationRow[];
+  const actorIds = Array.from(
+    new Set(notifications.map((notification) => notification.actor_id).filter(Boolean)),
+  ) as string[];
+
+  const service = createServiceClient();
+  const [{ data: actors }, { data: professionalAvatars }] =
+    actorIds.length > 0
+      ? await Promise.all([
+          service
+            .from("profiles")
+            .select("id, role, first_name, last_name")
+            .in("id", actorIds),
+          service
+            .from("professional_profiles")
+            .select("id, avatar_url")
+            .in("id", actorIds),
+        ])
+      : [{ data: [] }, { data: [] }];
+
+  const avatarByActorId = new Map(
+    (professionalAvatars ?? []).map((actor) => [actor.id, actor.avatar_url]),
+  );
+  const actorsById = new Map(
+    (actors ?? []).map((actor) => [
+      actor.id,
+      {
+        id: actor.id,
+        role: actor.role,
+        first_name: actor.first_name,
+        last_name: actor.last_name,
+        avatar_url: avatarByActorId.get(actor.id) ?? null,
+      },
+    ]),
+  );
+
+  return NextResponse.json({
+    notifications: notifications.map((notification) => ({
+      ...notification,
+      actor: notification.actor_id ? actorsById.get(notification.actor_id) ?? null : null,
+      href: notificationHref(notification),
+    })),
+  });
 }
 
 export async function PATCH(request: Request) {
