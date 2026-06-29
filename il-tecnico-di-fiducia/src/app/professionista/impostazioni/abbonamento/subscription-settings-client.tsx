@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 import { StartCheckoutButton } from "@/components/billing/start-checkout-button";
 import { StartPortalButton } from "@/components/billing/start-portal-button";
@@ -45,22 +45,6 @@ export default function SubscriptionSettingsClient({
   const [subscription, setSubscription] = useState<SubscriptionResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-
-  const loadSubscription = useCallback(async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      setSubscription(
-        await fetchJson<SubscriptionResponse>("/api/subscription", {
-          method: "GET",
-        }),
-      );
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Impossibile caricare l’abbonamento.");
-    } finally {
-      setLoading(false);
-    }
-  }, []);
 
   useEffect(() => {
     let mounted = true;
@@ -194,18 +178,10 @@ export default function SubscriptionSettingsClient({
                   {status === "suspended"
                     ? "Riattiva abbonamento"
                     : status === "admin_forced_active"
-                      ? "Passa a Stripe"
+                      ? "Abbonati a pagamento"
                       : "Attiva abbonamento"}
                 </StartCheckoutButton>
               )}
-
-              <button
-                type="button"
-                onClick={() => void loadSubscription()}
-                className="rounded-full border-2 border-primary px-7 py-3 font-button text-button text-primary transition hover:bg-primary hover:text-white"
-              >
-                Aggiorna stato
-              </button>
             </div>
           </div>
         ) : null}

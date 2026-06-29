@@ -35,8 +35,15 @@ function formatDate(value: string) {
 function statusCopy(status: string) {
   if (status === "closed") {
     return {
-      label: "Chiuso",
+      label: "Risolto",
       className: "bg-surface-container-high text-on-surface-variant",
+    };
+  }
+
+  if (status === "waiting") {
+    return {
+      label: "In attesa",
+      className: "bg-tertiary-fixed text-on-tertiary-fixed-variant",
     };
   }
 

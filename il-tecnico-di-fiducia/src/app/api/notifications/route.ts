@@ -19,7 +19,7 @@ type NotificationRow = {
   read_at: string | null;
 };
 
-function notificationHref(notification: NotificationRow) {
+function notificationHref(notification: NotificationRow, recipientRole: string) {
   if (notification.type === "follow_started" && notification.actor_id) {
     return `/professionisti/${notification.actor_id}`;
   }
@@ -40,14 +40,18 @@ function notificationHref(notification: NotificationRow) {
     return "/professionista/profilo";
   }
 
-  return "/professionista";
+  if (notification.entity_type === "support_ticket") {
+    return recipientRole === "professional" ? "/professionista/supporto" : "/customer";
+  }
+
+  return recipientRole === "professional" ? "/professionista" : "/customer";
 }
 
 export async function GET(request: NextRequest) {
   const auth = await requireAuth();
   if (!auth.ok) return auth.response;
 
-  const { supabase, user } = auth.ctx;
+  const { supabase, user, profile } = auth.ctx;
 
   const limit = clampInt(request.nextUrl.searchParams.get("limit"), 50, 1, 200);
   const unreadOnly = request.nextUrl.searchParams.get("unread") === "true";
@@ -112,7 +116,7 @@ export async function GET(request: NextRequest) {
     notifications: notifications.map((notification) => ({
       ...notification,
       actor: notification.actor_id ? actorsById.get(notification.actor_id) ?? null : null,
-      href: notificationHref(notification),
+      href: notificationHref(notification, profile.role),
     })),
   });
 }

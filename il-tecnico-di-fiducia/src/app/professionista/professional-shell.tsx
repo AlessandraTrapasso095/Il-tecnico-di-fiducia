@@ -124,6 +124,14 @@ function notificationText(notification: NotificationRow) {
     return `${actor} ha lasciato una recensione`;
   }
 
+  if (notification.type === "support_ticket_replied") {
+    return "Hai ricevuto una risposta al tuo ticket";
+  }
+
+  if (notification.type === "support_ticket_resolved") {
+    return "Il tuo ticket è stato segnato come risolto";
+  }
+
   return "Nuova notifica";
 }
 

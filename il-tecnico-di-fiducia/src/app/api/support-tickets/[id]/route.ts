@@ -2,11 +2,14 @@ import { NextResponse } from "next/server";
 
 import { writeAuditLog } from "@/lib/api/audit-log";
 import { requireAuth } from "@/lib/api/auth";
+import { loadAdminUserSummaries } from "@/lib/server/admin-user-summaries";
+import { sendSupportTicketResolvedEmail } from "@/lib/server/support-ticket-emails";
+import { createServiceClient } from "@/lib/supabase/service";
 
 type UpdateTicketPayload = {
   subject?: string;
   body?: string;
-  status?: "open" | "closed";
+  status?: "open" | "waiting" | "closed";
 };
 
 function isOptionalString(value: unknown): value is string | undefined {
@@ -41,7 +44,16 @@ export async function GET(
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
 
-  return NextResponse.json({ ticket: data });
+  const service = createServiceClient();
+  let author = null;
+  try {
+    const authorsById = await loadAdminUserSummaries(service, [data.author_id]);
+    author = authorsById.get(data.author_id) ?? null;
+  } catch {
+    author = null;
+  }
+
+  return NextResponse.json({ ticket: { ...data, author } });
 }
 
 export async function PATCH(
@@ -80,7 +92,12 @@ export async function PATCH(
 
   if (payload.subject !== undefined) updates.subject = payload.subject.trim();
   if (payload.body !== undefined) updates.body = payload.body.trim();
-  if (payload.status) updates.status = payload.status;
+  if (payload.status) {
+    if (!["open", "waiting", "closed"].includes(payload.status)) {
+      return NextResponse.json({ error: "Invalid status" }, { status: 400 });
+    }
+    updates.status = payload.status;
+  }
 
   if (Object.keys(updates).length === 0) {
     return NextResponse.json({ error: "No updates provided" }, { status: 400 });
@@ -105,6 +122,34 @@ export async function PATCH(
       targetId: id,
       metadata: { status: payload.status },
     });
+
+    if (payload.status === "closed") {
+      const service = createServiceClient();
+      const authorsById = await loadAdminUserSummaries(service, [data.author_id]).catch(
+        () => new Map(),
+      );
+      const author = authorsById.get(data.author_id) ?? null;
+
+      try {
+        await service.from("notifications").insert({
+          recipient_id: data.author_id,
+          actor_id: profile.id,
+          type: "support_ticket_resolved",
+          entity_type: "support_ticket",
+          entity_id: data.id,
+        });
+      } catch (err) {
+        console.error("[support] Failed to create ticket resolved notification", err);
+      }
+
+      if (author) {
+        try {
+          await sendSupportTicketResolvedEmail({ ticket: data, author });
+        } catch (err) {
+          console.error("[support] Failed to send ticket resolved email", err);
+        }
+      }
+    }
   }
 
   return NextResponse.json({ ticket: data });

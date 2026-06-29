@@ -2,6 +2,9 @@ import { NextResponse, type NextRequest } from "next/server";
 
 import { requireAuth } from "@/lib/api/auth";
 import { clampInt, isNonEmptyString } from "@/lib/api/validation";
+import { loadAdminUserSummaries } from "@/lib/server/admin-user-summaries";
+import { sendSupportTicketCreatedEmail } from "@/lib/server/support-ticket-emails";
+import { createServiceClient } from "@/lib/supabase/service";
 
 type CreateTicketPayload = {
   subject: string;
@@ -44,11 +47,24 @@ export async function GET(request: NextRequest) {
     );
   }
 
+  const tickets = data ?? [];
+  const authorIds = tickets.map((ticket) => ticket.author_id);
+  const service = createServiceClient();
+  let authorsById: Awaited<ReturnType<typeof loadAdminUserSummaries>>;
+  try {
+    authorsById = await loadAdminUserSummaries(service, authorIds);
+  } catch {
+    authorsById = new Map();
+  }
+
   return NextResponse.json({
     page,
     page_size: pageSize,
     total: count ?? 0,
-    tickets: data ?? [],
+    tickets: tickets.map((ticket) => ({
+      ...ticket,
+      author: authorsById.get(ticket.author_id) ?? null,
+    })),
   });
 }
 
@@ -87,5 +103,22 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: error.message }, { status: 400 });
   }
 
-  return NextResponse.json({ ticket: data });
+  const service = createServiceClient();
+  let author = null;
+  try {
+    const authorsById = await loadAdminUserSummaries(service, [user.id]);
+    author = authorsById.get(user.id) ?? null;
+  } catch (err) {
+    console.error("[support] Failed to enrich ticket author", err);
+  }
+
+  if (author) {
+    try {
+      await sendSupportTicketCreatedEmail({ ticket: data, author });
+    } catch (err) {
+      console.error("[support] Failed to send admin ticket email", err);
+    }
+  }
+
+  return NextResponse.json({ ticket: { ...data, author } });
 }
