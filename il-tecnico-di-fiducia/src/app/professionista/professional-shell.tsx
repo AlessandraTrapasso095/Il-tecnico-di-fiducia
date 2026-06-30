@@ -36,6 +36,10 @@ type NotificationRow = {
     last_name: string;
     avatar_url: string | null;
   } | null;
+  entity?: {
+    id: string;
+    subject: string;
+  } | null;
 };
 
 type NotificationsResponse = {
@@ -125,11 +129,21 @@ function notificationText(notification: NotificationRow) {
   }
 
   if (notification.type === "support_ticket_replied") {
-    return "Hai ricevuto una risposta al tuo ticket";
+    return notification.entity?.subject
+      ? `Hai ricevuto una risposta al ticket: ${notification.entity.subject}`
+      : "Hai ricevuto una risposta al tuo ticket";
+  }
+
+  if (notification.type === "support_ticket_user_replied") {
+    return notification.entity?.subject
+      ? `${actor} ha risposto al ticket: ${notification.entity.subject}`
+      : `${actor} ha risposto a un ticket`;
   }
 
   if (notification.type === "support_ticket_resolved") {
-    return "Il tuo ticket è stato segnato come risolto";
+    return notification.entity?.subject
+      ? `Il ticket ${notification.entity.subject} è stato segnato come risolto`
+      : "Il tuo ticket è stato segnato come risolto";
   }
 
   return "Nuova notifica";

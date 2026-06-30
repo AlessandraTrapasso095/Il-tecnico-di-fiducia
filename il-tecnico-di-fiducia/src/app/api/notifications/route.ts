@@ -19,6 +19,11 @@ type NotificationRow = {
   read_at: string | null;
 };
 
+type SupportTicketEntity = {
+  id: string;
+  subject: string;
+} | null;
+
 function notificationHref(notification: NotificationRow, recipientRole: string) {
   if (notification.type === "follow_started" && notification.actor_id) {
     return `/professionisti/${notification.actor_id}`;
@@ -41,7 +46,19 @@ function notificationHref(notification: NotificationRow, recipientRole: string) 
   }
 
   if (notification.entity_type === "support_ticket") {
-    return recipientRole === "professional" ? "/professionista/supporto" : "/customer";
+    if (recipientRole === "admin") {
+      return notification.entity_id
+        ? `/admin/supporto?ticket=${notification.entity_id}`
+        : "/admin/supporto";
+    }
+
+    if (recipientRole === "professional") {
+      return notification.entity_id
+        ? `/professionista/supporto?ticket=${notification.entity_id}`
+        : "/professionista/supporto";
+    }
+
+    return "/customer";
   }
 
   return recipientRole === "professional" ? "/professionista" : "/customer";
@@ -80,21 +97,37 @@ export async function GET(request: NextRequest) {
   const actorIds = Array.from(
     new Set(notifications.map((notification) => notification.actor_id).filter(Boolean)),
   ) as string[];
+  const supportTicketIds = Array.from(
+    new Set(
+      notifications
+        .filter((notification) => notification.entity_type === "support_ticket")
+        .map((notification) => notification.entity_id)
+        .filter(Boolean),
+    ),
+  ) as string[];
 
   const service = createServiceClient();
-  const [{ data: actors }, { data: professionalAvatars }] =
-    actorIds.length > 0
-      ? await Promise.all([
-          service
+  const [{ data: actors }, { data: professionalAvatars }, { data: supportTickets }] =
+    await Promise.all([
+      actorIds.length > 0
+        ? service
             .from("profiles")
             .select("id, role, first_name, last_name")
-            .in("id", actorIds),
-          service
+            .in("id", actorIds)
+        : Promise.resolve({ data: [] }),
+      actorIds.length > 0
+        ? service
             .from("professional_profiles")
             .select("id, avatar_url")
-            .in("id", actorIds),
-        ])
-      : [{ data: [] }, { data: [] }];
+            .in("id", actorIds)
+        : Promise.resolve({ data: [] }),
+      supportTicketIds.length > 0
+        ? service
+            .from("support_tickets")
+            .select("id, subject")
+            .in("id", supportTicketIds)
+        : Promise.resolve({ data: [] }),
+    ]);
 
   const avatarByActorId = new Map(
     (professionalAvatars ?? []).map((actor) => [actor.id, actor.avatar_url]),
@@ -111,13 +144,27 @@ export async function GET(request: NextRequest) {
       },
     ]),
   );
+  const supportTicketById = new Map(
+    ((supportTickets ?? []) as NonNullable<SupportTicketEntity>[]).map((ticket) => [
+      ticket.id,
+      ticket,
+    ]),
+  );
 
   return NextResponse.json({
-    notifications: notifications.map((notification) => ({
-      ...notification,
-      actor: notification.actor_id ? actorsById.get(notification.actor_id) ?? null : null,
-      href: notificationHref(notification, profile.role),
-    })),
+    notifications: notifications.map((notification) => {
+      const supportTicket =
+        notification.entity_type === "support_ticket" && notification.entity_id
+          ? supportTicketById.get(notification.entity_id) ?? null
+          : null;
+
+      return {
+        ...notification,
+        actor: notification.actor_id ? actorsById.get(notification.actor_id) ?? null : null,
+        entity: supportTicket,
+        href: notificationHref(notification, profile.role),
+      };
+    }),
   });
 }
 

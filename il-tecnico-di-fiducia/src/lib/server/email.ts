@@ -8,10 +8,13 @@ type SendEmailInput = {
 };
 
 type EmailResult =
-  | { sent: true; provider: "resend" }
+  | { sent: true; provider: "resend"; id?: string }
   | { sent: false; skipped: true; reason: string };
 
 function sender() {
+  const explicitFrom = process.env.EMAIL_FROM?.trim();
+  if (explicitFrom) return explicitFrom;
+
   const fromEmail =
     process.env.MAIL_FROM_EMAIL ??
     process.env.SMTP_FROM_EMAIL ??
@@ -79,5 +82,10 @@ export async function sendTransactionalEmail({
     );
   }
 
-  return { sent: true, provider: "resend" };
+  const result = (await response.json().catch(() => null)) as { id?: string } | null;
+  console.info(
+    `[email] Sent "${subject}" to ${to} via Resend${result?.id ? ` (${result.id})` : ""}.`,
+  );
+
+  return { sent: true, provider: "resend", id: result?.id };
 }

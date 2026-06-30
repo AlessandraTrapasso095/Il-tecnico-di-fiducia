@@ -160,3 +160,53 @@ export async function sendSupportTicketResolvedEmail({
     `,
   });
 }
+
+export async function sendSupportTicketUserReplyEmail({
+  ticket,
+  author,
+  replyBody,
+}: {
+  ticket: TicketEmailData;
+  author: AdminUserSummary;
+  replyBody: string;
+}) {
+  const adminUrl = `${appBaseUrl()}/admin/supporto?ticket=${ticket.id}`;
+  const repliedAt = new Intl.DateTimeFormat("it-IT", {
+    dateStyle: "medium",
+    timeStyle: "short",
+  }).format(new Date());
+
+  await sendTransactionalEmail({
+    to: supportAdminEmail(),
+    subject: "Nuova risposta a un ticket supporto",
+    text: [
+      "Nuova risposta a un ticket supporto",
+      "",
+      `Utente: ${fullName(author)}`,
+      `Email: ${author.email}`,
+      `Ruolo: ${roleLabel(author.role)}`,
+      `Oggetto ticket: ${ticket.subject}`,
+      `Risposta: ${replyBody}`,
+      `Data: ${repliedAt}`,
+      `Apri supporto admin: ${adminUrl}`,
+    ].join("\n"),
+    html: `
+      <div style="font-family:Arial,Helvetica,sans-serif;line-height:1.6;color:#141b2c">
+        <h2 style="color:#002654">Nuova risposta a un ticket supporto</h2>
+        <p><strong>Utente:</strong> ${escapeHtml(fullName(author))}</p>
+        <p><strong>Email:</strong> ${escapeHtml(author.email)}</p>
+        <p><strong>Ruolo:</strong> ${escapeHtml(roleLabel(author.role))}</p>
+        <p><strong>Oggetto ticket:</strong> ${escapeHtml(ticket.subject)}</p>
+        <div style="background:#f1f3ff;border-radius:16px;padding:16px;margin:16px 0">
+          ${escapeHtml(replyBody).replaceAll("\n", "<br>")}
+        </div>
+        <p><strong>Data:</strong> ${escapeHtml(repliedAt)}</p>
+        <p>
+          <a href="${escapeHtml(adminUrl)}" style="display:inline-block;background:#FF8500;color:#fff;text-decoration:none;border-radius:999px;padding:12px 20px;font-weight:700">
+            Apri supporto admin
+          </a>
+        </p>
+      </div>
+    `,
+  });
+}

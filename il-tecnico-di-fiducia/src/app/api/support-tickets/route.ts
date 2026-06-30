@@ -49,12 +49,42 @@ export async function GET(request: NextRequest) {
 
   const tickets = data ?? [];
   const authorIds = tickets.map((ticket) => ticket.author_id);
+  const ticketIds = tickets.map((ticket) => ticket.id);
   const service = createServiceClient();
   let authorsById: Awaited<ReturnType<typeof loadAdminUserSummaries>>;
   try {
     authorsById = await loadAdminUserSummaries(service, authorIds);
   } catch {
     authorsById = new Map();
+  }
+  const lastMessageByTicketId = new Map<
+    string,
+    {
+      id: string;
+      ticket_id: string;
+      sender_id: string | null;
+      sender_role: string;
+      body: string;
+      created_at: string;
+    }
+  >();
+
+  if (ticketIds.length > 0) {
+    const { data: latestMessages, error: latestMessagesError } = await service
+      .from("support_messages")
+      .select("id, ticket_id, sender_id, sender_role, body, created_at")
+      .in("ticket_id", ticketIds)
+      .order("created_at", { ascending: false });
+
+    if (latestMessagesError) {
+      console.error("[support] Failed to load latest support messages", latestMessagesError);
+    } else {
+      for (const message of latestMessages ?? []) {
+        if (!lastMessageByTicketId.has(message.ticket_id)) {
+          lastMessageByTicketId.set(message.ticket_id, message);
+        }
+      }
+    }
   }
 
   return NextResponse.json({
@@ -64,6 +94,7 @@ export async function GET(request: NextRequest) {
     tickets: tickets.map((ticket) => ({
       ...ticket,
       author: authorsById.get(ticket.author_id) ?? null,
+      last_message: lastMessageByTicketId.get(ticket.id) ?? null,
     })),
   });
 }
