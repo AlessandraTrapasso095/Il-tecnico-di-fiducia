@@ -1,5 +1,7 @@
 import "server-only";
 
+import nodemailer from "nodemailer";
+
 type SendEmailInput = {
   to: string;
   subject: string;
@@ -8,7 +10,7 @@ type SendEmailInput = {
 };
 
 type EmailResult =
-  | { sent: true; provider: "resend"; id?: string }
+  | { sent: true; provider: "smtp"; messageId?: string }
   | { sent: false; skipped: true; reason: string };
 
 function sender() {
@@ -18,10 +20,19 @@ function sender() {
   const fromEmail =
     process.env.MAIL_FROM_EMAIL ??
     process.env.SMTP_FROM_EMAIL ??
+    process.env.SMTP_USER ??
     "info@iltecnicodifiducia.it";
   const fromName = process.env.MAIL_FROM_NAME ?? "Il Tecnico di Fiducia";
 
   return `${fromName} <${fromEmail}>`;
+}
+
+function smtpSecure() {
+  const value = process.env.SMTP_SECURE?.trim().toLowerCase();
+  if (value === "false" || value === "0" || value === "no") return false;
+  if (value === "true" || value === "1" || value === "yes") return true;
+
+  return Number(process.env.SMTP_PORT ?? 465) === 465;
 }
 
 export function appBaseUrl() {
@@ -51,41 +62,37 @@ export async function sendTransactionalEmail({
   text,
   html,
 }: SendEmailInput): Promise<EmailResult> {
-  const resendApiKey = process.env.RESEND_API_KEY;
+  const smtpUser = process.env.SMTP_USER?.trim();
+  const smtpPass = process.env.SMTP_PASS;
 
-  if (!resendApiKey) {
+  if (!smtpUser || !smtpPass) {
     console.warn(
-      `[email] Skipped "${subject}" to ${to}: RESEND_API_KEY is not configured.`,
+      `[email] Skipped "${subject}" to ${to}: SMTP_USER or SMTP_PASS is not configured.`,
     );
-    return { sent: false, skipped: true, reason: "RESEND_API_KEY missing" };
+    return { sent: false, skipped: true, reason: "SMTP credentials missing" };
   }
 
-  const response = await fetch("https://api.resend.com/emails", {
-    method: "POST",
-    headers: {
-      authorization: `Bearer ${resendApiKey}`,
-      "content-type": "application/json",
+  const transporter = nodemailer.createTransport({
+    host: process.env.SMTP_HOST?.trim() || "smtp.gmail.com",
+    port: Number(process.env.SMTP_PORT ?? 465),
+    secure: smtpSecure(),
+    auth: {
+      user: smtpUser,
+      pass: smtpPass,
     },
-    body: JSON.stringify({
-      from: sender(),
-      to: [to],
-      subject,
-      text,
-      ...(html ? { html } : {}),
-    }),
   });
 
-  if (!response.ok) {
-    const errorText = await response.text().catch(() => "");
-    throw new Error(
-      `Email provider error (${response.status}): ${errorText || response.statusText}`,
-    );
-  }
+  const result = await transporter.sendMail({
+    from: sender(),
+    to,
+    subject,
+    text,
+    ...(html ? { html } : {}),
+  });
 
-  const result = (await response.json().catch(() => null)) as { id?: string } | null;
   console.info(
-    `[email] Sent "${subject}" to ${to} via Resend${result?.id ? ` (${result.id})` : ""}.`,
+    `[email] Sent "${subject}" to ${to} via SMTP${result.messageId ? ` (${result.messageId})` : ""}.`,
   );
 
-  return { sent: true, provider: "resend", id: result?.id };
+  return { sent: true, provider: "smtp", messageId: result.messageId };
 }
