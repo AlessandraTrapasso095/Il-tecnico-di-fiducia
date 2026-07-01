@@ -12,6 +12,7 @@ import {
   PostMediaViewer,
   type PostMediaAttachment,
 } from "@/components/posts/post-media-ui";
+import { PostComments } from "@/components/posts/post-comments";
 import { fetchJson } from "@/lib/api/fetch-json";
 
 type ProfessionalProfileLite = {
@@ -67,6 +68,19 @@ type PostRow = {
 
 type PostsResponse = {
   posts: PostRow[];
+};
+
+type FollowedProfessional = {
+  id: string;
+  first_name: string;
+  last_name: string;
+  avatar_url: string | null;
+  headline: string | null;
+  province_code: string | null;
+};
+
+type FollowsResponse = {
+  followed: FollowedProfessional[];
 };
 
 type ProfessionalDashboardClientProps = {
@@ -203,13 +217,16 @@ export default function ProfessionalDashboardClient({
   const [composerProfile, setComposerProfile] = useState(profile);
   const [subscription, setSubscription] = useState<SubscriptionResponse | null>(null);
   const [posts, setPosts] = useState<PostRow[]>([]);
+  const [followedProfessionals, setFollowedProfessionals] = useState<FollowedProfessional[]>(
+    [],
+  );
   const [postBody, setPostBody] = useState("");
   const [photoFiles, setPhotoFiles] = useState<File[]>([]);
   const [videoFiles, setVideoFiles] = useState<File[]>([]);
   const [postError, setPostError] = useState<string | null>(null);
   const [postActionError, setPostActionError] = useState<string | null>(null);
   const [dashboardError, setDashboardError] = useState<string | null>(null);
-  const [commentDrafts, setCommentDrafts] = useState<Record<string, string>>({});
+  const [expandedComments, setExpandedComments] = useState<Record<string, boolean>>({});
   const [editingPost, setEditingPost] = useState<PostRow | null>(null);
   const [deleteTargetPost, setDeleteTargetPost] = useState<PostRow | null>(null);
   const [mediaViewerAttachment, setMediaViewerAttachment] =
@@ -235,19 +252,21 @@ export default function ProfessionalDashboardClient({
   }, []);
 
   const fetchDashboardData = useCallback(async () => {
-    const [subscriptionRes, postsRes] = await Promise.all([
+    const [subscriptionRes, postsRes, followsRes] = await Promise.all([
       fetchJson<SubscriptionResponse>("/api/subscription", { method: "GET" }),
       fetchJson<PostsResponse>("/api/posts?feed=following&page_size=30", {
         method: "GET",
       }),
+      fetchJson<FollowsResponse>("/api/follows", { method: "GET" }),
     ]);
 
-    return { subscriptionRes, postsRes };
+    return { subscriptionRes, postsRes, followsRes };
   }, []);
 
   const applyDashboardData = useCallback((data: Awaited<ReturnType<typeof fetchDashboardData>>) => {
     setSubscription(data.subscriptionRes);
     setPosts(data.postsRes.posts ?? []);
+    setFollowedProfessionals(data.followsRes.followed ?? []);
   }, []);
 
   const loadDashboard = useCallback(async () => {
@@ -348,29 +367,6 @@ export default function ProfessionalDashboardClient({
                 ),
               }
             : item,
-        ),
-      );
-    } finally {
-      setBusyPostId(null);
-    }
-  }
-
-  async function addComment(postId: string) {
-    const body = (commentDrafts[postId] ?? "").replace(/\s+/g, " ").trim();
-    if (!body) return;
-
-    setBusyPostId(postId);
-    try {
-      await fetchJson<{ comment: unknown }>(`/api/posts/${postId}/comments`, {
-        method: "POST",
-        body: JSON.stringify({ body }),
-      });
-      setCommentDrafts((current) => ({ ...current, [postId]: "" }));
-      setPosts((current) =>
-        current.map((post) =>
-          post.id === postId
-            ? { ...post, comments_count: post.comments_count + 1 }
-            : post,
         ),
       );
     } finally {
@@ -561,6 +557,57 @@ export default function ProfessionalDashboardClient({
           <div className="mb-5 flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
             <div>
               <span className="font-label-md text-[12px] uppercase tracking-[0.16em] text-on-tertiary-container">
+                Network
+              </span>
+              <h2 className="font-headline-md text-headline-md text-primary">Seguiti</h2>
+            </div>
+            {loading ? (
+              <span className="text-sm text-on-surface-variant">Caricamento…</span>
+            ) : null}
+          </div>
+
+          {followedProfessionals.length === 0 ? (
+            <div className="rounded-[24px] border-2 border-dashed border-outline-variant p-6 text-center">
+              <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-primary-fixed text-primary">
+                <span className="material-symbols-outlined">group</span>
+              </div>
+              <h3 className="mt-4 font-headline-sm text-[21px] text-primary">
+                Non segui ancora nessun professionista
+              </h3>
+              <p className="mx-auto mt-2 max-w-[520px] text-sm text-on-surface-variant">
+                Cerca altri professionisti dall’header e segui i profili che vuoi tenere nel tuo feed.
+              </p>
+            </div>
+          ) : (
+            <div className="grid gap-3 sm:grid-cols-2">
+              {followedProfessionals.map((professional) => (
+                <Link
+                  key={professional.id}
+                  href={`/professionisti/${professional.id}`}
+                  className="flex items-center gap-3 rounded-2xl bg-surface-container-low p-3 transition hover:bg-surface-container"
+                >
+                  <Avatar person={professional} />
+                  <div className="min-w-0">
+                    <div className="truncate font-label-md text-primary">
+                      {fullName(professional)}
+                    </div>
+                    <div className="line-clamp-1 text-sm text-on-surface-variant">
+                      {professional.headline ?? "Professionista"}
+                    </div>
+                    <div className="mt-1 text-xs font-bold uppercase tracking-[0.12em] text-outline">
+                      {professional.province_code ?? "Provincia non indicata"}
+                    </div>
+                  </div>
+                </Link>
+              ))}
+            </div>
+          )}
+        </div>
+
+        <div className="rounded-[28px] border border-outline-variant/30 bg-surface-container-lowest p-5 shadow-[0_4px_20px_rgba(8,43,95,0.08)] sm:p-6">
+          <div className="mb-5 flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
+            <div>
+              <span className="font-label-md text-[12px] uppercase tracking-[0.16em] text-on-tertiary-container">
                 Feed
               </span>
               <h2 className="font-headline-md text-headline-md text-primary">
@@ -600,7 +647,10 @@ export default function ProfessionalDashboardClient({
                     className="rounded-[24px] border border-outline-variant/30 bg-surface-container-low p-4 sm:p-5"
                   >
                     <div className="mb-4 flex items-start justify-between gap-4">
-                      <div className="flex min-w-0 gap-3">
+                      <Link
+                        href={`/professionisti/${post.author_id}`}
+                        className="flex min-w-0 gap-3 rounded-2xl transition hover:opacity-85"
+                      >
                         <Avatar
                           person={
                             post.author ?? {
@@ -622,7 +672,7 @@ export default function ProfessionalDashboardClient({
                             {formatTime(post.created_at)}
                           </div>
                         </div>
-                      </div>
+                      </Link>
 
                       {isAuthor ? (
                         <div className="flex shrink-0 gap-2">
@@ -670,35 +720,41 @@ export default function ProfessionalDashboardClient({
                         </span>
                         Mi piace · {post.likes_count}
                       </button>
-                      <span className="flex items-center gap-2 rounded-full bg-surface-container-lowest px-4 py-2 text-sm font-bold text-on-surface-variant">
+                      <button
+                        type="button"
+                        className="flex items-center gap-2 rounded-full bg-surface-container-lowest px-4 py-2 text-sm font-bold text-on-surface-variant transition hover:bg-primary-fixed hover:text-primary"
+                        onClick={() =>
+                          setExpandedComments((current) => ({
+                            ...current,
+                            [post.id]: !current[post.id],
+                          }))
+                        }
+                      >
                         <span className="material-symbols-outlined text-[20px]">
                           chat_bubble
                         </span>
                         Commenti · {post.comments_count}
-                      </span>
-                    </div>
-
-                    <div className="mt-4 flex flex-col gap-2 sm:flex-row">
-                      <input
-                        className="min-h-11 flex-1 rounded-full border border-outline-variant bg-surface-container-lowest px-4 outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/20"
-                        value={commentDrafts[post.id] ?? ""}
-                        onChange={(event) =>
-                          setCommentDrafts((current) => ({
-                            ...current,
-                            [post.id]: event.target.value,
-                          }))
-                        }
-                        placeholder="Scrivi un commento reale..."
-                      />
-                      <button
-                        type="button"
-                        disabled={busyPostId === post.id}
-                        className="rounded-full bg-primary px-5 py-2.5 font-button text-white transition hover:bg-primary-container disabled:opacity-60"
-                        onClick={() => void addComment(post.id)}
-                      >
-                        Commenta
                       </button>
                     </div>
+
+                    {expandedComments[post.id] ? (
+                      <PostComments
+                        postId={post.id}
+                        viewerId={profile.id}
+                        onCountChange={(delta) =>
+                          setPosts((current) =>
+                            current.map((item) =>
+                              item.id === post.id
+                                ? {
+                                    ...item,
+                                    comments_count: Math.max(0, item.comments_count + delta),
+                                  }
+                                : item,
+                            ),
+                          )
+                        }
+                      />
+                    ) : null}
                   </article>
                 );
               })}

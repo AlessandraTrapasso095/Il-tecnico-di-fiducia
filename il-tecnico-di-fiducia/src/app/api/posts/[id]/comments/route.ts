@@ -2,6 +2,7 @@ import { NextResponse, type NextRequest } from "next/server";
 
 import { requireAuth } from "@/lib/api/auth";
 import { clampInt, isNonEmptyString } from "@/lib/api/validation";
+import { ensureSocialNotification } from "@/lib/server/social-notifications";
 import { createServiceClient } from "@/lib/supabase/service";
 
 type CreateCommentPayload = {
@@ -91,6 +92,22 @@ export async function POST(
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 400 });
   }
+
+  const service = createServiceClient();
+  const { data: post } = await service
+    .from("posts")
+    .select("author_id")
+    .eq("id", id)
+    .maybeSingle();
+
+  await ensureSocialNotification({
+    recipientId: post?.author_id,
+    actorId: user.id,
+    type: "post_commented",
+    entityType: "post",
+    entityId: id,
+    dedupe: "recent",
+  });
 
   return NextResponse.json({
     comment: {

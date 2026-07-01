@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 
 import { requireAuth } from "@/lib/api/auth";
+import { ensureSocialNotification } from "@/lib/server/social-notifications";
+import { createServiceClient } from "@/lib/supabase/service";
 
 export async function POST(
   _request: Request,
@@ -24,6 +26,21 @@ export async function POST(
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 400 });
   }
+
+  const service = createServiceClient();
+  const { data: post } = await service
+    .from("posts")
+    .select("author_id")
+    .eq("id", id)
+    .maybeSingle();
+
+  await ensureSocialNotification({
+    recipientId: post?.author_id,
+    actorId: user.id,
+    type: "post_liked",
+    entityType: "post",
+    entityId: id,
+  });
 
   return NextResponse.json({ ok: true });
 }
