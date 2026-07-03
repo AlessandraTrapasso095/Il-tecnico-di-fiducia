@@ -3,7 +3,7 @@ import "server-only";
 import nodemailer from "nodemailer";
 
 type SendEmailInput = {
-  to: string;
+  to: string | null | undefined;
   subject: string;
   text: string;
   html?: string;
@@ -13,26 +13,67 @@ type EmailResult =
   | { sent: true; provider: "smtp"; messageId?: string }
   | { sent: false; skipped: true; reason: string };
 
+type SmtpConfig =
+  | {
+      ok: true;
+      host: string;
+      port: number;
+      secure: boolean;
+      user: string;
+      pass: string;
+      from: string;
+    }
+  | { ok: false; missing: string[] };
+
+function envValue(name: string) {
+  return process.env[name]?.trim() || null;
+}
+
 function sender() {
-  const explicitFrom = process.env.EMAIL_FROM?.trim();
+  const explicitFrom = envValue("EMAIL_FROM");
   if (explicitFrom) return explicitFrom;
 
-  const fromEmail =
-    process.env.MAIL_FROM_EMAIL ??
-    process.env.SMTP_FROM_EMAIL ??
-    process.env.SMTP_USER ??
-    "info@iltecnicodifiducia.it";
-  const fromName = process.env.MAIL_FROM_NAME ?? "Il Tecnico di Fiducia";
+  const fromEmail = envValue("MAIL_FROM_EMAIL") ?? envValue("SMTP_FROM_EMAIL");
+  if (!fromEmail) return null;
+
+  const fromName = envValue("MAIL_FROM_NAME") ?? "Il Tecnico di Fiducia";
 
   return `${fromName} <${fromEmail}>`;
 }
 
-function smtpSecure() {
-  const value = process.env.SMTP_SECURE?.trim().toLowerCase();
-  if (value === "false" || value === "0" || value === "no") return false;
-  if (value === "true" || value === "1" || value === "yes") return true;
+function parseSmtpSecure(value: string | null) {
+  const normalized = value?.toLowerCase();
+  if (!normalized) return null;
+  if (normalized === "false" || normalized === "0" || normalized === "no")
+    return false;
+  if (normalized === "true" || normalized === "1" || normalized === "yes")
+    return true;
 
-  return Number(process.env.SMTP_PORT ?? 465) === 465;
+  return null;
+}
+
+function smtpConfig(): SmtpConfig {
+  const host = envValue("SMTP_HOST");
+  const portRaw = envValue("SMTP_PORT");
+  const secure = parseSmtpSecure(envValue("SMTP_SECURE"));
+  const user = envValue("SMTP_USER");
+  const pass = process.env.SMTP_PASS;
+  const from = sender();
+  const port = portRaw ? Number(portRaw) : NaN;
+  const missing: string[] = [];
+
+  if (!host) missing.push("SMTP_HOST");
+  if (!Number.isInteger(port) || port <= 0) missing.push("SMTP_PORT");
+  if (secure === null) missing.push("SMTP_SECURE");
+  if (!user) missing.push("SMTP_USER");
+  if (!pass) missing.push("SMTP_PASS");
+  if (!from) missing.push("EMAIL_FROM");
+
+  if (missing.length > 0 || secure === null || !host || !user || !pass || !from) {
+    return { ok: false, missing };
+  }
+
+  return { ok: true, host, port, secure, user, pass, from };
 }
 
 export function appBaseUrl() {
@@ -44,7 +85,7 @@ export function appBaseUrl() {
 }
 
 export function supportAdminEmail() {
-  return process.env.SUPPORT_ADMIN_EMAIL ?? "admin@iltecnicodifiducia.it";
+  return envValue("SUPPORT_ADMIN_EMAIL");
 }
 
 export function escapeHtml(value: string) {
@@ -62,36 +103,42 @@ export async function sendTransactionalEmail({
   text,
   html,
 }: SendEmailInput): Promise<EmailResult> {
-  const smtpUser = process.env.SMTP_USER?.trim();
-  const smtpPass = process.env.SMTP_PASS;
+  const recipient = to?.trim();
 
-  if (!smtpUser || !smtpPass) {
+  if (!recipient) {
+    console.warn(`[email] Skipped "${subject}": recipient is not configured.`);
+    return { sent: false, skipped: true, reason: "Recipient missing" };
+  }
+
+  const config = smtpConfig();
+
+  if (!config.ok) {
     console.warn(
-      `[email] Skipped "${subject}" to ${to}: SMTP_USER or SMTP_PASS is not configured.`,
+      `[email] Skipped "${subject}" to ${recipient}: missing or invalid SMTP env (${config.missing.join(", ")}).`,
     );
-    return { sent: false, skipped: true, reason: "SMTP credentials missing" };
+    return { sent: false, skipped: true, reason: "SMTP configuration missing" };
   }
 
   const transporter = nodemailer.createTransport({
-    host: process.env.SMTP_HOST?.trim() || "smtp.gmail.com",
-    port: Number(process.env.SMTP_PORT ?? 465),
-    secure: smtpSecure(),
+    host: config.host,
+    port: config.port,
+    secure: config.secure,
     auth: {
-      user: smtpUser,
-      pass: smtpPass,
+      user: config.user,
+      pass: config.pass,
     },
   });
 
   const result = await transporter.sendMail({
-    from: sender(),
-    to,
+    from: config.from,
+    to: recipient,
     subject,
     text,
     ...(html ? { html } : {}),
   });
 
   console.info(
-    `[email] Sent "${subject}" to ${to} via SMTP${result.messageId ? ` (${result.messageId})` : ""}.`,
+    `[email] Sent "${subject}" to ${recipient} via SMTP${result.messageId ? ` (${result.messageId})` : ""}.`,
   );
 
   return { sent: true, provider: "smtp", messageId: result.messageId };

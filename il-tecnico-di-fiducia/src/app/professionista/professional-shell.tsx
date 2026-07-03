@@ -70,6 +70,7 @@ type ProfessionalShellProps = {
 
 const NAV_ITEMS = [
   { href: "/professionista", label: "Dashboard", icon: "dashboard" },
+  { href: "/professionista/seguiti", label: "Seguiti", icon: "groups" },
   { href: "/professionista/messaggi", label: "Messaggi e Richieste", icon: "forum" },
   { href: "/professionista/impostazioni", label: "Impostazioni", icon: "settings" },
   { href: "/professionista/abbonamento", label: "Abbonamento", icon: "workspace_premium" },

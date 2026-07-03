@@ -71,7 +71,7 @@ export default async function AdminPage() {
     countRows(supabase, "profiles", [["role", "eq", "customer"]]),
     countRows(supabase, "profiles", [["role", "eq", "professional"]]),
     countRows(supabase, "profiles", [["role", "eq", "admin"]]),
-    countRows(supabase, "support_tickets"),
+    countRows(supabase, "support_tickets", [["status", "in", ["open", "waiting"]]]),
   ]);
 
   return (
