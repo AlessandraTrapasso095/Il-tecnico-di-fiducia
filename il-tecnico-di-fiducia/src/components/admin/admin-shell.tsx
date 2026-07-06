@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import type { ReactNode } from "react";
 
 import { SignOutButton } from "@/components/auth/sign-out-button";
+import { HeaderBackButton } from "@/components/navigation/header-back-button";
 
 type AdminShellProps = {
   children: ReactNode;
@@ -34,16 +35,23 @@ export function AdminShell({ children, title, subtitle, adminName }: AdminShellP
     <div className="min-h-screen bg-background text-on-surface">
       <header className="sticky top-0 z-40 border-b border-outline-variant/30 bg-surface-container-lowest/85 backdrop-blur-xl lg:ml-72">
         <div className="flex min-h-20 flex-col gap-3 px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-6 lg:px-8">
-          <div>
-            <p className="font-label-md text-sm uppercase tracking-[0.16em] text-[#FF8500]">
-              Admin Panel
-            </p>
-            <h1 className="font-headline-md text-[30px] leading-tight text-primary">
-              {title}
-            </h1>
-            {subtitle ? (
-              <p className="mt-1 text-sm text-on-surface-variant">{subtitle}</p>
-            ) : null}
+          <div className="flex items-start gap-3">
+            <HeaderBackButton
+              fallbackHref="/admin"
+              hiddenPathnames={["/admin"]}
+              className="mt-1 lg:hidden"
+            />
+            <div>
+              <p className="font-label-md text-sm uppercase tracking-[0.16em] text-[#FF8500]">
+                Admin Panel
+              </p>
+              <h1 className="font-headline-md text-[30px] leading-tight text-primary">
+                {title}
+              </h1>
+              {subtitle ? (
+                <p className="mt-1 text-sm text-on-surface-variant">{subtitle}</p>
+              ) : null}
+            </div>
           </div>
           <div className="flex items-center gap-3">
             <div className="hidden rounded-full border border-outline-variant/40 bg-surface-container-low px-4 py-2 text-sm text-on-surface-variant sm:block">
@@ -58,17 +66,20 @@ export function AdminShell({ children, title, subtitle, adminName }: AdminShellP
       </header>
 
       <aside className="fixed left-0 top-0 z-50 hidden h-screen w-72 border-r border-outline-variant/30 bg-surface-container-low p-5 lg:flex lg:flex-col">
-        <Link href="/admin" className="mb-8 flex items-center gap-3 px-2">
-          <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-primary text-white shadow-lg">
-            <span className="material-symbols-outlined">admin_panel_settings</span>
-          </span>
-          <span>
-            <span className="block font-headline-sm text-[22px] leading-none text-primary">
-              Il Tecnico
+        <div className="mb-8 flex items-center gap-2 px-2">
+          <HeaderBackButton fallbackHref="/admin" hiddenPathnames={["/admin"]} />
+          <Link href="/admin" className="flex min-w-0 items-center gap-3">
+            <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-primary text-white shadow-lg">
+              <span className="material-symbols-outlined">admin_panel_settings</span>
             </span>
-            <span className="block font-label-md text-[#FF8500]">Admin</span>
-          </span>
-        </Link>
+            <span>
+              <span className="block font-headline-sm text-[22px] leading-none text-primary">
+                Il Tecnico
+              </span>
+              <span className="block font-label-md text-[#FF8500]">Admin</span>
+            </span>
+          </Link>
+        </div>
 
         <nav className="space-y-2">
           {NAV_ITEMS.map((item) => {

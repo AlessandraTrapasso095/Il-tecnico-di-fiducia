@@ -2,6 +2,12 @@ import { NextResponse, type NextRequest } from "next/server";
 
 import { requireAuth } from "@/lib/api/auth";
 import { clampInt, isNonEmptyString } from "@/lib/api/validation";
+import {
+  appBaseUrl,
+  escapeHtml,
+  sendTransactionalEmail,
+} from "@/lib/server/email";
+import { createServiceClient } from "@/lib/supabase/service";
 
 type ContactRequestPayload = {
   professional_id: string;
@@ -193,6 +199,62 @@ export async function POST(request: Request) {
     .select("id")
     .eq("request_id", created.id)
     .maybeSingle();
+
+  try {
+    const service = createServiceClient();
+    const { data: profiles } = await service
+      .from("profiles")
+      .select("id, email, first_name, last_name, role")
+      .in("id", [user.id, payload.professional_id]);
+    const profileById = new Map((profiles ?? []).map((p) => [p.id, p]));
+    const customer = profileById.get(user.id);
+    const professional = profileById.get(payload.professional_id);
+    const customerName =
+      `${customer?.first_name ?? ""} ${customer?.last_name ?? ""}`.trim() ||
+      "Cliente";
+    const baseUrl = appBaseUrl();
+    const link = `${baseUrl}/professionista/messaggi${
+      conversation?.id ? `?conversation=${encodeURIComponent(conversation.id)}` : ""
+    }`;
+    const subject = "Nuova richiesta di contatto ricevuta";
+    const text = [
+      "Hai ricevuto una nuova richiesta su Il Tecnico di Fiducia.",
+      "",
+      `Cliente: ${customerName}`,
+      `Email cliente: ${customer?.email ?? "Non disponibile"}`,
+      `Oggetto: ${payload.subject.trim()}`,
+      "",
+      payload.message.trim(),
+      "",
+      `Apri la richiesta: ${link}`,
+    ].join("\n");
+    const html = `
+      <div style="font-family:Arial,sans-serif;line-height:1.6;color:#141b2c">
+        <h2 style="color:#002654">Nuova richiesta di contatto</h2>
+        <p>Hai ricevuto una nuova richiesta su <strong>Il Tecnico di Fiducia</strong>.</p>
+        <p><strong>Cliente:</strong> ${escapeHtml(customerName)}</p>
+        <p><strong>Email cliente:</strong> ${escapeHtml(customer?.email ?? "Non disponibile")}</p>
+        <p><strong>Oggetto:</strong> ${escapeHtml(payload.subject.trim())}</p>
+        <div style="margin:18px 0;padding:16px;border-radius:14px;background:#f1f3ff">
+          ${escapeHtml(payload.message.trim()).replaceAll("\n", "<br />")}
+        </div>
+        <p>
+          <a href="${escapeHtml(link)}" style="display:inline-block;background:#FF8500;color:#fff;text-decoration:none;padding:12px 20px;border-radius:999px;font-weight:700">
+            Apri richiesta
+          </a>
+        </p>
+      </div>
+    `;
+
+    await sendTransactionalEmail({
+      to: professional?.email,
+      subject,
+      text,
+      html,
+    });
+  } catch (emailError) {
+    console.error("[contact-requests] Failed to send professional email", emailError);
+  }
 
   return NextResponse.json({
     request: created,

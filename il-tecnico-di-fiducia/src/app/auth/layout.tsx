@@ -1,6 +1,8 @@
 import Image from "next/image";
 import Link from "next/link";
 
+import { HeaderBackButton } from "@/components/navigation/header-back-button";
+
 export default function AuthLayout({ children }: { children: React.ReactNode }) {
   return (
     <div className="min-h-screen w-full grid grid-cols-1 lg:grid-cols-[minmax(0,45%)_minmax(0,55%)]">
@@ -19,14 +21,21 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
 
         <div className="relative z-10 flex flex-col justify-between h-full gap-12">
           <div>
-            <Link href="/" className="inline-flex items-center gap-3 mb-8">
-              <div className="w-12 h-12 bg-on-primary rounded-full flex items-center justify-center">
-                <span className="text-primary text-[28px] font-bold">✓</span>
-              </div>
-              <span className="font-headline-sm text-headline-sm text-on-primary font-bold">
-                Il tecnico di fiducia
-              </span>
-            </Link>
+            <div className="mb-8 flex items-center gap-3">
+              <HeaderBackButton
+                fallbackHref="/"
+                hiddenPathnames={["/auth/login"]}
+                className="bg-white/10 text-on-primary hover:bg-white/20"
+              />
+              <Link href="/" className="inline-flex items-center gap-3">
+                <div className="w-12 h-12 bg-on-primary rounded-full flex items-center justify-center">
+                  <span className="text-primary text-[28px] font-bold">✓</span>
+                </div>
+                <span className="font-headline-sm text-headline-sm text-on-primary font-bold">
+                  Il tecnico di fiducia
+                </span>
+              </Link>
+            </div>
 
             <div className="w-full max-w-[560px] text-balance">
               <h2 className="font-display-lg text-display-lg text-on-primary mb-4">
@@ -52,14 +61,17 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
 
       <section className="min-w-0 bg-surface-container-low px-4 sm:px-6 lg:px-12 py-10 sm:py-12 flex flex-col justify-center">
         <div className="mx-auto w-full max-w-[672px]">
-          <Link href="/" className="lg:hidden inline-flex items-center gap-3 mb-6 sm:mb-8">
-            <div className="w-12 h-12 bg-primary rounded-full flex items-center justify-center">
-              <span className="text-on-primary text-[28px] font-bold">✓</span>
-            </div>
-            <span className="font-headline-md text-headline-md text-primary">
-              Il tecnico di fiducia
-            </span>
-          </Link>
+          <div className="mb-6 flex items-center gap-3 sm:mb-8 lg:hidden">
+            <HeaderBackButton fallbackHref="/" hiddenPathnames={["/auth/login"]} />
+            <Link href="/" className="inline-flex items-center gap-3">
+              <div className="w-12 h-12 bg-primary rounded-full flex items-center justify-center">
+                <span className="text-on-primary text-[28px] font-bold">✓</span>
+              </div>
+              <span className="font-headline-md text-headline-md text-primary">
+                Il tecnico di fiducia
+              </span>
+            </Link>
+          </div>
 
           {children}
         </div>

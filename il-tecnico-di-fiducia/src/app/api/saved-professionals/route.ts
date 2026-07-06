@@ -1,9 +1,22 @@
 import { NextResponse } from "next/server";
 
 import { requireAuth } from "@/lib/api/auth";
+import { attachProfessionalRatings } from "@/lib/server/professional-ratings";
 
 type SavePayload = {
   professional_id: string;
+};
+
+type SavedProfessionalRow = {
+  id: string;
+  first_name: string;
+  last_name: string;
+  province_code: string | null;
+  headline: string | null;
+  specializations: string[] | null;
+  avatar_url: string | null;
+  available_remote: boolean | null;
+  available_travel: boolean | null;
 };
 
 export async function GET() {
@@ -44,7 +57,19 @@ export async function GET() {
     );
   }
 
-  return NextResponse.json({ professionals: professionals ?? [] });
+  const byId = new Map(
+    ((professionals ?? []) as SavedProfessionalRow[]).map((professional) => [
+      professional.id,
+      professional,
+    ]),
+  );
+  const orderedProfessionals = ids
+    .map((id) => byId.get(id))
+    .filter((professional): professional is SavedProfessionalRow => Boolean(professional));
+
+  return NextResponse.json({
+    professionals: await attachProfessionalRatings(supabase, orderedProfessionals),
+  });
 }
 
 export async function POST(request: Request) {

@@ -1,6 +1,8 @@
 import { notFound, redirect } from "next/navigation";
 
 import ProfessionalShell from "@/app/professionista/professional-shell";
+import { AdminShell } from "@/components/admin/admin-shell";
+import { CustomerAreaShell } from "@/components/customer/customer-area-shell";
 import ProfessionalProfileClient from "@/components/professionals/professional-profile-client";
 import { loadProfessionalProfile } from "@/lib/server/professional-profile";
 import { requirePageAuth } from "@/lib/server/require-page-auth";
@@ -39,11 +41,25 @@ export default async function ProfessionalProfilePage({
       access={data.access}
       viewer={{ id: user.id, role: profile.role }}
       embeddedInProfessionalShell={profile.role === "professional"}
+      embeddedInCustomerShell={profile.role === "customer"}
+      embeddedInAdminShell={profile.role === "admin"}
     />
   );
 
-  if (profile.role !== "professional") {
-    return profileView;
+  if (profile.role === "customer") {
+    return <CustomerAreaShell>{profileView}</CustomerAreaShell>;
+  }
+
+  if (profile.role === "admin") {
+    return (
+      <AdminShell
+        title="Profilo professionista"
+        subtitle="Vista amministratore del profilo reale."
+        adminName={profile.first_name || profile.email}
+      >
+        {profileView}
+      </AdminShell>
+    );
   }
 
   const { data: professionalProfile } = await supabase

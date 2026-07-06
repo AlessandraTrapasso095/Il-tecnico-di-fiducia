@@ -105,6 +105,8 @@ type ProfessionalProfileClientProps = {
   access: ProfessionalProfileAccess;
   viewer: Viewer;
   embeddedInProfessionalShell?: boolean;
+  embeddedInCustomerShell?: boolean;
+  embeddedInAdminShell?: boolean;
 };
 
 const EMPTY_COVER =
@@ -304,6 +306,8 @@ export default function ProfessionalProfileClient({
   access,
   viewer,
   embeddedInProfessionalShell = false,
+  embeddedInCustomerShell = false,
+  embeddedInAdminShell = false,
 }: ProfessionalProfileClientProps) {
   const [profile, setProfile] = useState(initialProfile);
   const [profileAccess, setProfileAccess] = useState(access);
@@ -360,7 +364,9 @@ export default function ProfessionalProfileClient({
   const isOwner = profileAccess.is_owner;
   const canViewFull = profileAccess.can_view_full_profile;
   const contactEmail = profile.public_email || profile.email;
-  const shellOffset = embeddedInProfessionalShell ? "" : "min-h-screen bg-background";
+  const isEmbeddedInAreaShell =
+    embeddedInProfessionalShell || embeddedInCustomerShell || embeddedInAdminShell;
+  const shellOffset = isEmbeddedInAreaShell ? "" : "min-h-screen bg-background";
 
   const services = profile.services_offered.length
     ? profile.services_offered
@@ -835,14 +841,29 @@ export default function ProfessionalProfileClient({
 
   return (
     <div className={shellOffset}>
-      {!embeddedInProfessionalShell ? (
+      {!isEmbeddedInAreaShell ? (
         <header className="sticky top-0 z-40 border-b border-outline-variant/30 bg-surface-container-lowest/90 backdrop-blur-md">
           <div className="mx-auto flex h-20 max-w-[1280px] items-center justify-between px-4 sm:px-6 lg:px-8">
-            <Link href="/" className="font-headline-sm text-[22px] text-primary">
+            <Link
+              href={
+                viewer.role === "customer"
+                  ? "/customer"
+                  : viewer.role === "admin"
+                    ? "/admin"
+                    : "/professionista"
+              }
+              className="font-headline-sm text-[22px] text-primary"
+            >
               Il tecnico di fiducia
             </Link>
             <Link
-              href={viewer.role === "customer" ? "/customer" : "/professionista"}
+              href={
+                viewer.role === "customer"
+                  ? "/customer"
+                  : viewer.role === "admin"
+                    ? "/admin"
+                    : "/professionista"
+              }
               className="rounded-full border border-primary px-5 py-2 font-button text-primary"
             >
               Torna all’area

@@ -1,18 +1,29 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import Link from "next/link";
 import Image from "next/image";
-import { useRouter } from "next/navigation";
+import Link from "next/link";
 
 import { SignOutButton } from "@/components/auth/sign-out-button";
+import { HeaderBackButton } from "@/components/navigation/header-back-button";
+import { Footer } from "@/components/site/footer";
 import { fetchJson } from "@/lib/api/fetch-json";
+import type { ConversationRow, MeResponse } from "@/lib/types/chat";
+import {
+  mergeProfessionCategories,
+  professionCategoryKey,
+  type DbProfessionCategory,
+  type ProfessionCategory,
+} from "@/lib/professions/taxonomy";
+
+import MessagesClient from "../messages/messages-client";
 
 type CustomerProfileLite = {
   id: string;
   email: string;
   first_name: string;
   last_name: string;
+  province_code: string | null;
 };
 
 type ProfessionalRow = {
@@ -25,6 +36,8 @@ type ProfessionalRow = {
   avatar_url: string | null;
   available_remote: boolean | null;
   available_travel: boolean | null;
+  rating_average: number | null;
+  reviews_count: number;
 };
 
 type ProfessionalsResponse = {
@@ -35,12 +48,17 @@ type ProfessionalsResponse = {
 };
 
 type Province = { code: string; name: string };
-type Category = { id: number; name: string; slug: string; image_url: string | null };
 
 type ProvincesResponse = { provinces: Province[] };
-type CategoriesResponse = { categories: Category[] };
+type CategoriesResponse = { categories: DbProfessionCategory[] };
 
-type ContactRequestStatus = "pending" | "accepted" | "rejected";
+type ContactRequestStatus =
+  | "pending"
+  | "accepted"
+  | "rejected"
+  | "concluded"
+  | "closed"
+  | "completed";
 
 type ContactRequestRow = {
   id: string;
@@ -70,6 +88,31 @@ type ContactRequestsResponse = {
 
 type SavedProfessionalsResponse = { professionals: ProfessionalRow[] };
 
+type InitialMessages = {
+  me: MeResponse;
+  conversations: ConversationRow[];
+  conversationsError: string | null;
+  activeConversationId: string | null;
+  initialView: "explore" | "messages";
+};
+
+type CustomerDashboardClientProps = {
+  profile: CustomerProfileLite;
+  initialFilters?: {
+    q?: string;
+    provinceCode?: string;
+    categoryId?: string;
+    remote?: boolean;
+    travel?: boolean;
+  };
+  initialMessages: InitialMessages;
+};
+
+type ContactModalState = {
+  open: boolean;
+  professional: ProfessionalRow | null;
+};
+
 function fullName(p: { first_name: string; last_name: string } | null | undefined) {
   if (!p) return "Professionista";
   return `${p.first_name ?? ""} ${p.last_name ?? ""}`.trim() || "Professionista";
@@ -86,9 +129,13 @@ function statusLabel(status: ContactRequestStatus) {
     case "pending":
       return "In attesa";
     case "accepted":
-      return "Accettata";
+      return "Aperta";
     case "rejected":
       return "Rifiutata";
+    case "concluded":
+    case "closed":
+    case "completed":
+      return "Conclusa";
     default:
       return status;
   }
@@ -102,6 +149,10 @@ function statusBadgeClass(status: ContactRequestStatus) {
       return "bg-primary-fixed text-on-primary-fixed-variant";
     case "rejected":
       return "bg-error-container text-on-error-container";
+    case "concluded":
+    case "closed":
+    case "completed":
+      return "bg-surface-container-high text-on-surface-variant";
     default:
       return "bg-surface-container-highest text-on-surface-variant";
   }
@@ -111,40 +162,88 @@ function sanitizeQuery(raw: string) {
   return raw.replace(/\s+/g, " ").trim().slice(0, 64);
 }
 
-type CustomerDashboardClientProps = {
-  profile: CustomerProfileLite;
-  initialFilters?: {
-    q?: string;
-    provinceCode?: string;
-    categoryId?: string;
-    remote?: boolean;
-    travel?: boolean;
-  };
-};
+function formatDate(iso: string) {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "";
+  return new Intl.DateTimeFormat("it-IT", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+  }).format(d);
+}
 
-type ContactModalState = {
-  open: boolean;
-  professional: ProfessionalRow | null;
-};
+function categoryOptionValue(category: ProfessionCategory) {
+  return category.id !== null && category.id !== undefined
+    ? `id:${category.id}`
+    : professionCategoryKey(category);
+}
+
+function splitCategoryId(value: string) {
+  return value.startsWith("id:") ? value.slice(3) : "";
+}
+
+function RatingStars({
+  average,
+  count,
+}: {
+  average: number | null;
+  count: number;
+}) {
+  const rounded = count > 0 && average !== null ? Math.round(average) : 0;
+  return (
+    <div className="flex items-center gap-2 text-sm" aria-label={`${count} recensioni`}>
+      <div className="flex items-center gap-0.5">
+        {Array.from({ length: 5 }).map((_, index) => (
+          <span
+            key={index}
+            className={[
+              "material-symbols-outlined text-[18px]",
+              index < rounded ? "text-[#FF8500]" : "text-outline-variant",
+            ].join(" ")}
+            aria-hidden
+            style={{
+              fontVariationSettings: index < rounded ? "'FILL' 1" : "'FILL' 0",
+            }}
+          >
+            star
+          </span>
+        ))}
+      </div>
+      <span className="font-label-md text-label-md text-on-surface-variant">
+        {count > 0 ? `(${count})` : "0 recensioni"}
+      </span>
+    </div>
+  );
+}
 
 export default function CustomerDashboardClient({
   profile,
   initialFilters,
+  initialMessages,
 }: CustomerDashboardClientProps) {
-  const router = useRouter();
+  const [view, setView] = useState<"explore" | "messages">(initialMessages.initialView);
+  const [messagesKey, setMessagesKey] = useState(0);
+  const [activeConversationId, setActiveConversationId] = useState<string | null>(
+    initialMessages.activeConversationId,
+  );
 
   const [q, setQ] = useState(() => initialFilters?.q ?? "");
   const [provinceCode, setProvinceCode] = useState<string>(
     () => initialFilters?.provinceCode ?? "",
   );
-  const [categoryId, setCategoryId] = useState<string>(
-    () => initialFilters?.categoryId ?? "",
+  const [categoryKey, setCategoryKey] = useState<string>(() =>
+    initialFilters?.categoryId ? `id:${initialFilters.categoryId}` : "",
   );
+  const [subcategorySlug, setSubcategorySlug] = useState("");
   const [remote, setRemote] = useState(() => initialFilters?.remote ?? false);
   const [travel, setTravel] = useState(() => initialFilters?.travel ?? false);
+  const [filterOpen, setFilterOpen] = useState(false);
+  const [favoritesOpen, setFavoritesOpen] = useState(false);
 
   const [provinces, setProvinces] = useState<Province[]>([]);
-  const [categories, setCategories] = useState<Category[]>([]);
+  const [categories, setCategories] = useState<ProfessionCategory[]>(() =>
+    mergeProfessionCategories([]),
+  );
 
   const [professionals, setProfessionals] = useState<ProfessionalRow[]>([]);
   const [professionalsTotal, setProfessionalsTotal] = useState(0);
@@ -156,6 +255,7 @@ export default function CustomerDashboardClient({
   const [requestsError, setRequestsError] = useState<string | null>(null);
 
   const [savedIds, setSavedIds] = useState<Set<string>>(new Set());
+  const [savedProfessionals, setSavedProfessionals] = useState<ProfessionalRow[]>([]);
   const [savedLoading, setSavedLoading] = useState(false);
 
   const [contactModal, setContactModal] = useState<ContactModalState>({
@@ -173,12 +273,30 @@ export default function CustomerDashboardClient({
   );
 
   const searchDebounce = useRef<number | null>(null);
+  const filterRef = useRef<HTMLDivElement | null>(null);
+  const favoritesRef = useRef<HTMLDivElement | null>(null);
 
   const provinceNameByCode = useMemo(() => {
     const m = new Map<string, string>();
     provinces.forEach((p) => m.set(p.code, p.name));
     return m;
   }, [provinces]);
+
+  const currentCategory = useMemo(
+    () =>
+      categories.find((category) => categoryOptionValue(category) === categoryKey) ?? null,
+    [categories, categoryKey],
+  );
+  const currentSubcategories = currentCategory?.subcategories ?? [];
+  const currentSubcategory =
+    currentSubcategories.find((subcategory) => subcategory.slug === subcategorySlug) ?? null;
+  const hasActiveSearch =
+    Boolean(sanitizeQuery(q)) ||
+    Boolean(provinceCode) ||
+    Boolean(categoryKey) ||
+    Boolean(subcategorySlug) ||
+    remote ||
+    travel;
 
   async function loadFilters() {
     try {
@@ -187,9 +305,9 @@ export default function CustomerDashboardClient({
         fetchJson<CategoriesResponse>("/api/categories", { method: "GET" }),
       ]);
       setProvinces(prov.provinces ?? []);
-      setCategories(cat.categories ?? []);
+      setCategories(mergeProfessionCategories(cat.categories ?? []));
     } catch {
-      // optional: keep empty selects
+      setCategories(mergeProfessionCategories([]));
     }
   }
 
@@ -199,9 +317,11 @@ export default function CustomerDashboardClient({
       const res = await fetchJson<SavedProfessionalsResponse>("/api/saved-professionals", {
         method: "GET",
       });
-      setSavedIds(new Set((res.professionals ?? []).map((p) => p.id)));
+      const nextProfessionals = res.professionals ?? [];
+      setSavedProfessionals(nextProfessionals);
+      setSavedIds(new Set(nextProfessionals.map((p) => p.id)));
     } catch {
-      // ignore
+      // Non blocca la ricerca: i preferiti sono decorativi.
     } finally {
       setSavedLoading(false);
     }
@@ -212,7 +332,7 @@ export default function CustomerDashboardClient({
     setRequestsError(null);
     try {
       const res = await fetchJson<ContactRequestsResponse>(
-        "/api/contact-requests?page_size=5&page=1",
+        "/api/contact-requests?page_size=8&page=1",
         { method: "GET" },
       );
       setRequests(res.requests ?? []);
@@ -232,12 +352,24 @@ export default function CustomerDashboardClient({
     const params = new URLSearchParams();
     params.set("page", String(page));
     params.set("page_size", "12");
+
     const qq = sanitizeQuery(q);
+    const categoryId = currentCategory
+      ? splitCategoryId(categoryOptionValue(currentCategory))
+      : "";
     if (qq) params.set("q", qq);
     if (provinceCode) params.set("province_code", provinceCode);
     if (categoryId) params.set("category_id", categoryId);
+    if (currentCategory && !categoryId) params.set("category_slug", currentCategory.slug);
+    if (currentSubcategory) params.set("subcategory", currentSubcategory.name);
     if (remote) params.set("remote", "true");
     if (travel) params.set("travel", "true");
+    if (!hasActiveSearch) {
+      params.set("recommended", "true");
+      if (profile.province_code) {
+        params.set("customer_province_code", profile.province_code);
+      }
+    }
 
     try {
       const res = await fetchJson<ProfessionalsResponse>(`/api/professionals?${params}`, {
@@ -254,8 +386,41 @@ export default function CustomerDashboardClient({
     }
   }
 
+  function openMessages(conversationId?: string | null) {
+    setActiveConversationId(conversationId ?? null);
+    setMessagesKey((value) => value + 1);
+    setView("messages");
+    window.requestAnimationFrame(() => {
+      document
+        .getElementById("messaggi-cliente")
+        ?.scrollIntoView({ behavior: "smooth", block: "start" });
+    });
+  }
+
+  function goToRequests() {
+    setView("explore");
+    window.requestAnimationFrame(() => {
+      document
+        .getElementById("richieste")
+        ?.scrollIntoView({ behavior: "smooth", block: "start" });
+    });
+  }
+
+  function updateCategory(nextKey: string) {
+    setCategoryKey(nextKey);
+    setSubcategorySlug("");
+  }
+
+  function resetFilters() {
+    setQ("");
+    setProvinceCode("");
+    setCategoryKey("");
+    setSubcategorySlug("");
+    setRemote(false);
+    setTravel(false);
+  }
+
   useEffect(() => {
-    // Defer initial state hydration to avoid cascading renders warnings.
     const t = window.setTimeout(() => {
       void loadFilters();
       void loadSaved();
@@ -267,7 +432,6 @@ export default function CustomerDashboardClient({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Debounced search/filter changes.
   useEffect(() => {
     if (searchDebounce.current) window.clearTimeout(searchDebounce.current);
     searchDebounce.current = window.setTimeout(() => {
@@ -277,16 +441,53 @@ export default function CustomerDashboardClient({
       if (searchDebounce.current) window.clearTimeout(searchDebounce.current);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [q, provinceCode, categoryId, remote, travel]);
+  }, [q, provinceCode, categoryKey, subcategorySlug, remote, travel, categories.length]);
 
-  async function toggleSaved(professionalId: string) {
+  useEffect(() => {
+    if (!filterOpen) return;
+
+    function onPointerDown(event: MouseEvent) {
+      const target = event.target;
+      if (!(target instanceof Node)) return;
+      if (filterRef.current?.contains(target)) return;
+      setFilterOpen(false);
+    }
+
+    document.addEventListener("mousedown", onPointerDown);
+    return () => document.removeEventListener("mousedown", onPointerDown);
+  }, [filterOpen]);
+
+  useEffect(() => {
+    if (!favoritesOpen) return;
+
+    function onPointerDown(event: MouseEvent) {
+      const target = event.target;
+      if (!(target instanceof Node)) return;
+      if (favoritesRef.current?.contains(target)) return;
+      setFavoritesOpen(false);
+    }
+
+    document.addEventListener("mousedown", onPointerDown);
+    return () => document.removeEventListener("mousedown", onPointerDown);
+  }, [favoritesOpen]);
+
+  async function toggleSaved(professional: ProfessionalRow) {
+    const professionalId = professional.id;
     const isSaved = savedIds.has(professionalId);
+    const previousSavedIds = savedIds;
+    const previousProfessionals = savedProfessionals;
+
     setSavedIds((prev) => {
       const next = new Set(prev);
       if (isSaved) next.delete(professionalId);
       else next.add(professionalId);
       return next;
     });
+    setSavedProfessionals((prev) =>
+      isSaved
+        ? prev.filter((item) => item.id !== professionalId)
+        : [professional, ...prev.filter((item) => item.id !== professionalId)],
+    );
 
     try {
       if (isSaved) {
@@ -300,13 +501,8 @@ export default function CustomerDashboardClient({
         });
       }
     } catch {
-      // rollback best-effort
-      setSavedIds((prev) => {
-        const next = new Set(prev);
-        if (isSaved) next.add(professionalId);
-        else next.delete(professionalId);
-        return next;
-      });
+      setSavedIds(previousSavedIds);
+      setSavedProfessionals(previousProfessionals);
     }
   }
 
@@ -364,51 +560,162 @@ export default function CustomerDashboardClient({
   }
 
   const heroBg =
-    "https://lh3.googleusercontent.com/aida-public/AB6AXuBv9k5MXue40t0uC4k-4kR0tPcfh1qDN0zY0Pzw146xZfO9W9Uz4MPD78Dtq0Bl8HEBwhBJ3GuWfMlxScJHpspEUkMvDC29nEZtq5ZzFNccrKBJhx4kRGbP-CRXrS5oHrNTbhjD3XoL-_I7NjpFA3hvDPg8FPSgJlzikdv1xtDQAk-Itqe4PUmaSyoyiLzbtRzh9YmxMoCz56OgCcPEEVuR_BmEDf0rIU5v4KdbrZBesmpoxjHSR45NBwG9D4Wab_EJ5jePxuvwzJ_u";
+    "https://images.pexels.com/photos/3184465/pexels-photo-3184465.jpeg?auto=compress&cs=tinysrgb&w=1800&h=900&fit=crop";
 
   return (
     <div className="min-h-screen bg-surface text-on-surface">
-      <header className="fixed top-0 w-full h-[100px] z-50 bg-surface-container-lowest/80 backdrop-blur-md shadow-sm">
-        <div className="flex justify-between items-center w-full px-4 sm:px-6 max-w-[1280px] mx-auto h-full gap-3">
-          <Link href="/customer" className="flex items-center gap-2 min-w-0">
-            <span className="text-headline-sm font-headline-sm font-bold text-primary truncate">
-              Il tecnico di fiducia
-            </span>
-          </Link>
+      <header className="fixed top-0 z-50 h-[92px] w-full bg-surface-container-lowest/88 shadow-sm backdrop-blur-md">
+        <div className="mx-auto flex h-full w-full max-w-[1280px] items-center justify-between gap-3 px-4 sm:px-6">
+          <div className="flex min-w-0 items-center gap-2">
+            <HeaderBackButton
+              fallbackHref="/customer"
+              hiddenPathnames={["/customer", "/cliente"]}
+              forceVisible={view !== "explore"}
+              onBack={() => setView("explore")}
+            />
+            <Link href="/customer" className="flex min-w-0 items-center gap-2.5">
+              <Image
+                src="/img/logo-mark.png"
+                alt="Il Tecnico di Fiducia"
+                width={54}
+                height={54}
+                className="h-[46px] w-[46px] shrink-0 object-contain sm:h-[54px] sm:w-[54px]"
+                priority
+              />
+              <span className="leading-none">
+                <span className="block font-headline-sm text-[18px] font-bold text-[#FF8500] sm:text-[21px]">
+                  Il tecnico
+                </span>
+                <span className="block font-headline-sm text-[18px] font-bold text-primary sm:text-[21px]">
+                  di fiducia
+                </span>
+              </span>
+            </Link>
+          </div>
 
-          <nav className="hidden md:flex items-center gap-8">
-            <Link
-              href="/customer"
-              className="font-label-md text-label-md text-on-tertiary-container font-bold border-b-2 border-on-tertiary-container pb-1"
+          <nav className="hidden items-center gap-8 md:flex">
+            <button
+              type="button"
+              className="font-label-md text-label-md font-bold text-on-tertiary-container underline decoration-2 underline-offset-8"
+              onClick={() => setView("explore")}
             >
-              Esplora
-            </Link>
-            <Link
-              href="/#come-funziona"
-              className="font-label-md text-label-md text-on-surface-variant hover:text-on-tertiary-container transition-colors"
-            >
-              Come funziona
-            </Link>
-            <a
-              href="#richieste"
-              className="font-label-md text-label-md text-on-surface-variant hover:text-on-tertiary-container transition-colors"
+              Cerca
+            </button>
+            <button
+              type="button"
+              className="font-label-md text-label-md text-on-surface-variant transition-colors hover:text-on-tertiary-container"
+              onClick={goToRequests}
             >
               Richieste
-            </a>
+            </button>
           </nav>
 
           <div className="flex items-center gap-2">
-            <Link
-              href="/messages"
-              className="p-2 text-on-surface-variant hover:bg-surface-container-high rounded-full transition-all"
+            <div ref={favoritesRef} className="relative">
+              <button
+                type="button"
+                className="rounded-full p-2 text-primary transition-all hover:bg-surface-container-high"
+                title="Preferiti"
+                aria-label="Apri preferiti"
+                aria-expanded={favoritesOpen}
+                onClick={() => {
+                  setFavoritesOpen((value) => !value);
+                  setFilterOpen(false);
+                }}
+              >
+                <span className="material-symbols-outlined" aria-hidden>
+                  favorite
+                </span>
+              </button>
+
+              {favoritesOpen ? (
+                <div className="absolute right-0 top-[calc(100%+12px)] z-[95] w-[min(92vw,420px)] overflow-hidden rounded-[24px] border border-outline-variant/30 bg-surface-container-lowest text-left shadow-[0_18px_50px_rgba(8,43,95,0.18)]">
+                  <div className="border-b border-outline-variant/25 p-4">
+                    <div className="font-headline-sm text-primary">Preferiti</div>
+                    <div className="text-sm text-on-surface-variant">
+                      I professionisti che hai salvato.
+                    </div>
+                  </div>
+
+                  {savedProfessionals.length === 0 ? (
+                    <div className="p-6 text-center">
+                      <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-primary-fixed text-primary">
+                        <span className="material-symbols-outlined" aria-hidden>
+                          favorite
+                        </span>
+                      </div>
+                      <div className="font-button text-primary">Nessun preferito</div>
+                      <p className="mt-1 text-sm text-on-surface-variant">
+                        Salva i professionisti cliccando il cuore nelle card.
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="max-h-[420px] overflow-y-auto p-2">
+                      {savedProfessionals.map((professional) => (
+                        <Link
+                          key={professional.id}
+                          href={`/professionisti/${professional.id}`}
+                          className="flex gap-3 rounded-2xl p-3 transition-colors hover:bg-surface-container-low"
+                          onClick={() => setFavoritesOpen(false)}
+                        >
+                          <div className="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-primary-fixed bg-surface-container-high text-primary">
+                            {professional.avatar_url ? (
+                              <Image
+                                src={professional.avatar_url}
+                                alt={fullName(professional)}
+                                width={48}
+                                height={48}
+                                className="h-full w-full object-cover"
+                              />
+                            ) : (
+                              <span className="text-sm font-bold">
+                                {initials(professional.first_name, professional.last_name)}
+                              </span>
+                            )}
+                          </div>
+                          <div className="min-w-0 flex-1">
+                            <div className="truncate font-button text-primary">
+                              {fullName(professional)}
+                            </div>
+                            <div className="truncate text-xs text-on-surface-variant">
+                              {professional.headline ?? "Professione non indicata"}
+                            </div>
+                            <div className="mt-1 truncate text-xs text-on-surface-variant">
+                              {professional.province_code
+                                ? provinceNameByCode.get(professional.province_code) ??
+                                  professional.province_code
+                                : "Provincia non indicata"}
+                            </div>
+                            <div className="mt-2">
+                              <RatingStars
+                                average={professional.rating_average}
+                                count={professional.reviews_count}
+                              />
+                            </div>
+                            <div className="mt-2 text-xs font-bold text-on-tertiary-container">
+                              Vedi profilo
+                            </div>
+                          </div>
+                        </Link>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              ) : null}
+            </div>
+
+            <button
+              type="button"
+              className="rounded-full p-2 text-primary transition-all hover:bg-surface-container-high"
               title="Messaggi"
+              onClick={() => openMessages()}
             >
               <span className="material-symbols-outlined" aria-hidden>
                 chat
               </span>
-            </Link>
+            </button>
             <SignOutButton
-              className="p-2 text-error hover:bg-error-container/30 rounded-full transition-all"
+              className="rounded-full p-2 text-error transition-all hover:bg-error-container/30"
               aria-label="Logout"
             >
               <span className="material-symbols-outlined" aria-hidden>
@@ -419,357 +726,468 @@ export default function CustomerDashboardClient({
         </div>
       </header>
 
-      <main className="pt-[100px]">
-        <section className="relative py-14 px-4 sm:px-6 overflow-hidden">
-          <div className="absolute inset-0 z-0">
-            <div className="absolute inset-0 bg-gradient-to-br from-primary/10 to-transparent" />
-            <Image
-              src={heroBg}
-              alt=""
-              fill
-              priority
-              sizes="100vw"
-              className="object-cover opacity-10"
-            />
-          </div>
-          <div className="relative z-10 max-w-[1280px] mx-auto text-center">
-            <h1 className="font-headline-md text-headline-md text-primary mb-6">
-              Ciao {profile.first_name}, di cosa hai bisogno oggi?
-            </h1>
-
-            <div className="max-w-3xl mx-auto">
-              <div className="flex flex-col sm:flex-row items-stretch sm:items-center bg-white/60 backdrop-blur-md border border-outline-variant/40 rounded-[9999px] overflow-hidden shadow-[0_4px_20px_rgba(8,43,95,0.08)]">
-                <div className="flex items-center gap-3 px-5 py-4 flex-1">
-                  <span className="material-symbols-outlined text-outline" aria-hidden>
-                    search
-                  </span>
-                  <input
-                    className="flex-1 bg-transparent border-none focus:ring-0 outline-none font-body-md text-body-md placeholder:text-outline-variant"
-                    placeholder="Elettricista, Idraulico, Architetto…"
-                    value={q}
-                    onChange={(e) => setQ(e.target.value)}
-                  />
-                </div>
-                <button
-                  type="button"
-                  className="bg-on-tertiary-container text-white px-10 py-4 font-button text-button hover:bg-[#FF9A2B] transition-colors"
-                  onClick={() => void loadProfessionals()}
-                >
-                  Cerca
-                </button>
-              </div>
-
-              <div className="mt-4 flex flex-wrap justify-center gap-3 text-on-surface-variant">
-                <label className="inline-flex items-center gap-2 bg-surface-container-lowest/70 border border-outline-variant/30 px-4 py-2 rounded-full">
-                  <input
-                    type="checkbox"
-                    className="w-4 h-4 rounded border-outline-variant text-primary focus:ring-primary"
-                    checked={remote}
-                    onChange={(e) => setRemote(e.target.checked)}
-                  />
-                  <span className="text-sm">Disponibile remoto</span>
-                </label>
-                <label className="inline-flex items-center gap-2 bg-surface-container-lowest/70 border border-outline-variant/30 px-4 py-2 rounded-full">
-                  <input
-                    type="checkbox"
-                    className="w-4 h-4 rounded border-outline-variant text-primary focus:ring-primary"
-                    checked={travel}
-                    onChange={(e) => setTravel(e.target.checked)}
-                  />
-                  <span className="text-sm">Disponibile trasferte</span>
-                </label>
-              </div>
-            </div>
-          </div>
-        </section>
-
-        <section className="py-10 px-4 sm:px-6 max-w-[1280px] mx-auto">
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-            <aside className="lg:col-span-3 bg-surface-container-lowest rounded-[20px] p-5 shadow-[0_4px_20px_rgba(8,43,95,0.08)] border border-outline-variant/30">
-              <div className="font-headline-sm text-primary mb-4">Filtra ricerca</div>
-
-              <div className="space-y-4">
-                <div className="space-y-2">
-                  <label className="font-label-md text-label-md text-on-surface-variant">
-                    Categoria
-                  </label>
-                  <select
-                    className="w-full px-4 py-3 bg-surface-container-lowest border border-outline-variant rounded-xl focus:ring-2 focus:ring-primary focus:border-primary outline-none transition-all font-body-md text-body-md"
-                    value={categoryId}
-                    onChange={(e) => setCategoryId(e.target.value)}
-                  >
-                    <option value="">Tutte</option>
-                    {categories.map((c) => (
-                      <option key={c.id} value={String(c.id)}>
-                        {c.name}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                <div className="space-y-2">
-                  <label className="font-label-md text-label-md text-on-surface-variant">
-                    Provincia
-                  </label>
-                  <select
-                    className="w-full px-4 py-3 bg-surface-container-lowest border border-outline-variant rounded-xl focus:ring-2 focus:ring-primary focus:border-primary outline-none transition-all font-body-md text-body-md"
-                    value={provinceCode}
-                    onChange={(e) => setProvinceCode(e.target.value)}
-                  >
-                    <option value="">Tutte</option>
-                    {provinces.map((p) => (
-                      <option key={p.code} value={p.code}>
-                        {p.name}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                <button
-                  type="button"
-                  className="w-full bg-primary text-white rounded-full py-3 font-button text-button hover:bg-secondary transition-colors"
-                  onClick={() => void loadProfessionals()}
-                >
-                  Applica filtri
-                </button>
-
-                <button
-                  type="button"
-                  className="w-full border-2 border-primary text-primary rounded-full py-3 font-button text-button hover:bg-primary/5 transition-colors"
-                  onClick={() => {
-                    setQ("");
-                    setProvinceCode("");
-                    setCategoryId("");
-                    setRemote(false);
-                    setTravel(false);
-                    void loadProfessionals();
-                  }}
-                >
-                  Reset
-                </button>
-              </div>
-            </aside>
-
-            <div className="lg:col-span-9">
-              <div className="flex items-end justify-between gap-4 mb-4">
+      <main className="pt-[92px]">
+        {view === "messages" ? (
+          <section id="messaggi-cliente" className="px-4 py-8 sm:px-6">
+            <div className="mx-auto max-w-[1280px] overflow-hidden rounded-[28px] border border-outline-variant/30 bg-surface-container-lowest shadow-[0_4px_20px_rgba(8,43,95,0.08)]">
+              <div className="flex flex-col gap-3 border-b border-outline-variant/30 p-4 sm:flex-row sm:items-center sm:justify-between">
                 <div>
-                  <div className="font-headline-sm text-primary">Professionisti trovati</div>
-                  <div className="text-on-surface-variant text-sm">
-                    {professionalsLoading ? "Caricamento…" : `${professionalsTotal} risultati`}
+                  <div className="font-headline-sm text-headline-sm text-primary">
+                    Messaggi
+                  </div>
+                  <div className="text-sm text-on-surface-variant">
+                    Conversazioni e richieste con i professionisti.
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  className="rounded-full border-2 border-primary px-5 py-2 font-button text-button text-primary transition-colors hover:bg-primary hover:text-white"
+                  onClick={() => setView("explore")}
+                >
+                  Torna a Cerca
+                </button>
+              </div>
+              <MessagesClient
+                key={messagesKey}
+                embedded
+                initialMe={initialMessages.me}
+                initialConversations={initialMessages.conversations}
+                initialConversationsError={initialMessages.conversationsError}
+                initialActiveConversationId={activeConversationId}
+              />
+            </div>
+          </section>
+        ) : (
+          <>
+            <section className="relative z-20 overflow-visible px-4 py-16 sm:px-6 md:py-20">
+              <div className="absolute inset-0 z-0">
+                <Image
+                  src={heroBg}
+                  alt=""
+                  fill
+                  priority
+                  sizes="100vw"
+                  className="object-cover opacity-70"
+                />
+                <div className="absolute inset-0 bg-gradient-to-br from-primary/82 via-primary/60 to-primary/24" />
+              </div>
+              <div className="relative z-10 mx-auto max-w-[1280px] text-center">
+                <h1 className="mx-auto mb-8 max-w-[900px] font-display-lg text-[34px] font-bold leading-tight tracking-[-0.02em] text-white drop-shadow md:text-[48px]">
+                  Ciao {profile.first_name}, di cosa hai bisogno oggi?
+                </h1>
+
+                <div className="mx-auto max-w-4xl">
+                  <div
+                    ref={filterRef}
+                    className="relative z-[60] rounded-[28px] bg-white/82 p-2 shadow-[0_14px_42px_rgba(8,43,95,0.18)] backdrop-blur-md sm:rounded-full"
+                  >
+                    <div className="flex flex-col gap-2 sm:flex-row sm:items-stretch">
+                      <div className="flex min-h-[58px] flex-1 items-center gap-3 px-4">
+                        <span className="material-symbols-outlined text-outline" aria-hidden>
+                          search
+                        </span>
+                        <input
+                          className="min-w-0 flex-1 border-none bg-transparent font-body-md text-body-md outline-none placeholder:text-outline focus:ring-0"
+                          placeholder="Elettricista, Idraulico, Architetto…"
+                          value={q}
+                          onChange={(e) => setQ(e.target.value)}
+                        />
+                      </div>
+                      <button
+                        type="button"
+                        className="min-h-[58px] rounded-full border border-outline-variant/30 px-5 text-primary transition-colors hover:bg-surface-container-high"
+                        onClick={() => {
+                          setFilterOpen((value) => !value);
+                          setFavoritesOpen(false);
+                        }}
+                        aria-label="Apri filtri"
+                        aria-expanded={filterOpen}
+                      >
+                        <span className="material-symbols-outlined" aria-hidden>
+                          filter_alt
+                        </span>
+                      </button>
+                      <button
+                        type="button"
+                        className="min-h-[58px] rounded-full bg-[#FF8500] px-9 font-button text-button text-white shadow-lg shadow-orange-500/20 transition-all hover:bg-[#FF9A2B] active:scale-[0.99]"
+                        onClick={() => void loadProfessionals()}
+                      >
+                        Cerca
+                      </button>
+                    </div>
+
+                    {filterOpen ? (
+                      <div className="fixed inset-x-4 bottom-4 z-[90] max-h-[78vh] overflow-y-auto rounded-[24px] border border-outline-variant/30 bg-surface-container-lowest p-5 text-left shadow-[0_18px_50px_rgba(8,43,95,0.18)] sm:absolute sm:bottom-auto sm:left-auto sm:right-0 sm:top-[calc(100%+12px)] sm:w-[520px] sm:max-h-[calc(100vh-180px)]">
+                        <div className="mb-4 flex items-center justify-between gap-3">
+                          <div>
+                            <div className="font-headline-sm text-primary">
+                              Filtri ricerca
+                            </div>
+                            <div className="text-sm text-on-surface-variant">
+                              Affina categoria, zona e disponibilità.
+                            </div>
+                          </div>
+                          <button
+                            type="button"
+                            className="rounded-full p-2 text-primary hover:bg-surface-container-low"
+                            onClick={() => setFilterOpen(false)}
+                            aria-label="Chiudi filtri"
+                          >
+                            <span className="material-symbols-outlined" aria-hidden>
+                              close
+                            </span>
+                          </button>
+                        </div>
+
+                        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                          <label className="space-y-2">
+                            <span className="font-label-md text-label-md text-on-surface-variant">
+                              Categoria
+                            </span>
+                            <select
+                              className="w-full rounded-xl border border-outline-variant bg-surface-container-lowest px-4 py-3 font-body-md text-body-md outline-none transition-all focus:border-primary focus:ring-2 focus:ring-primary"
+                              value={categoryKey}
+                              onChange={(e) => updateCategory(e.target.value)}
+                            >
+                              <option value="">Tutte le categorie</option>
+                              {categories.map((category) => (
+                                <option
+                                  key={categoryOptionValue(category)}
+                                  value={categoryOptionValue(category)}
+                                >
+                                  {category.name}
+                                </option>
+                              ))}
+                            </select>
+                          </label>
+
+                          <label className="space-y-2">
+                            <span className="font-label-md text-label-md text-on-surface-variant">
+                              Sottocategoria
+                            </span>
+                            <select
+                              className="w-full rounded-xl border border-outline-variant bg-surface-container-lowest px-4 py-3 font-body-md text-body-md outline-none transition-all focus:border-primary focus:ring-2 focus:ring-primary disabled:bg-surface-container-low disabled:text-outline"
+                              value={subcategorySlug}
+                              onChange={(e) => setSubcategorySlug(e.target.value)}
+                              disabled={!currentCategory}
+                            >
+                              <option value="">
+                                {currentCategory
+                                  ? "Tutte le sottocategorie"
+                                  : "Seleziona prima una categoria"}
+                              </option>
+                              {currentSubcategories.map((subcategory) => (
+                                <option key={subcategory.slug} value={subcategory.slug}>
+                                  {subcategory.name}
+                                </option>
+                              ))}
+                            </select>
+                          </label>
+
+                          <label className="space-y-2 sm:col-span-2">
+                            <span className="font-label-md text-label-md text-on-surface-variant">
+                              Provincia
+                            </span>
+                            <select
+                              className="w-full rounded-xl border border-outline-variant bg-surface-container-lowest px-4 py-3 font-body-md text-body-md outline-none transition-all focus:border-primary focus:ring-2 focus:ring-primary"
+                              value={provinceCode}
+                              onChange={(e) => setProvinceCode(e.target.value)}
+                            >
+                              <option value="">Tutte le province</option>
+                              {provinces.map((province) => (
+                                <option key={province.code} value={province.code}>
+                                  {province.name}
+                                </option>
+                              ))}
+                            </select>
+                          </label>
+
+                          <label className="flex items-center gap-3 rounded-xl border border-outline-variant/50 bg-surface-container-low px-4 py-3">
+                            <input
+                              type="checkbox"
+                              className="h-5 w-5 rounded border-outline-variant text-primary focus:ring-primary"
+                              checked={remote}
+                              onChange={(e) => setRemote(e.target.checked)}
+                            />
+                            <span className="text-sm text-on-surface-variant">
+                              Disponibile da remoto
+                            </span>
+                          </label>
+
+                          <label className="flex items-center gap-3 rounded-xl border border-outline-variant/50 bg-surface-container-low px-4 py-3">
+                            <input
+                              type="checkbox"
+                              className="h-5 w-5 rounded border-outline-variant text-primary focus:ring-primary"
+                              checked={travel}
+                              onChange={(e) => setTravel(e.target.checked)}
+                            />
+                            <span className="text-sm text-on-surface-variant">
+                              Disponibile a trasferte
+                            </span>
+                          </label>
+                        </div>
+
+                        <div className="mt-5 flex flex-col gap-3 sm:flex-row">
+                          <button
+                            type="button"
+                            className="flex-1 rounded-full border-2 border-primary py-3 font-button text-button text-primary transition-colors hover:bg-primary/5"
+                            onClick={resetFilters}
+                          >
+                            Reset
+                          </button>
+                          <button
+                            type="button"
+                            className="flex-1 rounded-full bg-[#FF8500] py-3 font-button text-button text-white shadow-lg shadow-orange-500/20 transition-colors hover:bg-[#FF9A2B]"
+                            onClick={() => {
+                              setFilterOpen(false);
+                              void loadProfessionals();
+                            }}
+                          >
+                            Aggiorna ricerca
+                          </button>
+                        </div>
+                      </div>
+                    ) : null}
+                  </div>
+                </div>
+              </div>
+            </section>
+
+            <section id="esplora" className="mx-auto max-w-[1280px] px-4 py-12 sm:px-6">
+              <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+                <div>
+                  <div className="font-headline-md text-headline-md text-primary">
+                    {hasActiveSearch
+                      ? "Professionisti trovati"
+                      : "Professionisti consigliati nella tua zona"}
+                  </div>
+                  <div className="text-sm text-on-surface-variant">
+                    {professionalsLoading
+                      ? "Caricamento…"
+                      : `${professionalsTotal} professionisti disponibili`}
                   </div>
                 </div>
               </div>
 
               {professionalsError ? (
-                <div className="mb-4 text-on-error-container bg-error-container border border-error/20 rounded-xl px-4 py-3 text-sm">
+                <div className="mb-4 rounded-xl border border-error/20 bg-error-container px-4 py-3 text-sm text-on-error-container">
                   {professionalsError}
                 </div>
               ) : null}
 
               {professionalsLoading ? (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
                   {Array.from({ length: 4 }).map((_, i) => (
                     <div
                       key={i}
-                      className="bg-surface-container-lowest rounded-[20px] p-6 border border-outline-variant/30 shadow-sm animate-pulse"
+                      className="animate-pulse rounded-[22px] border border-outline-variant/30 bg-surface-container-lowest p-6 shadow-sm"
                     >
-                      <div className="h-4 w-2/3 bg-surface-container-high rounded mb-3" />
-                      <div className="h-3 w-1/2 bg-surface-container-high rounded mb-6" />
-                      <div className="h-10 w-full bg-surface-container-high rounded-full" />
+                      <div className="mb-3 h-4 w-2/3 rounded bg-surface-container-high" />
+                      <div className="mb-6 h-3 w-1/2 rounded bg-surface-container-high" />
+                      <div className="h-10 w-full rounded-full bg-surface-container-high" />
                     </div>
                   ))}
                 </div>
               ) : professionals.length === 0 ? (
-                <div className="bg-surface-container-lowest rounded-[20px] p-10 border border-outline-variant/30 text-center">
-                  <div className="text-primary font-headline-sm mb-2">
-                    Nessun professionista trovato
+                <div className="rounded-[24px] border border-dashed border-outline-variant bg-surface-container-lowest p-10 text-center">
+                  <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-primary-fixed text-primary">
+                    <span className="material-symbols-outlined" aria-hidden>
+                      search_off
+                    </span>
                   </div>
-                  <div className="text-on-surface-variant">
-                    Prova a modificare i filtri o la ricerca.
+                  <div className="font-headline-sm text-headline-sm text-primary">
+                    Nessun professionista disponibile
                   </div>
+                  <p className="mx-auto mt-2 max-w-[560px] text-on-surface-variant">
+                    Prova a modificare testo, categoria, provincia o disponibilità.
+                  </p>
                 </div>
               ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
                   {professionals.map((p) => {
                     const isSaved = savedIds.has(p.id);
                     return (
-                      <div
+                      <article
                         key={p.id}
-                        className="bg-surface-container-lowest rounded-[20px] p-6 border border-outline-variant/30 shadow-[0_4px_20px_rgba(8,43,95,0.08)]"
+                        className="rounded-[24px] border border-outline-variant/30 bg-surface-container-lowest p-6 shadow-[0_4px_20px_rgba(8,43,95,0.08)]"
                       >
                         <div className="flex items-start gap-4">
-                          <div className="w-14 h-14 rounded-full border-2 border-primary-container overflow-hidden bg-surface-container-high flex items-center justify-center shrink-0">
+                          <div className="flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-2xl border-2 border-primary-fixed bg-surface-container-high text-primary">
                             {p.avatar_url ? (
                               <Image
-                                className="object-cover"
+                                className="h-full w-full object-cover"
                                 alt={fullName(p)}
                                 src={p.avatar_url}
-                                width={56}
-                                height={56}
+                                width={64}
+                                height={64}
                               />
                             ) : (
-                              <span className="font-button text-primary">
+                              <span className="font-button">
                                 {initials(p.first_name, p.last_name)}
                               </span>
                             )}
                           </div>
 
-                          <div className="flex-1 min-w-0">
-                            <div className="font-headline-sm text-primary leading-tight">
+                          <div className="min-w-0 flex-1">
+                            <div className="font-headline-sm text-[24px] leading-tight text-primary">
                               {fullName(p)}
                             </div>
-                            <div className="text-on-surface-variant text-sm mt-1 line-clamp-2">
-                              {p.headline ?? "—"}
+                            <div className="mt-1 line-clamp-2 text-sm text-on-surface-variant">
+                              {p.headline ?? "Professione non indicata"}
                             </div>
-
                             <div className="mt-3 flex flex-wrap gap-2">
                               {p.province_code ? (
-                                <span className="px-3 py-1 rounded-full text-xs font-label-md bg-surface-container-low text-primary">
+                                <span className="rounded-full bg-surface-container-low px-3 py-1 text-xs font-bold text-primary">
                                   {provinceNameByCode.get(p.province_code) ?? p.province_code}
                                 </span>
                               ) : null}
                               {p.available_remote ? (
-                                <span className="px-3 py-1 rounded-full text-xs font-label-md bg-primary-fixed text-on-primary-fixed">
+                                <span className="rounded-full bg-primary-fixed px-3 py-1 text-xs font-bold text-on-primary-fixed">
                                   Remoto
                                 </span>
                               ) : null}
                               {p.available_travel ? (
-                                <span className="px-3 py-1 rounded-full text-xs font-label-md bg-secondary-fixed text-on-secondary-fixed">
+                                <span className="rounded-full bg-secondary-fixed px-3 py-1 text-xs font-bold text-on-secondary-fixed">
                                   Trasferte
                                 </span>
                               ) : null}
                             </div>
                           </div>
 
-                          <button
-                            type="button"
-                            className={[
-                              "w-11 h-11 rounded-full border transition-colors flex items-center justify-center shrink-0",
-                              isSaved
-                                ? "border-on-tertiary-container text-on-tertiary-container bg-on-tertiary-container/10"
-                                : "border-outline-variant/50 text-primary hover:bg-surface-container-high",
-                            ].join(" ")}
-                            title={isSaved ? "Rimuovi dai salvati" : "Salva professionista"}
-                            disabled={savedLoading}
-                            onClick={() => void toggleSaved(p.id)}
-                          >
-                            <span className="material-symbols-outlined" aria-hidden>
-                              {isSaved ? "favorite" : "favorite_border"}
-                            </span>
-                          </button>
+                          <div className="flex shrink-0 flex-col items-end gap-3">
+                            <button
+                              type="button"
+                              className={[
+                                "flex h-11 w-11 items-center justify-center rounded-full border transition-colors",
+                                isSaved
+                                  ? "border-on-tertiary-container bg-on-tertiary-container/10 text-on-tertiary-container"
+                                  : "border-outline-variant/50 text-primary hover:bg-surface-container-high",
+                              ].join(" ")}
+                              title={isSaved ? "Rimuovi dai salvati" : "Salva professionista"}
+                              disabled={savedLoading}
+                              onClick={() => void toggleSaved(p)}
+                            >
+                              <span
+                                className="material-symbols-outlined"
+                                aria-hidden
+                                style={{
+                                  fontVariationSettings: isSaved ? "'FILL' 1" : "'FILL' 0",
+                                }}
+                              >
+                                {isSaved ? "favorite" : "favorite_border"}
+                              </span>
+                            </button>
+                          </div>
                         </div>
 
-                        <div className="mt-5 flex flex-col sm:flex-row gap-3">
+                        <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
+                          <RatingStars average={p.rating_average} count={p.reviews_count} />
+                        </div>
+
+                        <div className="mt-5 flex flex-col gap-3 sm:flex-row">
                           <button
                             type="button"
-                            className="flex-1 bg-[#FF8500] text-white font-button text-button py-3 rounded-full hover:bg-[#FF9A2B] transition-colors active:scale-[0.99]"
+                            className="flex-1 rounded-full bg-[#FF8500] py-3 font-button text-button text-white transition-colors hover:bg-[#FF9A2B] active:scale-[0.99]"
                             onClick={() => openContact(p)}
                           >
                             Contatta
                           </button>
                           <Link
                             href={`/professionisti/${p.id}`}
-                            className="flex-1 text-center border-2 border-primary text-primary font-button text-button py-3 rounded-full hover:bg-primary hover:text-white transition-colors"
+                            className="flex-1 rounded-full border-2 border-primary py-3 text-center font-button text-button text-primary transition-colors hover:bg-primary hover:text-white"
                           >
                             Vedi profilo
                           </Link>
                         </div>
-                      </div>
+                      </article>
                     );
                   })}
                 </div>
               )}
-            </div>
-          </div>
-        </section>
+            </section>
 
-        <section id="richieste" className="py-12 px-4 sm:px-6 max-w-[1280px] mx-auto">
-          <div className="flex items-end justify-between gap-4 mb-4">
-            <div>
-              <div className="font-headline-sm text-primary">Richieste recenti</div>
-              <div className="text-on-surface-variant text-sm">
-                {requestsLoading ? "Caricamento…" : "Le tue ultime richieste inviate"}
-              </div>
-            </div>
-          </div>
-
-          {requestsError ? (
-            <div className="mb-4 text-on-error-container bg-error-container border border-error/20 rounded-xl px-4 py-3 text-sm">
-              {requestsError}
-            </div>
-          ) : null}
-
-          {requestsLoading ? (
-            <div className="bg-surface-container-lowest rounded-[20px] p-6 border border-outline-variant/30 shadow-sm animate-pulse">
-              <div className="h-4 w-1/3 bg-surface-container-high rounded mb-3" />
-              <div className="h-4 w-2/3 bg-surface-container-high rounded" />
-            </div>
-          ) : requests.length === 0 ? (
-            <div className="bg-surface-container-lowest rounded-[20px] p-10 border border-outline-variant/30 text-center">
-              <div className="text-primary font-headline-sm mb-2">Ancora nessuna richiesta</div>
-              <div className="text-on-surface-variant mb-6">
-                Inizia cercando un professionista e inviando la tua prima richiesta.
-              </div>
-              <button
-                type="button"
-                className="bg-primary text-white px-8 py-3 rounded-full font-button text-button hover:bg-secondary transition-colors"
-                onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}
-              >
-                Crea la tua prima richiesta
-              </button>
-            </div>
-          ) : (
-            <div className="space-y-3">
-              {requests.map((r) => (
-                <div
-                  key={r.id}
-                  className="bg-surface-container-lowest rounded-[20px] p-5 border border-outline-variant/30 shadow-[0_4px_20px_rgba(8,43,95,0.08)]"
-                >
-                  <div className="flex items-start justify-between gap-4">
-                    <div className="min-w-0">
-                      <div className="font-button text-primary truncate">
-                        {fullName(r.participant)}
-                      </div>
-                      <div className="text-on-surface-variant text-sm truncate">
-                        {r.subject}
-                      </div>
-                      <div className="mt-2">
-                        <span
-                          className={[
-                            "inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold",
-                            statusBadgeClass(r.status),
-                          ].join(" ")}
-                        >
-                          {statusLabel(r.status)}
-                        </span>
-                      </div>
-                    </div>
-
-                    {r.conversation_id ? (
-                      <button
-                        type="button"
-                        className="shrink-0 font-button text-button border-2 border-primary text-primary px-4 py-2 rounded-full hover:bg-primary hover:text-white transition-colors"
-                        onClick={() => {
-                          router.push(`/messages?conversation=${encodeURIComponent(r.conversation_id!)}`);
-                        }}
-                      >
-                        Apri chat
-                      </button>
-                    ) : (
-                      <Link
-                        href="/messages"
-                        className="shrink-0 font-button text-button border-2 border-primary text-primary px-4 py-2 rounded-full hover:bg-primary hover:text-white transition-colors"
-                      >
-                        Messaggi
-                      </Link>
-                    )}
+            <section id="richieste" className="mx-auto max-w-[1280px] px-4 py-12 sm:px-6">
+              <div className="mb-5 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+                <div>
+                  <div className="font-headline-md text-headline-md text-primary">
+                    Richieste recenti
+                  </div>
+                  <div className="text-sm text-on-surface-variant">
+                    In attesa, aperte o concluse: clicca una richiesta per aprire i messaggi.
                   </div>
                 </div>
-              ))}
-            </div>
-          )}
-        </section>
+              </div>
+
+              {requestsError ? (
+                <div className="mb-4 rounded-xl border border-error/20 bg-error-container px-4 py-3 text-sm text-on-error-container">
+                  {requestsError}
+                </div>
+              ) : null}
+
+              {requestsLoading ? (
+                <div className="animate-pulse rounded-[20px] border border-outline-variant/30 bg-surface-container-lowest p-6 shadow-sm">
+                  <div className="mb-3 h-4 w-1/3 rounded bg-surface-container-high" />
+                  <div className="h-4 w-2/3 rounded bg-surface-container-high" />
+                </div>
+              ) : requests.length === 0 ? (
+                <div className="rounded-[24px] border border-dashed border-outline-variant bg-surface-container-lowest p-10 text-center">
+                  <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-primary-fixed text-primary">
+                    <span className="material-symbols-outlined" aria-hidden>
+                      assignment
+                    </span>
+                  </div>
+                  <div className="font-headline-sm text-headline-sm text-primary">
+                    Ancora nessuna richiesta
+                  </div>
+                  <p className="mx-auto mt-2 max-w-[560px] text-on-surface-variant">
+                    Quando contatterai un professionista, la richiesta comparirà qui.
+                  </p>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                  {requests.map((r) => (
+                    <button
+                      key={r.id}
+                      type="button"
+                      className="rounded-[22px] border border-outline-variant/30 bg-surface-container-lowest p-5 text-left shadow-[0_4px_20px_rgba(8,43,95,0.08)] transition-all hover:-translate-y-0.5 hover:shadow-[0_8px_30px_rgba(8,43,95,0.12)]"
+                      onClick={() => openMessages(r.conversation_id)}
+                    >
+                      <div className="flex items-start justify-between gap-4">
+                        <div className="min-w-0">
+                          <div className="truncate font-button text-primary">
+                            {fullName(r.participant)}
+                          </div>
+                          <div className="mt-1 truncate text-sm text-on-surface-variant">
+                            {r.subject}
+                          </div>
+                          <div className="mt-3 flex flex-wrap items-center gap-2">
+                            <span
+                              className={[
+                                "inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-bold",
+                                statusBadgeClass(r.status),
+                              ].join(" ")}
+                            >
+                              {statusLabel(r.status)}
+                            </span>
+                            <span className="text-xs text-outline">
+                              {formatDate(r.updated_at ?? r.created_at)}
+                            </span>
+                          </div>
+                        </div>
+                        <span className="material-symbols-outlined text-primary" aria-hidden>
+                          chevron_right
+                        </span>
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </section>
+          </>
+        )}
       </main>
+
+      <Footer />
 
       {contactModal.open ? (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
@@ -777,19 +1195,19 @@ export default function CustomerDashboardClient({
             className="absolute inset-0 bg-inverse-surface/40 backdrop-blur-sm"
             onClick={() => setContactModal({ open: false, professional: null })}
           />
-          <div className="relative w-full max-w-[640px] bg-surface-container-lowest rounded-[24px] shadow-[0_12px_50px_rgba(0,0,0,0.20)] border border-white/20 overflow-hidden">
-            <div className="p-5 sm:p-6 border-b border-outline-variant/30 bg-surface-container-lowest/90 backdrop-blur-md flex items-start justify-between gap-4">
+          <div className="relative w-full max-w-[640px] overflow-hidden rounded-[24px] border border-white/20 bg-surface-container-lowest shadow-[0_12px_50px_rgba(0,0,0,0.20)]">
+            <div className="flex items-start justify-between gap-4 border-b border-outline-variant/30 bg-surface-container-lowest/90 p-5 backdrop-blur-md sm:p-6">
               <div className="min-w-0">
-                <div className="font-headline-sm text-primary mb-1">
+                <div className="mb-1 font-headline-sm text-primary">
                   Invia una richiesta a {fullName(contactModal.professional)}
                 </div>
-                <div className="text-on-surface-variant text-sm">
-                  Compila il modulo per aprire una conversazione.
+                <div className="text-sm text-on-surface-variant">
+                  Compila il modulo per aprire una conversazione in attesa.
                 </div>
               </div>
               <button
                 type="button"
-                className="w-10 h-10 rounded-full hover:bg-surface-container-high transition-colors"
+                className="h-10 w-10 rounded-full transition-colors hover:bg-surface-container-high"
                 onClick={() => setContactModal({ open: false, professional: null })}
                 aria-label="Chiudi"
               >
@@ -799,28 +1217,28 @@ export default function CustomerDashboardClient({
               </button>
             </div>
 
-            <div className="p-5 sm:p-6 space-y-4">
+            <div className="space-y-4 p-5 sm:p-6">
               {contactDone ? (
-                <div className="bg-surface-container-low border border-outline-variant/30 rounded-2xl p-4">
-                  <div className="font-button text-primary mb-1">Richiesta inviata</div>
-                  <div className="text-on-surface-variant text-sm">
-                    Puoi continuare la conversazione nella sezione messaggi.
+                <div className="rounded-2xl border border-outline-variant/30 bg-surface-container-low p-4">
+                  <div className="mb-1 font-button text-primary">Richiesta inviata</div>
+                  <div className="text-sm text-on-surface-variant">
+                    Puoi seguire lo stato della richiesta nella sezione messaggi.
                   </div>
-                  <div className="mt-4 flex flex-col sm:flex-row gap-3">
+                  <div className="mt-4 flex flex-col gap-3 sm:flex-row">
                     <button
                       type="button"
-                      className="flex-1 bg-primary text-white rounded-full py-3 font-button text-button hover:bg-secondary transition-colors"
+                      className="flex-1 rounded-full bg-primary py-3 font-button text-button text-white transition-colors hover:bg-secondary"
                       onClick={() => {
                         const cid = contactDone.conversationId;
                         setContactModal({ open: false, professional: null });
-                        router.push(cid ? `/messages?conversation=${encodeURIComponent(cid)}` : "/messages");
+                        openMessages(cid);
                       }}
                     >
-                      Vai alla chat
+                      Vai ai messaggi
                     </button>
                     <button
                       type="button"
-                      className="flex-1 border-2 border-primary text-primary rounded-full py-3 font-button text-button hover:bg-primary/5 transition-colors"
+                      className="flex-1 rounded-full border-2 border-primary py-3 font-button text-button text-primary transition-colors hover:bg-primary/5"
                       onClick={() => setContactModal({ open: false, professional: null })}
                     >
                       Chiudi
@@ -834,7 +1252,7 @@ export default function CustomerDashboardClient({
                       Oggetto
                     </label>
                     <input
-                      className="w-full px-4 py-3 rounded-[12px] border border-outline-variant focus:border-primary focus:ring-2 focus:ring-primary outline-none transition-all font-body-md"
+                      className="w-full rounded-[12px] border border-outline-variant px-4 py-3 font-body-md outline-none transition-all focus:border-primary focus:ring-2 focus:ring-primary"
                       value={contactSubject}
                       onChange={(e) => setContactSubject(e.target.value)}
                       placeholder="Es. Rifacimento impianto elettrico"
@@ -847,7 +1265,7 @@ export default function CustomerDashboardClient({
                       Messaggio
                     </label>
                     <textarea
-                      className="w-full px-4 py-3 rounded-[12px] border border-outline-variant focus:border-primary focus:ring-2 focus:ring-primary outline-none transition-all font-body-md resize-none"
+                      className="w-full resize-none rounded-[12px] border border-outline-variant px-4 py-3 font-body-md outline-none transition-all focus:border-primary focus:ring-2 focus:ring-primary"
                       value={contactMessage}
                       onChange={(e) => setContactMessage(e.target.value)}
                       placeholder="Descrivi brevemente la tua necessità…"
@@ -858,7 +1276,7 @@ export default function CustomerDashboardClient({
 
                   <div className="space-y-2">
                     <label className="font-label-md text-label-md text-on-surface-variant">
-                      Foto, video o PDF (opzionale, max 10)
+                      Allegati (immagini, video o PDF · max 10)
                     </label>
                     <input
                       type="file"
@@ -873,30 +1291,30 @@ export default function CustomerDashboardClient({
                     ) : null}
                   </div>
 
-                  <label className="flex items-start gap-3 bg-surface-container-low p-4 rounded-xl border border-outline-variant/30">
+                  <label className="flex items-start gap-3 rounded-xl border border-outline-variant/30 bg-surface-container-low p-4">
                     <input
                       type="checkbox"
-                      className="mt-1 w-5 h-5 rounded border-outline-variant text-on-tertiary-container focus:ring-on-tertiary-container"
+                      className="mt-1 h-5 w-5 rounded border-outline-variant text-on-tertiary-container focus:ring-on-tertiary-container"
                       checked={contactPrivacy}
                       onChange={(e) => setContactPrivacy(e.target.checked)}
                       required
                     />
-                    <span className="text-sm text-on-surface-variant leading-relaxed">
+                    <span className="text-sm leading-relaxed text-on-surface-variant">
                       Dichiaro di aver letto l’informativa privacy e acconsento al trattamento
                       dei dati per la gestione della richiesta.
                     </span>
                   </label>
 
                   {contactError ? (
-                    <div className="text-on-error-container bg-error-container border border-error/20 rounded-xl px-4 py-3 text-sm">
+                    <div className="rounded-xl border border-error/20 bg-error-container px-4 py-3 text-sm text-on-error-container">
                       {contactError}
                     </div>
                   ) : null}
 
-                  <div className="flex flex-col sm:flex-row gap-3 pt-2">
+                  <div className="flex flex-col gap-3 pt-2 sm:flex-row">
                     <button
                       type="button"
-                      className="flex-1 border-2 border-primary text-primary rounded-full py-3 font-button text-button hover:bg-primary/5 transition-colors"
+                      className="flex-1 rounded-full border-2 border-primary py-3 font-button text-button text-primary transition-colors hover:bg-primary/5"
                       onClick={() => setContactModal({ open: false, professional: null })}
                       disabled={contactSending}
                     >
@@ -904,7 +1322,7 @@ export default function CustomerDashboardClient({
                     </button>
                     <button
                       type="button"
-                      className="flex-1 bg-on-tertiary-container text-white rounded-full py-3 font-button text-button shadow-lg shadow-on-tertiary-container/20 hover:bg-[#FF9A2B] transition-colors disabled:opacity-60"
+                      className="flex-1 rounded-full bg-on-tertiary-container py-3 font-button text-button text-white shadow-lg shadow-on-tertiary-container/20 transition-colors hover:bg-[#FF9A2B] disabled:opacity-60"
                       onClick={() => void sendContactRequest()}
                       disabled={contactSending}
                     >

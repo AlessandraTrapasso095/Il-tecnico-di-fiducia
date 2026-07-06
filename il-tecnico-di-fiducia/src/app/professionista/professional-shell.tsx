@@ -7,6 +7,7 @@ import type { ReactNode } from "react";
 import { useEffect, useMemo, useRef, useState } from "react";
 
 import { SignOutButton } from "@/components/auth/sign-out-button";
+import { HeaderBackButton } from "@/components/navigation/header-back-button";
 import { Footer } from "@/components/site/footer";
 import { fetchJson } from "@/lib/api/fetch-json";
 
@@ -183,7 +184,11 @@ function Avatar({
 
 function LogoWordmark() {
   return (
-    <Link href="/" className="flex items-center gap-2.5 sm:gap-3" aria-label="Vai alla landing">
+    <Link
+      href="/professionista"
+      className="flex items-center gap-2.5 sm:gap-3"
+      aria-label="Vai alla dashboard professionista"
+    >
       <Image
         src="/img/logo-mark.png"
         alt="Il Tecnico di Fiducia"
@@ -402,6 +407,10 @@ export default function ProfessionalShell({ profile, children }: ProfessionalShe
             >
               <span className="material-symbols-outlined">menu</span>
             </button>
+            <HeaderBackButton
+              fallbackHref="/professionista"
+              hiddenPathnames={["/professionista"]}
+            />
             <LogoWordmark />
           </div>
 
