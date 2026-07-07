@@ -16,6 +16,7 @@ export type Participant = {
   first_name: string;
   last_name: string;
   province_code: string | null;
+  province_name?: string | null;
   email?: string | null;
   phone?: string | null;
   avatar_url?: string | null;

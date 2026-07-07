@@ -20,6 +20,8 @@ type SendPayload = {
   body: string;
 };
 
+const UUID_PATTERN =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const MAX_FILES = 10;
 const MAX_FILE_SIZE_BYTES = 50 * 1024 * 1024;
 const SIGNED_URL_TTL_SECONDS = 60 * 5;
@@ -45,6 +47,33 @@ function fileKind(mimeType: string): "image" | "video" | "document" {
   return "document";
 }
 
+function isMissingColumnError(error: unknown, column: string) {
+  const maybeError = error as { code?: string; message?: string; details?: string } | null;
+  const haystack = `${maybeError?.message ?? ""} ${maybeError?.details ?? ""}`.toLowerCase();
+  return (
+    maybeError?.code === "42703" ||
+    maybeError?.code === "PGRST204" ||
+    haystack.includes(column.toLowerCase())
+  );
+}
+
+function logMessageLoadError(
+  stage: string,
+  context: {
+    conversationId: string;
+    userId: string;
+    role: string;
+    table: string;
+  },
+  error: unknown,
+) {
+  console.error("[messages] Failed during message load", {
+    stage,
+    ...context,
+    error,
+  });
+}
+
 async function detectMime(file: File) {
   let contentType: string | null = await sniffImageMime(file);
   if (!contentType) contentType = await sniffIsoBmffVideoMime(file);
@@ -65,10 +94,11 @@ async function detectMime(file: File) {
 async function signedAttachments(
   supabase: SupabaseClient,
   messageIds: string[],
+  context: { conversationId: string; userId: string; role: string },
 ) {
   if (messageIds.length === 0) return new Map<string, MessageAttachment[]>();
 
-  const { data } = await supabase
+  const { data, error } = await supabase
     .from("message_attachments")
     .select(
       "id, message_id, conversation_id, bucket_id, file_path, file_type, mime_type, file_name, file_size, created_at",
@@ -76,13 +106,30 @@ async function signedAttachments(
     .in("message_id", messageIds)
     .order("created_at", { ascending: true });
 
+  if (error) {
+    logMessageLoadError(
+      "attachments_select",
+      { ...context, table: "message_attachments" },
+      error,
+    );
+    return new Map<string, MessageAttachment[]>();
+  }
+
   const byMessage = new Map<string, MessageAttachment[]>();
   const signingClient = createServiceClient();
 
   for (const row of data ?? []) {
-    const { data: signed } = await signingClient.storage
+    const { data: signed, error: signedUrlError } = await signingClient.storage
       .from(row.bucket_id)
       .createSignedUrl(row.file_path, SIGNED_URL_TTL_SECONDS, { download: false });
+
+    if (signedUrlError) {
+      logMessageLoadError(
+        "attachment_signed_url",
+        { ...context, table: "storage.objects" },
+        signedUrlError,
+      );
+    }
 
     if (!signed?.signedUrl) continue;
 
@@ -229,21 +276,62 @@ export async function GET(
   const auth = await requireAuth();
   if (!auth.ok) return auth.response;
 
-  const { supabase } = auth.ctx;
+  const { supabase, user, profile } = auth.ctx;
 
   const { id } = await params;
   if (!id) {
     return NextResponse.json({ error: "Missing id" }, { status: 400 });
   }
+  if (!UUID_PATTERN.test(id)) {
+    console.error("[messages] Invalid conversation id", {
+      conversationId: id,
+      userId: user.id,
+      role: profile.role,
+    });
+    return NextResponse.json({ error: "Invalid conversation id" }, { status: 400 });
+  }
 
   const limit = clampInt(request.nextUrl.searchParams.get("limit"), 50, 1, 200);
+  const logContext = {
+    conversationId: id,
+    userId: user.id,
+    role: profile.role,
+  };
 
-  const { data, error } = await supabase
+  let { data, error } = await supabase
     .from("messages")
     .select("id, conversation_id, sender_id, body, created_at, read_at")
     .eq("conversation_id", id)
     .order("created_at", { ascending: true })
     .limit(limit);
+
+  if (error) {
+    logMessageLoadError(
+      "messages_select_with_read_at",
+      { ...logContext, table: "messages" },
+      error,
+    );
+
+    if (isMissingColumnError(error, "read_at")) {
+      const fallback = await supabase
+        .from("messages")
+        .select("id, conversation_id, sender_id, body, created_at")
+        .eq("conversation_id", id)
+        .order("created_at", { ascending: true })
+        .limit(limit);
+
+      data = fallback.data?.map((message) => ({ ...message, read_at: null })) ?? null;
+      error = fallback.error;
+
+      if (error) {
+        logMessageLoadError(
+          "messages_select_base",
+          { ...logContext, table: "messages" },
+          error,
+        );
+      }
+    }
+  }
 
   if (error) {
     return NextResponse.json(
@@ -256,6 +344,7 @@ export async function GET(
   const attachmentsByMessage = await signedAttachments(
     supabase,
     messages.map((message) => message.id),
+    logContext,
   );
 
   return NextResponse.json({
@@ -273,7 +362,7 @@ export async function POST(
   const auth = await requireAuth();
   if (!auth.ok) return auth.response;
 
-  const { supabase, user } = auth.ctx;
+  const { supabase, user, profile } = auth.ctx;
 
   const { id } = await params;
   if (!id) {
@@ -355,7 +444,7 @@ export async function POST(
       sender_id: user.id,
       body: body || null,
     })
-    .select("id, conversation_id, sender_id, body, created_at, read_at")
+    .select("id, conversation_id, sender_id, body, created_at")
     .single();
 
   if (error) {
@@ -404,9 +493,14 @@ export async function POST(
     }
   }
 
-  const attachmentsByMessage = await signedAttachments(supabase, [data.id]);
+  const attachmentsByMessage = await signedAttachments(supabase, [data.id], {
+    conversationId: id,
+    userId: user.id,
+    role: profile.role,
+  });
   const message = {
     ...data,
+    read_at: null,
     attachments: attachmentsByMessage.get(data.id) ?? [],
   };
 

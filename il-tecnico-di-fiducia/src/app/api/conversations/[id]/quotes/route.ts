@@ -31,6 +31,31 @@ type CreateQuotePayload = {
   discount_percentage?: number;
 };
 
+type ProfileRow = {
+  id: string;
+  email: string | null;
+  first_name: string | null;
+  last_name: string | null;
+  phone: string | null;
+  province_code: string | null;
+  role: string;
+};
+
+type ProfessionalProfileRow = {
+  id: string;
+  avatar_url: string | null;
+  headline: string | null;
+  public_email: string | null;
+  specializations: string[] | null;
+};
+
+type ProfessionalDirectoryRow = {
+  id: string;
+  avatar_url: string | null;
+  headline: string | null;
+  specializations: string[] | null;
+};
+
 function toNumber(value: number | string) {
   return typeof value === "number" ? value : Number(value);
 }
@@ -47,44 +72,136 @@ function serializeQuote(row: QuoteRow) {
   };
 }
 
+function firstNonEmpty(...values: Array<string | null | undefined>) {
+  return values.map((value) => value?.trim()).find(Boolean) ?? null;
+}
+
+function firstArrayValue(...values: Array<string[] | null | undefined>) {
+  for (const value of values) {
+    const first = value?.map((item) => item.trim()).find(Boolean);
+    if (first) return first;
+  }
+  return null;
+}
+
 async function loadQuoteContext(conversationId: string) {
   const service = createServiceClient();
-  const { data: conversation } = await service
+  const { data: conversation, error: conversationError } = await service
     .from("conversations")
     .select("id, request_id, status, customer_id, professional_id")
     .eq("id", conversationId)
     .maybeSingle();
 
+  if (conversationError) {
+    console.error("[quotes] Failed to load conversation context", {
+      conversationId,
+      error: conversationError,
+    });
+  }
+
   if (!conversation) return null;
 
-  const [{ data: profiles }, { data: professionalProfile }] = await Promise.all([
+  const [
+    { data: profiles, error: profilesError },
+    { data: professionalProfile, error: professionalProfileError },
+    { data: professionalDirectory, error: professionalDirectoryError },
+    { data: categoryLinks, error: categoryLinksError },
+  ] = await Promise.all([
     service
       .from("profiles")
       .select("id, email, first_name, last_name, phone, province_code, role")
       .in("id", [conversation.customer_id, conversation.professional_id]),
     service
       .from("professional_profiles")
-      .select("id, avatar_url, headline, public_email")
+      .select("id, avatar_url, headline, public_email, specializations")
       .eq("id", conversation.professional_id)
       .maybeSingle(),
+    service
+      .from("professional_directory")
+      .select("id, avatar_url, headline, specializations")
+      .eq("id", conversation.professional_id)
+      .maybeSingle(),
+    service
+      .from("professional_categories")
+      .select("category_id")
+      .eq("professional_id", conversation.professional_id),
   ]);
 
-  const profileById = new Map((profiles ?? []).map((profile) => [profile.id, profile]));
+  for (const [stage, error] of [
+    ["profiles", profilesError],
+    ["professional_profiles", professionalProfileError],
+    ["professional_directory", professionalDirectoryError],
+    ["professional_categories", categoryLinksError],
+  ] as const) {
+    if (error) {
+      console.error("[quotes] Failed to enrich quote context", {
+        conversationId,
+        stage,
+        error,
+      });
+    }
+  }
+
+  const categoryIds = Array.from(
+    new Set((categoryLinks ?? []).map((row) => row.category_id).filter(Boolean)),
+  );
+  const { data: categories, error: categoriesError } =
+    categoryIds.length > 0
+      ? await service.from("categories").select("id, name").in("id", categoryIds)
+      : { data: [], error: null };
+
+  if (categoriesError) {
+    console.error("[quotes] Failed to load professional categories", {
+      conversationId,
+      error: categoriesError,
+    });
+  }
+
+  const profileRows = (profiles ?? []) as ProfileRow[];
+  const profileById = new Map(profileRows.map((profile) => [profile.id, profile]));
   const professional = profileById.get(conversation.professional_id) ?? null;
   const client = profileById.get(conversation.customer_id) ?? null;
+  const professionalDetails = professionalProfile as ProfessionalProfileRow | null;
+  const directoryDetails = professionalDirectory as ProfessionalDirectoryRow | null;
+  const provinceCodes = Array.from(
+    new Set([professional?.province_code, client?.province_code].filter(Boolean)),
+  ) as string[];
+  const { data: provinces, error: provincesError } =
+    provinceCodes.length > 0
+      ? await service.from("provinces").select("code, name").in("code", provinceCodes)
+      : { data: [], error: null };
+
+  if (provincesError) {
+    console.error("[quotes] Failed to load quote context provinces", {
+      conversationId,
+      error: provincesError,
+    });
+  }
+
+  const provinceByCode = new Map((provinces ?? []).map((province) => [province.code, province.name]));
+  const categoryNames = (categories ?? []).map((category) => category.name).filter(Boolean);
+  const professionLabel = firstNonEmpty(
+    professionalDetails?.headline,
+    directoryDetails?.headline,
+    categoryNames.join(", "),
+    firstArrayValue(professionalDetails?.specializations, directoryDetails?.specializations),
+  );
 
   return {
     conversation,
     professional: professional
       ? {
           id: professional.id,
-          email: professionalProfile?.public_email || professional.email,
+          email: professionalDetails?.public_email || professional.email,
           first_name: professional.first_name,
           last_name: professional.last_name,
           province_code: professional.province_code,
+          province_name: professional.province_code
+            ? provinceByCode.get(professional.province_code) ?? professional.province_code
+            : null,
           phone: professional.phone,
-          avatar_url: professionalProfile?.avatar_url ?? null,
-          headline: professionalProfile?.headline ?? null,
+          avatar_url: professionalDetails?.avatar_url ?? directoryDetails?.avatar_url ?? null,
+          headline: professionLabel,
         }
       : null,
     client: client
@@ -94,6 +211,9 @@ async function loadQuoteContext(conversationId: string) {
           first_name: client.first_name,
           last_name: client.last_name,
           province_code: client.province_code,
+          province_name: client.province_code
+            ? provinceByCode.get(client.province_code) ?? client.province_code
+            : null,
           phone: client.phone,
         }
       : null,
@@ -132,6 +252,7 @@ export async function GET(
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
 
+  const context = await loadQuoteContext(id);
   const { data, error } = await supabase
     .from("quotes")
     .select(
@@ -141,12 +262,17 @@ export async function GET(
     .order("created_at", { ascending: true });
 
   if (error) {
-    return NextResponse.json({ error: "Failed to load quotes" }, { status: 500 });
+    console.error("[quotes] Failed to load quotes", { conversationId: id, error });
+    return NextResponse.json({
+      quotes: [],
+      context,
+      quotes_available: false,
+    });
   }
 
   return NextResponse.json({
     quotes: ((data ?? []) as QuoteRow[]).map(serializeQuote),
-    context: await loadQuoteContext(id),
+    context,
   });
 }
 

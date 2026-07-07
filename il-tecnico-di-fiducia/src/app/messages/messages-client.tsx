@@ -5,7 +5,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import type { RealtimeChannel, RealtimePresenceState } from "@supabase/supabase-js";
 import type { RealtimePostgresChangesPayload } from "@supabase/realtime-js";
 
-import { fetchJson } from "@/lib/api/fetch-json";
+import { ApiError, fetchJson } from "@/lib/api/fetch-json";
 import type {
   ConversationDetailResponse,
   ConversationQuoteContext,
@@ -451,6 +451,8 @@ function QuoteSendModal({
   const discountValue = Math.round((safeAmount - finalAmount) * 100) / 100;
   const professional = context?.professional ?? null;
   const client = context?.client ?? null;
+  const professionalTitle = professional?.headline || "Professione non indicata";
+  const clientLocation = client?.province_name || client?.province_code || "Provincia non indicata";
 
   return (
     <div className="fixed inset-0 z-[120] flex items-center justify-center p-4">
@@ -492,7 +494,7 @@ function QuoteSendModal({
               <div className="min-w-0">
                 <p className="font-label-md text-primary">{fullName(professional)}</p>
                 <p className="truncate text-sm text-on-surface-variant">
-                  {professional?.headline || "Professionista"}
+                  {professionalTitle}
                 </p>
               </div>
             </div>
@@ -506,7 +508,28 @@ function QuoteSendModal({
             <p className="mb-3 text-[11px] font-bold uppercase tracking-widest text-on-surface-variant">
               Dati cliente
             </p>
-            <p className="font-label-md text-primary">{fullName(client)}</p>
+            <div className="flex items-center gap-3">
+              {client?.avatar_url ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={client.avatar_url}
+                  alt={fullName(client)}
+                  className="h-14 w-14 rounded-full object-cover"
+                />
+              ) : (
+                <div className="flex h-14 w-14 items-center justify-center rounded-full bg-secondary-fixed font-bold text-primary">
+                  {initials(client)}
+                </div>
+              )}
+              <div className="min-w-0">
+                <p className="font-label-md text-primary">{fullName(client)}</p>
+                <p className="truncate text-sm text-on-surface-variant">{clientLocation}</p>
+              </div>
+            </div>
+            <div className="mt-4 space-y-1 text-sm text-on-surface-variant">
+              <p>{client?.phone || "Telefono non indicato"}</p>
+              <p>{client?.email || "Email non indicata"}</p>
+            </div>
           </div>
         </div>
 
@@ -616,6 +639,7 @@ function QuoteDetailModal({
 }) {
   const professional = context?.professional ?? null;
   const canDecide = role === "customer" && quote.status === "pending";
+  const professionalTitle = professional?.headline || "Professione non indicata";
 
   return (
     <div className="fixed inset-0 z-[120] flex items-center justify-center p-4">
@@ -649,7 +673,7 @@ function QuoteDetailModal({
           )}
           <div className="min-w-0">
             <h2 className="font-headline-sm text-[26px] text-primary">{fullName(professional)}</h2>
-            <p className="text-on-surface-variant">{professional?.headline || "Professionista"}</p>
+            <p className="text-on-surface-variant">{professionalTitle}</p>
           </div>
         </div>
 
@@ -988,9 +1012,30 @@ export default function MessagesClient({
   }
 
   async function loadMessages(id: string) {
-    const data = await fetchJson<MessagesResponse>(`/api/conversations/${id}/messages?limit=200`, {
+    const url = `/api/conversations/${id}/messages?limit=200`;
+    const response = await fetch(url, {
       method: "GET",
+      credentials: "same-origin",
     });
+    const payload = (await response.json().catch(() => null)) as
+      | MessagesResponse
+      | { error?: string }
+      | null;
+
+    if (!response.ok) {
+      console.error("[messages] Failed to load messages", {
+        url,
+        status: response.status,
+        body: payload,
+        conversationId: id,
+      });
+      throw new ApiError(
+        (payload as { error?: string } | null)?.error ?? `Request failed (${response.status})`,
+        response.status,
+      );
+    }
+
+    const data = payload as MessagesResponse;
     setMessages(data.messages ?? []);
     queueMicrotask(scrollToBottom);
     setMessagesError(null);
