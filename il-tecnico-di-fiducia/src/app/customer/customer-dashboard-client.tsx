@@ -88,6 +88,32 @@ type ContactRequestsResponse = {
 
 type SavedProfessionalsResponse = { professionals: ProfessionalRow[] };
 
+type NotificationRow = {
+  id: string;
+  actor_id: string | null;
+  type: string;
+  entity_type: string | null;
+  entity_id: string | null;
+  created_at: string;
+  read_at: string | null;
+  href: string;
+  actor: {
+    id: string;
+    role: string;
+    first_name: string;
+    last_name: string;
+    avatar_url: string | null;
+  } | null;
+  entity?: {
+    id: string;
+    subject: string;
+  } | null;
+};
+
+type NotificationsResponse = {
+  notifications: NotificationRow[];
+};
+
 type InitialMessages = {
   me: MeResponse;
   conversations: ConversationRow[];
@@ -172,6 +198,52 @@ function formatDate(iso: string) {
   }).format(d);
 }
 
+function formatNotificationTime(iso: string | null | undefined) {
+  if (!iso) return "";
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "";
+  return new Intl.DateTimeFormat("it-IT", {
+    day: "2-digit",
+    month: "short",
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(d);
+}
+
+function notificationText(notification: NotificationRow) {
+  const actor = fullName(notification.actor);
+
+  if (notification.type === "contact_request_accepted") {
+    return `${actor} ha accettato la tua richiesta`;
+  }
+
+  if (notification.type === "contact_request_rejected") {
+    return `${actor} ha rifiutato la tua richiesta`;
+  }
+
+  if (notification.type === "message_received") {
+    return `${actor} ti ha inviato un messaggio`;
+  }
+
+  if (notification.type === "quote_sent") {
+    return `${actor} ti ha inviato un preventivo`;
+  }
+
+  if (notification.type === "support_ticket_replied") {
+    return notification.entity?.subject
+      ? `Hai ricevuto una risposta al ticket: ${notification.entity.subject}`
+      : "Hai ricevuto una risposta al tuo ticket";
+  }
+
+  if (notification.type === "support_ticket_resolved") {
+    return notification.entity?.subject
+      ? `Il ticket ${notification.entity.subject} è stato segnato come risolto`
+      : "Il tuo ticket è stato segnato come risolto";
+  }
+
+  return "Nuova notifica";
+}
+
 function categoryOptionValue(category: ProfessionCategory) {
   return category.id !== null && category.id !== undefined
     ? `id:${category.id}`
@@ -239,6 +311,7 @@ export default function CustomerDashboardClient({
   const [travel, setTravel] = useState(() => initialFilters?.travel ?? false);
   const [filterOpen, setFilterOpen] = useState(false);
   const [favoritesOpen, setFavoritesOpen] = useState(false);
+  const [notificationsOpen, setNotificationsOpen] = useState(false);
 
   const [provinces, setProvinces] = useState<Province[]>([]);
   const [categories, setCategories] = useState<ProfessionCategory[]>(() =>
@@ -257,6 +330,7 @@ export default function CustomerDashboardClient({
   const [savedIds, setSavedIds] = useState<Set<string>>(new Set());
   const [savedProfessionals, setSavedProfessionals] = useState<ProfessionalRow[]>([]);
   const [savedLoading, setSavedLoading] = useState(false);
+  const [notifications, setNotifications] = useState<NotificationRow[]>([]);
 
   const [contactModal, setContactModal] = useState<ContactModalState>({
     open: false,
@@ -275,6 +349,7 @@ export default function CustomerDashboardClient({
   const searchDebounce = useRef<number | null>(null);
   const filterRef = useRef<HTMLDivElement | null>(null);
   const favoritesRef = useRef<HTMLDivElement | null>(null);
+  const notificationsRef = useRef<HTMLDivElement | null>(null);
 
   const provinceNameByCode = useMemo(() => {
     const m = new Map<string, string>();
@@ -297,6 +372,10 @@ export default function CustomerDashboardClient({
     Boolean(subcategorySlug) ||
     remote ||
     travel;
+  const unreadNotifications = useMemo(
+    () => notifications.filter((notification) => !notification.read_at).length,
+    [notifications],
+  );
 
   async function loadFilters() {
     try {
@@ -324,6 +403,17 @@ export default function CustomerDashboardClient({
       // Non blocca la ricerca: i preferiti sono decorativi.
     } finally {
       setSavedLoading(false);
+    }
+  }
+
+  async function loadNotifications() {
+    try {
+      const res = await fetchJson<NotificationsResponse>("/api/notifications?limit=10", {
+        method: "GET",
+      });
+      setNotifications(res.notifications ?? []);
+    } catch {
+      setNotifications([]);
     }
   }
 
@@ -425,6 +515,7 @@ export default function CustomerDashboardClient({
       void loadFilters();
       void loadSaved();
       void loadRequests();
+      void loadNotifications();
       void loadProfessionals();
     }, 0);
 
@@ -458,18 +549,69 @@ export default function CustomerDashboardClient({
   }, [filterOpen]);
 
   useEffect(() => {
-    if (!favoritesOpen) return;
+    if (!favoritesOpen && !notificationsOpen) return;
 
     function onPointerDown(event: MouseEvent) {
       const target = event.target;
       if (!(target instanceof Node)) return;
-      if (favoritesRef.current?.contains(target)) return;
-      setFavoritesOpen(false);
+      if (favoritesOpen && !favoritesRef.current?.contains(target)) {
+        setFavoritesOpen(false);
+      }
+      if (notificationsOpen && !notificationsRef.current?.contains(target)) {
+        setNotificationsOpen(false);
+      }
     }
 
     document.addEventListener("mousedown", onPointerDown);
     return () => document.removeEventListener("mousedown", onPointerDown);
-  }, [favoritesOpen]);
+  }, [favoritesOpen, notificationsOpen]);
+
+  async function markNotificationRead(notificationId: string) {
+    const target = notifications.find((notification) => notification.id === notificationId);
+    if (!target || target.read_at) return;
+
+    const readAt = new Date().toISOString();
+    setNotifications((current) =>
+      current.map((notification) =>
+        notification.id === notificationId
+          ? { ...notification, read_at: readAt }
+          : notification,
+      ),
+    );
+
+    try {
+      await fetchJson<{ ok: true }>("/api/notifications", {
+        method: "PATCH",
+        body: JSON.stringify({ ids: [notificationId] }),
+      });
+    } catch {
+      setNotifications((current) =>
+        current.map((notification) =>
+          notification.id === notificationId
+            ? { ...notification, read_at: target.read_at }
+            : notification,
+        ),
+      );
+    }
+  }
+
+  async function markNotificationsRead() {
+    const ids = notifications
+      .filter((notification) => !notification.read_at)
+      .map((notification) => notification.id);
+    if (ids.length === 0) return;
+
+    await fetchJson<{ ok: true }>("/api/notifications", {
+      method: "PATCH",
+      body: JSON.stringify({ ids }),
+    });
+    const readAt = new Date().toISOString();
+    setNotifications((current) =>
+      current.map((notification) =>
+        ids.includes(notification.id) ? { ...notification, read_at: readAt } : notification,
+      ),
+    );
+  }
 
   async function toggleSaved(professional: ProfessionalRow) {
     const professionalId = professional.id;
@@ -621,6 +763,7 @@ export default function CustomerDashboardClient({
                 onClick={() => {
                   setFavoritesOpen((value) => !value);
                   setFilterOpen(false);
+                  setNotificationsOpen(false);
                 }}
               >
                 <span className="material-symbols-outlined" aria-hidden>
@@ -704,6 +847,113 @@ export default function CustomerDashboardClient({
               ) : null}
             </div>
 
+            <div ref={notificationsRef} className="relative">
+              <button
+                type="button"
+                className="relative rounded-full p-2 text-primary transition-all hover:bg-surface-container-high"
+                title="Notifiche"
+                aria-label="Apri notifiche"
+                aria-expanded={notificationsOpen}
+                onClick={() => {
+                  setNotificationsOpen((value) => !value);
+                  setFavoritesOpen(false);
+                  setFilterOpen(false);
+                  void loadNotifications();
+                }}
+              >
+                <span className="material-symbols-outlined" aria-hidden>
+                  notifications
+                </span>
+                {unreadNotifications > 0 ? (
+                  <span className="absolute right-0.5 top-0.5 flex h-5 min-w-5 items-center justify-center rounded-full bg-[#FF8500] px-1 text-[10px] font-bold text-white">
+                    {unreadNotifications}
+                  </span>
+                ) : null}
+              </button>
+
+              {notificationsOpen ? (
+                <div className="absolute right-0 top-[calc(100%+12px)] z-[95] w-[min(92vw,420px)] overflow-hidden rounded-[24px] border border-outline-variant/30 bg-surface-container-lowest text-left shadow-[0_18px_50px_rgba(8,43,95,0.18)]">
+                  <div className="flex items-center justify-between gap-3 border-b border-outline-variant/25 p-4">
+                    <div>
+                      <div className="font-headline-sm text-primary">Notifiche</div>
+                      <div className="text-sm text-on-surface-variant">
+                        Aggiornamenti su richieste e messaggi.
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      className="text-xs font-bold text-primary hover:underline"
+                      onClick={() => void markNotificationsRead()}
+                    >
+                      Segna lette
+                    </button>
+                  </div>
+
+                  {notifications.length === 0 ? (
+                    <div className="p-6 text-center">
+                      <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-primary-fixed text-primary">
+                        <span className="material-symbols-outlined" aria-hidden>
+                          notifications
+                        </span>
+                      </div>
+                      <div className="font-button text-primary">Nessuna notifica</div>
+                      <p className="mt-1 text-sm text-on-surface-variant">
+                        Qui compariranno aggiornamenti reali su richieste e messaggi.
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="max-h-[420px] overflow-y-auto p-2">
+                      {notifications.map((notification) => {
+                        const actor = notification.actor ?? {
+                          first_name: "Il Tecnico",
+                          last_name: "",
+                          avatar_url: null,
+                        };
+                        const actorInitials = initials(actor.first_name, actor.last_name);
+                        return (
+                          <Link
+                            key={notification.id}
+                            href={notification.href}
+                            className="flex gap-3 rounded-2xl p-3 transition-colors hover:bg-surface-container-low"
+                            onClick={() => {
+                              setNotificationsOpen(false);
+                              void markNotificationRead(notification.id);
+                            }}
+                          >
+                            <div className="relative flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-full border border-primary-fixed bg-surface-container-high text-primary">
+                              {actor.avatar_url ? (
+                                <Image
+                                  src={actor.avatar_url}
+                                  alt={fullName(actor)}
+                                  width={44}
+                                  height={44}
+                                  className="h-full w-full object-cover"
+                                  unoptimized
+                                />
+                              ) : (
+                                <span className="text-xs font-bold">{actorInitials}</span>
+                              )}
+                              {!notification.read_at ? (
+                                <span className="absolute right-0 top-0 h-2.5 w-2.5 rounded-full bg-[#FF8500]" />
+                              ) : null}
+                            </div>
+                            <div className="min-w-0 flex-1">
+                              <div className="text-sm font-semibold text-primary">
+                                {notificationText(notification)}
+                              </div>
+                              <div className="mt-1 text-xs text-on-surface-variant">
+                                {formatNotificationTime(notification.created_at)}
+                              </div>
+                            </div>
+                          </Link>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              ) : null}
+            </div>
+
             <button
               type="button"
               className="rounded-full p-2 text-primary transition-all hover:bg-surface-container-high"
@@ -728,8 +978,8 @@ export default function CustomerDashboardClient({
 
       <main className="pt-[92px]">
         {view === "messages" ? (
-          <section id="messaggi-cliente" className="px-4 py-8 sm:px-6">
-            <div className="mx-auto max-w-[1280px] overflow-hidden rounded-[28px] border border-outline-variant/30 bg-surface-container-lowest shadow-[0_4px_20px_rgba(8,43,95,0.08)]">
+          <section id="messaggi-cliente" className="px-4 py-4 sm:px-6">
+            <div className="mx-auto flex h-[calc(100vh-124px)] max-w-[1280px] flex-col overflow-hidden rounded-[28px] border border-outline-variant/30 bg-surface-container-lowest shadow-[0_4px_20px_rgba(8,43,95,0.08)]">
               <div className="flex flex-col gap-3 border-b border-outline-variant/30 p-4 sm:flex-row sm:items-center sm:justify-between">
                 <div>
                   <div className="font-headline-sm text-headline-sm text-primary">
@@ -747,14 +997,16 @@ export default function CustomerDashboardClient({
                   Torna a Cerca
                 </button>
               </div>
-              <MessagesClient
-                key={messagesKey}
-                embedded
-                initialMe={initialMessages.me}
-                initialConversations={initialMessages.conversations}
-                initialConversationsError={initialMessages.conversationsError}
-                initialActiveConversationId={activeConversationId}
-              />
+              <div className="min-h-0 flex-1">
+                <MessagesClient
+                  key={messagesKey}
+                  embedded
+                  initialMe={initialMessages.me}
+                  initialConversations={initialMessages.conversations}
+                  initialConversationsError={initialMessages.conversationsError}
+                  initialActiveConversationId={activeConversationId}
+                />
+              </div>
             </div>
           </section>
         ) : (
@@ -1199,10 +1451,14 @@ export default function CustomerDashboardClient({
             <div className="flex items-start justify-between gap-4 border-b border-outline-variant/30 bg-surface-container-lowest/90 p-5 backdrop-blur-md sm:p-6">
               <div className="min-w-0">
                 <div className="mb-1 font-headline-sm text-primary">
-                  Invia una richiesta a {fullName(contactModal.professional)}
+                  {contactDone
+                    ? "Richiesta inviata"
+                    : `Invia una richiesta a ${fullName(contactModal.professional)}`}
                 </div>
                 <div className="text-sm text-on-surface-variant">
-                  Compila il modulo per aprire una conversazione in attesa.
+                  {contactDone
+                    ? "Appena il professionista accetterà o rifiuterà la tua richiesta, riceverai una notifica di avviso."
+                    : "Compila il modulo per aprire una conversazione in attesa."}
                 </div>
               </div>
               <button
@@ -1219,26 +1475,21 @@ export default function CustomerDashboardClient({
 
             <div className="space-y-4 p-5 sm:p-6">
               {contactDone ? (
-                <div className="rounded-2xl border border-outline-variant/30 bg-surface-container-low p-4">
+                <div className="rounded-2xl border border-outline-variant/30 bg-surface-container-low p-5 text-center">
+                  <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-primary-fixed text-primary">
+                    <span className="material-symbols-outlined" aria-hidden>
+                      mark_email_read
+                    </span>
+                  </div>
                   <div className="mb-1 font-button text-primary">Richiesta inviata</div>
                   <div className="text-sm text-on-surface-variant">
-                    Puoi seguire lo stato della richiesta nella sezione messaggi.
+                    Appena il professionista accetterà o rifiuterà la tua richiesta,
+                    riceverai una notifica di avviso.
                   </div>
-                  <div className="mt-4 flex flex-col gap-3 sm:flex-row">
+                  <div className="mt-4">
                     <button
                       type="button"
-                      className="flex-1 rounded-full bg-primary py-3 font-button text-button text-white transition-colors hover:bg-secondary"
-                      onClick={() => {
-                        const cid = contactDone.conversationId;
-                        setContactModal({ open: false, professional: null });
-                        openMessages(cid);
-                      }}
-                    >
-                      Vai ai messaggi
-                    </button>
-                    <button
-                      type="button"
-                      className="flex-1 rounded-full border-2 border-primary py-3 font-button text-button text-primary transition-colors hover:bg-primary/5"
+                      className="w-full rounded-full bg-primary py-3 font-button text-button text-white transition-colors hover:bg-secondary sm:w-auto sm:px-8"
                       onClick={() => setContactModal({ open: false, professional: null })}
                     >
                       Chiudi

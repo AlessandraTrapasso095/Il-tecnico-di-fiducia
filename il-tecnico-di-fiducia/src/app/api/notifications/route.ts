@@ -24,7 +24,11 @@ type SupportTicketEntity = {
   subject: string;
 } | null;
 
-function notificationHref(notification: NotificationRow, recipientRole: string) {
+function notificationHref(
+  notification: NotificationRow,
+  recipientRole: string,
+  conversationByRequestId: Map<string, string>,
+) {
   if (notification.type === "follow_started" && notification.actor_id) {
     return `/professionisti/${notification.actor_id}`;
   }
@@ -37,12 +41,33 @@ function notificationHref(notification: NotificationRow, recipientRole: string) 
     return `/professionista#post-${notification.entity_id}`;
   }
 
-  if (notification.entity_type === "contact_request") {
-    return "/professionista/messaggi";
+  if (notification.entity_type === "conversation" && notification.entity_id) {
+    if (recipientRole === "professional") {
+      return `/professionista/messaggi?conversation=${notification.entity_id}`;
+    }
+
+    if (recipientRole === "customer") {
+      return `/customer?section=messages&conversation=${notification.entity_id}`;
+    }
+  }
+
+  if (notification.entity_type === "contact_request" && notification.entity_id) {
+    const conversationId = conversationByRequestId.get(notification.entity_id);
+    if (recipientRole === "professional") {
+      return conversationId
+        ? `/professionista/messaggi?conversation=${conversationId}`
+        : "/professionista/messaggi";
+    }
+
+    if (recipientRole === "customer") {
+      return conversationId
+        ? `/customer?section=messages&conversation=${conversationId}`
+        : "/customer?section=messages";
+    }
   }
 
   if (notification.entity_type === "review") {
-    return "/professionista/profilo";
+    return "/professionista/profilo?tab=reviews";
   }
 
   if (notification.entity_type === "support_ticket") {
@@ -61,6 +86,7 @@ function notificationHref(notification: NotificationRow, recipientRole: string) 
     return "/customer";
   }
 
+  if (recipientRole === "admin") return "/admin";
   return recipientRole === "professional" ? "/professionista" : "/customer";
 }
 
@@ -105,9 +131,22 @@ export async function GET(request: NextRequest) {
         .filter(Boolean),
     ),
   ) as string[];
+  const contactRequestIds = Array.from(
+    new Set(
+      notifications
+        .filter((notification) => notification.entity_type === "contact_request")
+        .map((notification) => notification.entity_id)
+        .filter(Boolean),
+    ),
+  ) as string[];
 
   const service = createServiceClient();
-  const [{ data: actors }, { data: professionalAvatars }, { data: supportTickets }] =
+  const [
+    { data: actors },
+    { data: professionalAvatars },
+    { data: supportTickets },
+    { data: contactConversations },
+  ] =
     await Promise.all([
       actorIds.length > 0
         ? service
@@ -126,6 +165,12 @@ export async function GET(request: NextRequest) {
             .from("support_tickets")
             .select("id, subject")
             .in("id", supportTicketIds)
+        : Promise.resolve({ data: [] }),
+      contactRequestIds.length > 0
+        ? service
+            .from("conversations")
+            .select("id, request_id")
+            .in("request_id", contactRequestIds)
         : Promise.resolve({ data: [] }),
     ]);
 
@@ -150,6 +195,12 @@ export async function GET(request: NextRequest) {
       ticket,
     ]),
   );
+  const conversationByRequestId = new Map(
+    (contactConversations ?? []).map((conversation) => [
+      conversation.request_id,
+      conversation.id,
+    ]),
+  );
 
   return NextResponse.json({
     notifications: notifications.map((notification) => {
@@ -162,7 +213,7 @@ export async function GET(request: NextRequest) {
         ...notification,
         actor: notification.actor_id ? actorsById.get(notification.actor_id) ?? null : null,
         entity: supportTicket,
-        href: notificationHref(notification, profile.role),
+        href: notificationHref(notification, profile.role, conversationByRequestId),
       };
     }),
   });

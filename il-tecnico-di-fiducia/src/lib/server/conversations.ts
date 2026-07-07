@@ -3,6 +3,7 @@ import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 import type { ConversationRow, UserRole } from "@/lib/types/chat";
+import { createServiceClient } from "@/lib/supabase/service";
 
 type ListConversationsArgs = {
   supabase: SupabaseClient;
@@ -54,6 +55,26 @@ export async function listConversationsForViewer({
   if (error) throw error;
 
   const convs = (conversations ?? []) as ConversationRow[];
+  const service = createServiceClient();
+
+  async function onlineByUserId(ids: string[]) {
+    const uniqueIds = Array.from(new Set(ids)).filter(Boolean);
+    if (uniqueIds.length === 0) return new Map<string, boolean>();
+
+    const { data } = await service
+      .from("user_activity")
+      .select("user_id, last_seen_at")
+      .in("user_id", uniqueIds);
+
+    const onlineWindowMs = 2 * 60 * 1000;
+    return new Map(
+      (data ?? []).map((row) => [
+        row.user_id,
+        Boolean(row.last_seen_at) &&
+          Date.now() - new Date(row.last_seen_at).getTime() <= onlineWindowMs,
+      ]),
+    );
+  }
 
   if (role === "customer") {
     const proIds = Array.from(new Set(convs.map((c) => c.professional_id)));
@@ -67,10 +88,17 @@ export async function listConversationsForViewer({
 
     const proById = new Map((pros ?? []).map((p) => [p.id, p]));
 
-    return convs.map((c) => ({
-      ...c,
-      participant: proById.get(c.professional_id) ?? null,
-    }));
+    const online = await onlineByUserId(proIds);
+
+    return convs.map((c) => {
+      const participant = proById.get(c.professional_id) ?? null;
+      return {
+        ...c,
+        participant: participant
+          ? { ...participant, is_online: online.get(participant.id) ?? false }
+          : null,
+      };
+    });
   }
 
   if (role === "professional") {
@@ -85,10 +113,17 @@ export async function listConversationsForViewer({
 
     const customerById = new Map((customers ?? []).map((c) => [c.id, c]));
 
-    return convs.map((c) => ({
-      ...c,
-      participant: customerById.get(c.customer_id) ?? null,
-    }));
+    const online = await onlineByUserId(customerIds);
+
+    return convs.map((c) => {
+      const participant = customerById.get(c.customer_id) ?? null;
+      return {
+        ...c,
+        participant: participant
+          ? { ...participant, is_online: online.get(participant.id) ?? false }
+          : null,
+      };
+    });
   }
 
   return convs;

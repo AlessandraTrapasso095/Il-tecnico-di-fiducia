@@ -16,8 +16,11 @@ export type Participant = {
   first_name: string;
   last_name: string;
   province_code: string | null;
+  email?: string | null;
+  phone?: string | null;
   avatar_url?: string | null;
   headline?: string | null;
+  is_online?: boolean;
 };
 
 export type ConversationRow = {
@@ -58,8 +61,60 @@ export type MessageRow = {
   id: string;
   conversation_id: string;
   sender_id: string;
-  body: string;
+  body: string | null;
+  created_at: string;
+  read_at: string | null;
+  attachments?: MessageAttachment[];
+};
+
+export type MessageAttachment = {
+  id: string;
+  message_id: string;
+  conversation_id: string;
+  bucket_id: string;
+  file_path: string;
+  file_type: "image" | "video" | "document";
+  mime_type: string | null;
+  file_name: string | null;
+  file_size: number | null;
+  signed_url: string;
+  expires_at: string;
   created_at: string;
 };
 
 export type MessagesResponse = { messages: MessageRow[] };
+
+export type QuoteStatus = "pending" | "accepted" | "rejected";
+
+export type QuoteRow = {
+  id: string;
+  conversation_id: string;
+  professional_id: string;
+  client_id: string;
+  description: string;
+  amount: number;
+  discount_percentage: number;
+  final_amount: number;
+  status: QuoteStatus;
+  created_at: string;
+  updated_at: string;
+  accepted_at: string | null;
+  rejected_at: string | null;
+};
+
+export type ConversationQuoteContext = {
+  conversation: {
+    id: string;
+    request_id: string;
+    status: RequestStatus;
+    customer_id: string;
+    professional_id: string;
+  };
+  professional: (Participant & { email: string | null; phone: string | null }) | null;
+  client: (Participant & { email: string | null; phone: string | null }) | null;
+};
+
+export type ConversationQuotesResponse = {
+  quotes: QuoteRow[];
+  context: ConversationQuoteContext | null;
+};

@@ -2,6 +2,7 @@
 
 import Image from "next/image";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import {
   useCallback,
   useEffect,
@@ -75,11 +76,13 @@ type ReviewRow = {
   professional_id: string;
   customer_id: string;
   rating: number;
+  title: string | null;
   body: string;
   professional_reply: string | null;
   professional_replied_at: string | null;
   created_at: string;
   author: { id: string; first_name: string; last_name: string } | null;
+  attachments?: PostMediaAttachment[];
 };
 
 type ReviewsResponse = {
@@ -309,9 +312,15 @@ export default function ProfessionalProfileClient({
   embeddedInCustomerShell = false,
   embeddedInAdminShell = false,
 }: ProfessionalProfileClientProps) {
+  const searchParams = useSearchParams();
   const [profile, setProfile] = useState(initialProfile);
   const [profileAccess, setProfileAccess] = useState(access);
-  const [tab, setTab] = useState<TabKey>("bio");
+  const [tab, setTab] = useState<TabKey>(() => {
+    const requestedTab = searchParams.get("tab");
+    return requestedTab === "reviews" || requestedTab === "works" || requestedTab === "bio"
+      ? requestedTab
+      : "bio";
+  });
   const [mediaMenu, setMediaMenu] = useState<MediaTarget | null>(null);
   const [cropState, setCropState] = useState<{
     target: MediaTarget;
@@ -2138,6 +2147,8 @@ function ReviewsTab({
   setReplyDrafts: Dispatch<SetStateAction<Record<string, string>>>;
   replyToReview: (id: string) => void;
 }) {
+  const [mediaViewer, setMediaViewer] = useState<PostMediaAttachment | null>(null);
+
   return (
     <div className="space-y-5">
       {canReview ? (
@@ -2216,9 +2227,17 @@ function ReviewsTab({
                 </div>
                 {review.body ? (
                   <p className="mt-3 whitespace-pre-wrap text-on-surface-variant">
+                    {review.title ? (
+                      <span className="mb-1 block font-bold text-primary">{review.title}</span>
+                    ) : null}
                     {review.body}
                   </p>
                 ) : null}
+                <PostAttachmentGrid
+                  attachments={review.attachments}
+                  onOpen={setMediaViewer}
+                  className="sm:grid-cols-2"
+                />
                 {review.professional_reply ? (
                   <div className="mt-4 rounded-2xl bg-primary-fixed p-4 text-on-primary-fixed">
                     <div className="text-sm font-bold">Risposta del professionista</div>
@@ -2251,6 +2270,7 @@ function ReviewsTab({
           </div>
         )}
       </section>
+      <PostMediaViewer attachment={mediaViewer} onClose={() => setMediaViewer(null)} />
     </div>
   );
 }
@@ -2292,17 +2312,34 @@ function ContactModal({
       <div className="relative max-h-[92vh] w-full max-w-[680px] overflow-y-auto rounded-[28px] bg-surface-container-lowest shadow-2xl">
         <div className="border-b border-outline-variant/30 p-5 sm:p-6">
           <h2 className="font-headline-sm text-[24px] text-primary">
-            Invia una richiesta a {fullName(profile)}
+            {done ? "Richiesta inviata" : `Invia una richiesta a ${fullName(profile)}`}
           </h2>
           <p className="mt-1 text-on-surface-variant">
-            La richiesta aprirà una conversazione reale con il professionista.
+            {done
+              ? "Appena il professionista accetterà o rifiuterà la tua richiesta, riceverai una notifica di avviso."
+              : "Compila il modulo per aprire una conversazione in attesa."}
           </p>
         </div>
         <div className="space-y-4 p-5 sm:p-6">
           {done ? (
-            <div className="rounded-2xl bg-primary-fixed p-5 text-on-primary-fixed">
-              <div className="font-bold">Richiesta inviata</div>
-              <p className="mt-1">Il professionista riceverà la notifica e potrà accettare o rifiutare.</p>
+            <div className="rounded-2xl border border-outline-variant/30 bg-surface-container-low p-5 text-center text-on-surface">
+              <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-primary-fixed text-primary">
+                <span className="material-symbols-outlined" aria-hidden>
+                  mark_email_read
+                </span>
+              </div>
+              <div className="font-bold text-primary">Richiesta inviata</div>
+              <p className="mt-1 text-sm text-on-surface-variant">
+                Appena il professionista accetterà o rifiuterà la tua richiesta,
+                riceverai una notifica di avviso.
+              </p>
+              <button
+                type="button"
+                className="mt-5 rounded-full bg-primary px-8 py-3 font-button text-white transition-colors hover:bg-secondary"
+                onClick={onClose}
+              >
+                Chiudi
+              </button>
             </div>
           ) : (
             <>
@@ -2339,15 +2376,15 @@ function ContactModal({
               ) : null}
             </>
           )}
-          <div className="flex flex-col gap-3 sm:flex-row sm:justify-end">
-            <button
-              type="button"
-              className="rounded-full px-5 py-3 font-button text-primary hover:bg-primary-fixed"
-              onClick={onClose}
-            >
-              {done ? "Chiudi" : "Annulla"}
-            </button>
-            {!done ? (
+          {!done ? (
+            <div className="flex flex-col gap-3 sm:flex-row sm:justify-end">
+              <button
+                type="button"
+                className="rounded-full px-5 py-3 font-button text-primary hover:bg-primary-fixed"
+                onClick={onClose}
+              >
+                Annulla
+              </button>
               <button
                 type="button"
                 className="rounded-full bg-[#FF8500] px-6 py-3 font-button text-white hover:bg-[#FF9A2B] disabled:opacity-60"
@@ -2356,8 +2393,8 @@ function ContactModal({
               >
                 {sending ? "Invio…" : "Invia richiesta"}
               </button>
-            ) : null}
-          </div>
+            </div>
+          ) : null}
         </div>
       </div>
     </div>

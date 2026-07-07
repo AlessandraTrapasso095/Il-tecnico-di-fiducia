@@ -20,6 +20,12 @@ const ALLOWED_ATTACHMENT_TYPES = new Set([
   "application/pdf",
 ]);
 
+function fileKind(mimeType: string | null | undefined): "image" | "video" | "document" {
+  if (mimeType?.startsWith("image/")) return "image";
+  if (mimeType?.startsWith("video/")) return "video";
+  return "document";
+}
+
 export async function POST(
   request: Request,
   { params }: { params: Promise<{ id: string }> },
@@ -139,7 +145,15 @@ export async function GET(
   ];
 
   const expiresInSeconds = 60;
-  const objects: { path: string; signed_url: string; expires_at: string }[] = [];
+  const objects: {
+    path: string;
+    signed_url: string;
+    expires_at: string;
+    file_name: string;
+    file_type: "image" | "video" | "document";
+    mime_type: string | null;
+    file_size: number | null;
+  }[] = [];
 
   for (const prefix of prefixes) {
     const { data: listed, error: listError } = await supabase.storage
@@ -161,10 +175,20 @@ export async function GET(
         continue;
       }
 
+      const metadata = obj.metadata as
+        | { mimetype?: string; mimeType?: string; size?: number }
+        | null
+        | undefined;
+      const mimeType = metadata?.mimetype ?? metadata?.mimeType ?? null;
+
       objects.push({
         path: fullPath,
         signed_url: data.signedUrl,
         expires_at: new Date(Date.now() + expiresInSeconds * 1000).toISOString(),
+        file_name: obj.name,
+        file_type: fileKind(mimeType),
+        mime_type: mimeType,
+        file_size: typeof metadata?.size === "number" ? metadata.size : null,
       });
     }
   }

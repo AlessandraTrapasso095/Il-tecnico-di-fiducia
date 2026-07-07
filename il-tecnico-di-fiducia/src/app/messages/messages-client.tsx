@@ -8,11 +8,14 @@ import type { RealtimePostgresChangesPayload } from "@supabase/realtime-js";
 import { fetchJson } from "@/lib/api/fetch-json";
 import type {
   ConversationDetailResponse,
+  ConversationQuoteContext,
+  ConversationQuotesResponse,
   ConversationRow,
   MeResponse,
   MessageRow,
   MessagesResponse,
   Participant,
+  QuoteRow,
   RequestStatus,
 } from "@/lib/types/chat";
 import { createClient } from "@/lib/supabase/client";
@@ -39,10 +42,18 @@ type RequestAttachment = {
   path: string;
   signed_url: string;
   expires_at: string;
+  file_name: string;
+  file_type: "image" | "video" | "document";
+  mime_type: string | null;
+  file_size: number | null;
 };
 
 type AttachmentsResponse = {
   attachments: RequestAttachment[];
+};
+
+type ReviewsMineResponse = {
+  reviews: { id: string; request_id: string }[];
 };
 
 type PresencePayload = {
@@ -114,6 +125,30 @@ function statusBadgeClass(status: string | null | undefined) {
   }
 }
 
+function quoteStatusLabel(status: string) {
+  switch (status) {
+    case "accepted":
+      return "Accettato";
+    case "rejected":
+      return "Rifiutato";
+    default:
+      return "In attesa";
+  }
+}
+
+function money(value: number) {
+  return new Intl.NumberFormat("it-IT", {
+    style: "currency",
+    currency: "EUR",
+  }).format(value);
+}
+
+function initials(person: { first_name?: string | null; last_name?: string | null } | null) {
+  const first = person?.first_name?.trim().slice(0, 1).toUpperCase() ?? "";
+  const last = person?.last_name?.trim().slice(0, 1).toUpperCase() ?? "";
+  return `${first}${last}` || "U";
+}
+
 function isReadOnlyStatus(status: string | null | undefined) {
   return (
     status === "rejected" ||
@@ -125,6 +160,702 @@ function isReadOnlyStatus(status: string | null | undefined) {
 
 function fileNameFromPath(path: string) {
   return decodeURIComponent(path.split("/").pop() ?? "allegato");
+}
+
+type ViewableAttachment = {
+  id?: string;
+  path?: string;
+  signed_url: string;
+  file_name?: string | null;
+  file_type: "image" | "video" | "document";
+  mime_type?: string | null;
+};
+
+function attachmentName(attachment: ViewableAttachment) {
+  return attachment.file_name || (attachment.path ? fileNameFromPath(attachment.path) : "allegato");
+}
+
+function fileKindFromFile(file: File): "image" | "video" | "document" {
+  if (file.type.startsWith("image/")) return "image";
+  if (file.type.startsWith("video/")) return "video";
+  return "document";
+}
+
+function AttachmentPreview({
+  attachment,
+  mine,
+  onOpen,
+}: {
+  attachment: ViewableAttachment;
+  mine?: boolean;
+  onOpen: (attachment: ViewableAttachment) => void;
+}) {
+  const name = attachmentName(attachment);
+
+  if (attachment.file_type === "image") {
+    return (
+      <button
+        type="button"
+        className="mt-3 block overflow-hidden rounded-2xl border border-outline-variant/30 bg-surface-container-lowest text-left"
+        onClick={() => onOpen(attachment)}
+      >
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src={attachment.signed_url} alt={name} className="max-h-64 w-full object-cover" />
+      </button>
+    );
+  }
+
+  if (attachment.file_type === "video") {
+    return (
+      <div
+        className={[
+          "mt-3 overflow-hidden rounded-2xl border bg-surface-container-lowest",
+          mine ? "border-white/20" : "border-outline-variant/30",
+        ].join(" ")}
+      >
+        <video
+          src={attachment.signed_url}
+          controls
+          className="max-h-64 w-full bg-inverse-surface object-contain"
+        />
+        <button
+          type="button"
+          className="w-full px-3 py-2 text-left text-xs font-bold text-primary hover:bg-surface-container-low"
+          onClick={() => onOpen(attachment)}
+        >
+          Apri video
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <a
+      href={attachment.signed_url}
+      target="_blank"
+      rel="noreferrer"
+      className={[
+        "mt-3 flex items-center gap-3 rounded-2xl border px-3 py-3 text-sm transition-colors",
+        mine
+          ? "border-white/20 bg-white/10 text-white hover:bg-white/20"
+          : "border-outline-variant/30 bg-surface-container-lowest text-primary hover:bg-surface-container-low",
+      ].join(" ")}
+    >
+      <span className="material-symbols-outlined" aria-hidden>
+        description
+      </span>
+      <span className="min-w-0 flex-1 truncate">{name}</span>
+      <span className="material-symbols-outlined text-[18px]" aria-hidden>
+        open_in_new
+      </span>
+    </a>
+  );
+}
+
+function PendingFilePreview({
+  file,
+  onRemove,
+}: {
+  file: File;
+  onRemove: () => void;
+}) {
+  const kind = fileKindFromFile(file);
+  const url = useMemo(
+    () => (kind === "document" ? null : URL.createObjectURL(file)),
+    [file, kind],
+  );
+
+  useEffect(() => {
+    if (!url) return undefined;
+    return () => URL.revokeObjectURL(url);
+  }, [url]);
+
+  return (
+    <div className="relative overflow-hidden rounded-2xl border border-outline-variant/30 bg-surface-container-lowest">
+      <button
+        type="button"
+        className="absolute right-2 top-2 z-10 flex h-7 w-7 items-center justify-center rounded-full bg-inverse-surface/80 text-white"
+        onClick={onRemove}
+        aria-label={`Rimuovi ${file.name}`}
+      >
+        <span className="material-symbols-outlined text-[16px]" aria-hidden>
+          close
+        </span>
+      </button>
+      {kind === "image" && url ? (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img src={url} alt={file.name} className="h-28 w-full object-cover" />
+      ) : kind === "video" && url ? (
+        <video src={url} className="h-28 w-full bg-inverse-surface object-contain" />
+      ) : (
+        <div className="flex h-28 flex-col items-center justify-center gap-2 px-3 text-center text-primary">
+          <span className="material-symbols-outlined" aria-hidden>
+            description
+          </span>
+          <span className="max-w-full truncate text-xs font-bold">{file.name}</span>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function MediaViewer({
+  attachment,
+  onClose,
+}: {
+  attachment: ViewableAttachment;
+  onClose: () => void;
+}) {
+  const name = attachmentName(attachment);
+
+  useEffect(() => {
+    function onKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") onClose();
+    }
+    document.addEventListener("keydown", onKeyDown);
+    return () => document.removeEventListener("keydown", onKeyDown);
+  }, [onClose]);
+
+  return (
+    <div className="fixed inset-0 z-[120] flex items-center justify-center p-4">
+      <button
+        type="button"
+        className="absolute inset-0 bg-inverse-surface/80 backdrop-blur-sm"
+        onClick={onClose}
+        aria-label="Chiudi anteprima"
+      />
+      <div className="relative z-10 max-h-[92vh] w-full max-w-[1040px] overflow-hidden rounded-[24px] bg-inverse-surface shadow-2xl">
+        <button
+          type="button"
+          className="absolute right-4 top-4 z-20 flex h-11 w-11 items-center justify-center rounded-full bg-white/90 text-primary shadow-lg"
+          onClick={onClose}
+          aria-label="Chiudi"
+        >
+          <span className="material-symbols-outlined" aria-hidden>
+            close
+          </span>
+        </button>
+        {attachment.file_type === "image" ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={attachment.signed_url}
+            alt={name}
+            className="max-h-[92vh] w-full object-contain"
+          />
+        ) : (
+          <video
+            src={attachment.signed_url}
+            controls
+            autoPlay
+            className="max-h-[92vh] w-full bg-black object-contain"
+          />
+        )}
+      </div>
+    </div>
+  );
+}
+
+function QuoteTimelineCard({
+  quote,
+  role,
+  context,
+  onOpen,
+}: {
+  quote: QuoteRow;
+  role: string | null;
+  context: ConversationQuoteContext | null;
+  onOpen: () => void;
+}) {
+  const professionalName = fullName(context?.professional ?? null);
+  const clientName = fullName(context?.client ?? null);
+  const mine = role === "professional";
+
+  return (
+    <div className={["flex", mine ? "justify-end" : "justify-start"].join(" ")}>
+      <button
+        type="button"
+        className={[
+          "max-w-[78%] rounded-2xl border p-4 text-left shadow-sm transition hover:-translate-y-0.5 hover:shadow-md",
+          mine
+            ? "rounded-tr-none border-primary/20 bg-primary text-white"
+            : "rounded-tl-none border-outline-variant/30 bg-surface-container-lowest text-on-surface",
+        ].join(" ")}
+        onClick={onOpen}
+      >
+        <div className="flex items-start gap-3">
+          <span
+            className={[
+              "material-symbols-outlined mt-0.5",
+              mine ? "text-white" : "text-[#FF8500]",
+            ].join(" ")}
+            aria-hidden
+          >
+            request_quote
+          </span>
+          <div className="min-w-0">
+            <p className="font-label-md">
+              {mine
+                ? `Preventivo inviato a ${clientName}`
+                : `Ecco il tuo preventivo da parte di ${professionalName}`}
+            </p>
+            <div className="mt-2 flex flex-wrap items-center gap-2 text-xs">
+              <span
+                className={[
+                  "rounded-full px-2 py-1 font-bold",
+                  mine
+                    ? "bg-white/15 text-white"
+                    : "bg-surface-container-high text-on-surface-variant",
+                ].join(" ")}
+              >
+                {quoteStatusLabel(quote.status)}
+              </span>
+              <span className={mine ? "text-white/80" : "text-on-surface-variant"}>
+                Totale {money(quote.final_amount)}
+              </span>
+            </div>
+          </div>
+        </div>
+      </button>
+    </div>
+  );
+}
+
+function QuoteSendModal({
+  context,
+  description,
+  amount,
+  discount,
+  busy,
+  error,
+  onDescriptionChange,
+  onAmountChange,
+  onDiscountChange,
+  onCancel,
+  onSubmit,
+}: {
+  context: ConversationQuoteContext | null;
+  description: string;
+  amount: string;
+  discount: number;
+  busy: boolean;
+  error: string | null;
+  onDescriptionChange: (value: string) => void;
+  onAmountChange: (value: string) => void;
+  onDiscountChange: (value: number) => void;
+  onCancel: () => void;
+  onSubmit: () => void;
+}) {
+  const amountNumber = Number(amount);
+  const safeAmount = Number.isFinite(amountNumber) && amountNumber > 0 ? amountNumber : 0;
+  const finalAmount = Math.round(safeAmount * (1 - discount / 100) * 100) / 100;
+  const discountValue = Math.round((safeAmount - finalAmount) * 100) / 100;
+  const professional = context?.professional ?? null;
+  const client = context?.client ?? null;
+
+  return (
+    <div className="fixed inset-0 z-[120] flex items-center justify-center p-4">
+      <button
+        type="button"
+        className="absolute inset-0 bg-inverse-surface/55 backdrop-blur-sm"
+        onClick={onCancel}
+        aria-label="Chiudi modale preventivo"
+      />
+      <div className="relative max-h-[92vh] w-full max-w-[720px] overflow-y-auto rounded-[28px] border border-white/30 bg-surface-container-lowest p-6 shadow-2xl">
+        <button
+          type="button"
+          className="absolute right-4 top-4 flex h-10 w-10 items-center justify-center rounded-full text-on-surface-variant transition hover:bg-surface-container-low"
+          onClick={onCancel}
+          aria-label="Chiudi"
+        >
+          <span className="material-symbols-outlined">close</span>
+        </button>
+        <h2 className="pr-10 font-headline-sm text-[28px] text-primary">Invia preventivo</h2>
+
+        <div className="mt-5 grid gap-4 md:grid-cols-2">
+          <div className="rounded-2xl bg-surface-container-low p-4">
+            <p className="mb-3 text-[11px] font-bold uppercase tracking-widest text-on-surface-variant">
+              Dati professionista
+            </p>
+            <div className="flex items-center gap-3">
+              {professional?.avatar_url ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={professional.avatar_url}
+                  alt={fullName(professional)}
+                  className="h-14 w-14 rounded-full object-cover"
+                />
+              ) : (
+                <div className="flex h-14 w-14 items-center justify-center rounded-full bg-primary-fixed font-bold text-primary">
+                  {initials(professional)}
+                </div>
+              )}
+              <div className="min-w-0">
+                <p className="font-label-md text-primary">{fullName(professional)}</p>
+                <p className="truncate text-sm text-on-surface-variant">
+                  {professional?.headline || "Professionista"}
+                </p>
+              </div>
+            </div>
+            <div className="mt-4 space-y-1 text-sm text-on-surface-variant">
+              <p>{professional?.phone || "Telefono non indicato"}</p>
+              <p>{professional?.email || "Email non indicata"}</p>
+            </div>
+          </div>
+
+          <div className="rounded-2xl bg-surface-container-low p-4">
+            <p className="mb-3 text-[11px] font-bold uppercase tracking-widest text-on-surface-variant">
+              Dati cliente
+            </p>
+            <p className="font-label-md text-primary">{fullName(client)}</p>
+          </div>
+        </div>
+
+        <div className="mt-5 space-y-4">
+          <label className="block">
+            <span className="mb-2 block text-sm font-bold text-primary">Descrizione preventivo</span>
+            <textarea
+              value={description}
+              onChange={(event) => onDescriptionChange(event.target.value)}
+              className="min-h-32 w-full rounded-2xl border border-outline-variant bg-surface-container-lowest px-4 py-3 outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/20"
+              placeholder="Descrivi intervento, materiali e condizioni del preventivo…"
+            />
+          </label>
+
+          <div className="grid gap-4 md:grid-cols-2">
+            <label className="block">
+              <span className="mb-2 block text-sm font-bold text-primary">Prezzo</span>
+              <input
+                type="number"
+                min="0"
+                step="0.01"
+                value={amount}
+                onChange={(event) => onAmountChange(event.target.value)}
+                className="w-full rounded-2xl border border-outline-variant bg-surface-container-lowest px-4 py-3 outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/20"
+                placeholder="0,00"
+              />
+            </label>
+
+            <label className="block">
+              <span className="mb-2 block text-sm font-bold text-primary">Scontistica</span>
+              <select
+                value={discount}
+                onChange={(event) => onDiscountChange(Number(event.target.value))}
+                className="w-full rounded-2xl border border-outline-variant bg-surface-container-lowest px-4 py-3 outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/20"
+              >
+                <option value={0}>Nessuno</option>
+                {[10, 20, 30, 40, 50].map((value) => (
+                  <option key={value} value={value}>
+                    {value}%
+                  </option>
+                ))}
+              </select>
+            </label>
+          </div>
+
+          <div className="grid gap-3 rounded-2xl bg-surface-container-low p-4 text-sm md:grid-cols-3">
+            <div>
+              <p className="text-on-surface-variant">Prezzo originale</p>
+              <p className="font-bold text-primary">{money(safeAmount)}</p>
+            </div>
+            <div>
+              <p className="text-on-surface-variant">Sconto</p>
+              <p className="font-bold text-primary">{money(discountValue)}</p>
+            </div>
+            <div>
+              <p className="text-on-surface-variant">Prezzo finale</p>
+              <p className="font-bold text-[#FF8500]">{money(finalAmount)}</p>
+            </div>
+          </div>
+
+          {error ? (
+            <div className="rounded-2xl bg-error-container p-3 text-sm text-on-error-container">
+              {error}
+            </div>
+          ) : null}
+        </div>
+
+        <div className="mt-6 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
+          <button
+            type="button"
+            className="rounded-full px-5 py-3 font-button text-primary transition hover:bg-primary-fixed disabled:opacity-60"
+            disabled={busy}
+            onClick={onCancel}
+          >
+            Annulla
+          </button>
+          <button
+            type="button"
+            className="rounded-full bg-[#FF8500] px-6 py-3 font-button text-white shadow-lg shadow-[#FF8500]/20 transition hover:bg-[#FF9A2B] disabled:opacity-60"
+            disabled={busy}
+            onClick={onSubmit}
+          >
+            {busy ? "Invio…" : "Invia preventivo"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function QuoteDetailModal({
+  quote,
+  context,
+  role,
+  busy,
+  error,
+  onClose,
+  onDecision,
+}: {
+  quote: QuoteRow;
+  context: ConversationQuoteContext | null;
+  role: string | null;
+  busy: boolean;
+  error: string | null;
+  onClose: () => void;
+  onDecision: (status: "accepted" | "rejected") => void;
+}) {
+  const professional = context?.professional ?? null;
+  const canDecide = role === "customer" && quote.status === "pending";
+
+  return (
+    <div className="fixed inset-0 z-[120] flex items-center justify-center p-4">
+      <button
+        type="button"
+        className="absolute inset-0 bg-inverse-surface/55 backdrop-blur-sm"
+        onClick={onClose}
+        aria-label="Chiudi dettaglio preventivo"
+      />
+      <div className="relative w-full max-w-[620px] rounded-[28px] border border-white/30 bg-surface-container-lowest p-6 shadow-2xl">
+        <button
+          type="button"
+          className="absolute right-4 top-4 flex h-10 w-10 items-center justify-center rounded-full text-on-surface-variant transition hover:bg-surface-container-low"
+          onClick={onClose}
+          aria-label="Chiudi"
+        >
+          <span className="material-symbols-outlined">close</span>
+        </button>
+        <div className="flex items-center gap-3 pr-10">
+          {professional?.avatar_url ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={professional.avatar_url}
+              alt={fullName(professional)}
+              className="h-16 w-16 rounded-full object-cover"
+            />
+          ) : (
+            <div className="flex h-16 w-16 items-center justify-center rounded-full bg-primary-fixed font-bold text-primary">
+              {initials(professional)}
+            </div>
+          )}
+          <div className="min-w-0">
+            <h2 className="font-headline-sm text-[26px] text-primary">{fullName(professional)}</h2>
+            <p className="text-on-surface-variant">{professional?.headline || "Professionista"}</p>
+          </div>
+        </div>
+
+        <div className="mt-6 rounded-2xl bg-surface-container-low p-4">
+          <p className="whitespace-pre-wrap text-on-surface">{quote.description}</p>
+        </div>
+
+        <div className="mt-4 grid gap-3 text-sm sm:grid-cols-3">
+          <div className="rounded-2xl border border-outline-variant/30 p-4">
+            <p className="text-on-surface-variant">Prezzo</p>
+            <p className="font-bold text-primary">{money(quote.amount)}</p>
+          </div>
+          <div className="rounded-2xl border border-outline-variant/30 p-4">
+            <p className="text-on-surface-variant">Sconto</p>
+            <p className="font-bold text-primary">{quote.discount_percentage}%</p>
+          </div>
+          <div className="rounded-2xl border border-outline-variant/30 p-4">
+            <p className="text-on-surface-variant">Totale finale</p>
+            <p className="font-bold text-[#FF8500]">{money(quote.final_amount)}</p>
+          </div>
+        </div>
+
+        <div className="mt-4 inline-flex rounded-full bg-surface-container-high px-3 py-1 text-xs font-bold text-on-surface-variant">
+          Stato: {quoteStatusLabel(quote.status)}
+        </div>
+
+        {error ? (
+          <div className="mt-4 rounded-2xl bg-error-container p-3 text-sm text-on-error-container">
+            {error}
+          </div>
+        ) : null}
+
+        {canDecide ? (
+          <div className="mt-6 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
+            <button
+              type="button"
+              className="rounded-full bg-error px-6 py-3 font-button text-white transition hover:opacity-90 disabled:opacity-60"
+              disabled={busy}
+              onClick={() => onDecision("rejected")}
+            >
+              Rifiuta
+            </button>
+            <button
+              type="button"
+              className="rounded-full bg-[#FF8500] px-6 py-3 font-button text-white shadow-lg shadow-[#FF8500]/20 transition hover:bg-[#FF9A2B] disabled:opacity-60"
+              disabled={busy}
+              onClick={() => onDecision("accepted")}
+            >
+              Accetta
+            </button>
+          </div>
+        ) : null}
+      </div>
+    </div>
+  );
+}
+
+function ReviewModal({
+  rating,
+  title,
+  body,
+  files,
+  busy,
+  error,
+  onRatingChange,
+  onTitleChange,
+  onBodyChange,
+  onFilesChange,
+  onRemoveFile,
+  onCancel,
+  onSubmit,
+}: {
+  rating: number;
+  title: string;
+  body: string;
+  files: File[];
+  busy: boolean;
+  error: string | null;
+  onRatingChange: (value: number) => void;
+  onTitleChange: (value: string) => void;
+  onBodyChange: (value: string) => void;
+  onFilesChange: (files: FileList | null) => void;
+  onRemoveFile: (index: number) => void;
+  onCancel: () => void;
+  onSubmit: () => void;
+}) {
+  return (
+    <div className="fixed inset-0 z-[120] flex items-center justify-center p-4">
+      <button
+        type="button"
+        className="absolute inset-0 bg-inverse-surface/55 backdrop-blur-sm"
+        onClick={onCancel}
+        aria-label="Chiudi modale recensione"
+      />
+      <div className="relative max-h-[92vh] w-full max-w-[620px] overflow-y-auto rounded-[28px] border border-white/30 bg-surface-container-lowest p-6 shadow-2xl">
+        <button
+          type="button"
+          className="absolute right-4 top-4 flex h-10 w-10 items-center justify-center rounded-full text-on-surface-variant transition hover:bg-surface-container-low"
+          onClick={onCancel}
+          aria-label="Chiudi"
+        >
+          <span className="material-symbols-outlined">close</span>
+        </button>
+        <h2 className="pr-10 font-headline-sm text-[28px] text-primary">Lascia una recensione</h2>
+
+        <div className="mt-5 space-y-4">
+          <div>
+            <p className="mb-2 text-sm font-bold text-primary">Valutazione</p>
+            <div className="flex gap-1">
+              {[1, 2, 3, 4, 5].map((star) => (
+                <button
+                  key={star}
+                  type="button"
+                  className={[
+                    "material-symbols-outlined text-[32px] transition",
+                    star <= rating ? "text-[#FF8500]" : "text-outline",
+                  ].join(" ")}
+                  onClick={() => onRatingChange(star)}
+                  aria-label={`${star} stelle`}
+                >
+                  star
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <label className="block">
+            <span className="mb-2 block text-sm font-bold text-primary">Titolo recensione</span>
+            <input
+              type="text"
+              value={title}
+              onChange={(event) => onTitleChange(event.target.value)}
+              className="w-full rounded-2xl border border-outline-variant bg-surface-container-lowest px-4 py-3 outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/20"
+              placeholder="Es. Intervento preciso e puntuale"
+            />
+          </label>
+
+          <label className="block">
+            <span className="mb-2 block text-sm font-bold text-primary">Testo recensione</span>
+            <textarea
+              value={body}
+              onChange={(event) => onBodyChange(event.target.value)}
+              className="min-h-28 w-full rounded-2xl border border-outline-variant bg-surface-container-lowest px-4 py-3 outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/20"
+              placeholder="Racconta la tua esperienza reale con il professionista…"
+            />
+          </label>
+
+          <div>
+            <label className="inline-flex cursor-pointer items-center gap-2 rounded-full border border-outline-variant/40 px-4 py-2 text-primary transition hover:bg-surface-container-low">
+              <span className="material-symbols-outlined" aria-hidden>
+                add_photo_alternate
+              </span>
+              Aggiungi foto/video
+              <input
+                type="file"
+                className="sr-only"
+                multiple
+                accept="image/png,image/jpeg,image/webp,video/mp4,video/quicktime"
+                onChange={(event) => {
+                  onFilesChange(event.target.files);
+                  event.target.value = "";
+                }}
+              />
+            </label>
+          </div>
+
+          {files.length > 0 ? (
+            <div className="grid gap-2 sm:grid-cols-3">
+              {files.map((file, index) => (
+                <PendingFilePreview
+                  key={`${file.name}-${file.lastModified}-${index}`}
+                  file={file}
+                  onRemove={() => onRemoveFile(index)}
+                />
+              ))}
+            </div>
+          ) : null}
+
+          {error ? (
+            <div className="rounded-2xl bg-error-container p-3 text-sm text-on-error-container">
+              {error}
+            </div>
+          ) : null}
+        </div>
+
+        <div className="mt-6 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
+          <button
+            type="button"
+            className="rounded-full px-5 py-3 font-button text-primary transition hover:bg-primary-fixed disabled:opacity-60"
+            disabled={busy}
+            onClick={onCancel}
+          >
+            Annulla
+          </button>
+          <button
+            type="button"
+            className="rounded-full bg-[#FF8500] px-6 py-3 font-button text-white shadow-lg shadow-[#FF8500]/20 transition hover:bg-[#FF9A2B] disabled:opacity-60"
+            disabled={busy}
+            onClick={onSubmit}
+          >
+            {busy ? "Invio…" : "Invia recensione"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
 }
 
 function sortConversations(rows: ConversationRow[]) {
@@ -168,9 +899,30 @@ export default function MessagesClient({
   const [attachments, setAttachments] = useState<RequestAttachment[]>([]);
   const [messagesError, setMessagesError] = useState<string | null>(null);
   const [draft, setDraft] = useState("");
+  const [pendingFiles, setPendingFiles] = useState<File[]>([]);
+  const [mediaViewer, setMediaViewer] = useState<ViewableAttachment | null>(null);
   const [sendError, setSendError] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
-  const [uploadingAttachment, setUploadingAttachment] = useState(false);
+  const [quotes, setQuotes] = useState<QuoteRow[]>([]);
+  const [quoteContext, setQuoteContext] = useState<ConversationQuoteContext | null>(null);
+  const [quoteModalOpen, setQuoteModalOpen] = useState(false);
+  const [quoteDescription, setQuoteDescription] = useState("");
+  const [quoteAmount, setQuoteAmount] = useState("");
+  const [quoteDiscount, setQuoteDiscount] = useState(0);
+  const [quoteSubmitting, setQuoteSubmitting] = useState(false);
+  const [quoteError, setQuoteError] = useState<string | null>(null);
+  const [activeQuote, setActiveQuote] = useState<QuoteRow | null>(null);
+  const [quoteDecisionBusy, setQuoteDecisionBusy] = useState(false);
+  const [quoteDecisionError, setQuoteDecisionError] = useState<string | null>(null);
+
+  const [reviewedRequestIds, setReviewedRequestIds] = useState<Set<string>>(() => new Set());
+  const [reviewModalOpen, setReviewModalOpen] = useState(false);
+  const [reviewRating, setReviewRating] = useState(5);
+  const [reviewTitle, setReviewTitle] = useState("");
+  const [reviewBody, setReviewBody] = useState("");
+  const [reviewFiles, setReviewFiles] = useState<File[]>([]);
+  const [reviewSubmitting, setReviewSubmitting] = useState(false);
+  const [reviewError, setReviewError] = useState<string | null>(null);
 
   const [menuOpen, setMenuOpen] = useState(false);
   const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
@@ -180,6 +932,7 @@ export default function MessagesClient({
   const [remoteTyping, setRemoteTyping] = useState(false);
 
   const typingStopTimer = useRef<number | null>(null);
+  const activePresenceTimer = useRef<number | null>(null);
   const hasBroadcastTypingOn = useRef(false);
 
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
@@ -234,6 +987,153 @@ export default function MessagesClient({
     }
   }
 
+  async function loadMessages(id: string) {
+    const data = await fetchJson<MessagesResponse>(`/api/conversations/${id}/messages?limit=200`, {
+      method: "GET",
+    });
+    setMessages(data.messages ?? []);
+    queueMicrotask(scrollToBottom);
+    setMessagesError(null);
+  }
+
+  async function loadQuotes(id: string) {
+    try {
+      const data = await fetchJson<ConversationQuotesResponse>(
+        `/api/conversations/${id}/quotes`,
+        { method: "GET" },
+      );
+      setQuotes(data.quotes ?? []);
+      setQuoteContext(data.context ?? null);
+    } catch (error) {
+      console.error("[messages] Failed to load quotes", error);
+      setQuotes([]);
+      setQuoteContext(null);
+    }
+  }
+
+  async function loadMyReviews() {
+    if (role !== "customer") return;
+    try {
+      const data = await fetchJson<ReviewsMineResponse>("/api/reviews?mine=true&page_size=50", {
+        method: "GET",
+      });
+      setReviewedRequestIds(new Set((data.reviews ?? []).map((review) => review.request_id)));
+    } catch {
+      // Review availability should never block the chat UI.
+    }
+  }
+
+  async function sendQuote() {
+    if (!activeId) return;
+
+    setQuoteError(null);
+    setQuoteSubmitting(true);
+    try {
+      const data = await fetchJson<{ quote: QuoteRow; context: ConversationQuoteContext | null }>(
+        `/api/conversations/${activeId}/quotes`,
+        {
+          method: "POST",
+          body: JSON.stringify({
+            description: quoteDescription,
+            amount: Number(quoteAmount),
+            discount_percentage: quoteDiscount,
+          }),
+        },
+      );
+
+      setQuotes((current) =>
+        current.some((quote) => quote.id === data.quote.id)
+          ? current.map((quote) => (quote.id === data.quote.id ? data.quote : quote))
+          : [...current, data.quote],
+      );
+      setQuoteContext(data.context ?? quoteContext);
+      setQuoteDescription("");
+      setQuoteAmount("");
+      setQuoteDiscount(0);
+      setQuoteModalOpen(false);
+      queueMicrotask(scrollToBottom);
+    } catch (e) {
+      setQuoteError(e instanceof Error ? e.message : "Errore imprevisto.");
+    } finally {
+      setQuoteSubmitting(false);
+    }
+  }
+
+  async function decideQuote(status: "accepted" | "rejected") {
+    if (!activeQuote) return;
+    setQuoteDecisionError(null);
+    setQuoteDecisionBusy(true);
+    try {
+      const data = await fetchJson<{ quote: QuoteRow }>(`/api/quotes/${activeQuote.id}`, {
+        method: "PATCH",
+        body: JSON.stringify({ status }),
+      });
+      setQuotes((current) =>
+        current.map((quote) => (quote.id === data.quote.id ? data.quote : quote)),
+      );
+      setActiveQuote(data.quote);
+    } catch (e) {
+      setQuoteDecisionError(e instanceof Error ? e.message : "Errore imprevisto.");
+    } finally {
+      setQuoteDecisionBusy(false);
+    }
+  }
+
+  async function submitReview() {
+    const requestId = activeDetail?.request?.id ?? null;
+    if (!requestId) return;
+
+    setReviewError(null);
+    setReviewSubmitting(true);
+    try {
+      const formData = new FormData();
+      formData.append("request_id", requestId);
+      formData.append("rating", String(reviewRating));
+      formData.append("title", reviewTitle);
+      formData.append("body", reviewBody);
+      reviewFiles.forEach((file) => formData.append("files", file));
+
+      const response = await fetch("/api/reviews", {
+        method: "POST",
+        body: formData,
+        credentials: "same-origin",
+      });
+      const payload = (await response.json().catch(() => ({}))) as {
+        error?: string;
+      };
+      if (!response.ok) {
+        throw new Error(payload.error ?? `Invio non riuscito (${response.status})`);
+      }
+
+      setReviewedRequestIds((current) => new Set(current).add(requestId));
+      setReviewRating(5);
+      setReviewTitle("");
+      setReviewBody("");
+      setReviewFiles([]);
+      setReviewModalOpen(false);
+    } catch (e) {
+      setReviewError(e instanceof Error ? e.message : "Errore imprevisto.");
+    } finally {
+      setReviewSubmitting(false);
+    }
+  }
+
+  async function markConversationRead(id: string) {
+    try {
+      await fetchJson<{ ok: true }>(`/api/conversations/${id}/read`, { method: "POST" });
+    } catch {
+      // Read receipts are best-effort and should never block the chat UI.
+    }
+  }
+
+  async function touchActiveConversation(id: string) {
+    try {
+      await fetchJson<{ ok: true }>(`/api/conversations/${id}/presence`, { method: "POST" });
+    } catch {
+      // Active-chat presence is best-effort.
+    }
+  }
+
   async function loadConversationDetail(id: string) {
     try {
       const detail = await fetchJson<ConversationDetailResponse>(`/api/conversations/${id}`, {
@@ -264,12 +1164,9 @@ export default function MessagesClient({
     }
 
     try {
-      const data = await fetchJson<MessagesResponse>(`/api/conversations/${id}/messages?limit=200`, {
-        method: "GET",
-      });
-      setMessages(data.messages ?? []);
-      queueMicrotask(scrollToBottom);
-      setMessagesError(null);
+      await loadMessages(id);
+      void loadQuotes(id);
+      void markConversationRead(id);
     } catch (e) {
       setMessages([]);
       setMessagesError(e instanceof Error ? e.message : "Errore imprevisto.");
@@ -308,20 +1205,32 @@ export default function MessagesClient({
   }
 
   async function sendMessage() {
-    if (!activeId || !draft.trim()) return;
+    const body = draft.trim();
+    if (!activeId || (!body && pendingFiles.length === 0)) return;
     if (!chatEnabled) return;
     setSendError(null);
     setSending(true);
     try {
-      const res = await fetchJson<{ message: MessageRow }>(
-        `/api/conversations/${activeId}/messages`,
-        {
-          method: "POST",
-          body: JSON.stringify({ body: draft }),
-        },
-      );
+      const formData = new FormData();
+      formData.append("body", body);
+      pendingFiles.forEach((file) => formData.append("files", file));
+
+      const response = await fetch(`/api/conversations/${activeId}/messages`, {
+        method: "POST",
+        body: formData,
+        credentials: "same-origin",
+      });
+      const payload = (await response.json().catch(() => ({}))) as {
+        message?: MessageRow;
+        error?: string;
+      };
+      if (!response.ok || !payload.message) {
+        throw new Error(payload.error ?? `Invio non riuscito (${response.status})`);
+      }
+      const res = { message: payload.message };
 
       setDraft("");
+      setPendingFiles([]);
       hasBroadcastTypingOn.current = false;
 
       setMessages((prev) => {
@@ -335,7 +1244,7 @@ export default function MessagesClient({
       applyConversationPatch({
         id: activeId,
         last_message_at: res.message.created_at,
-        last_message_body: res.message.body,
+        last_message_body: res.message.body ?? (res.message.attachments?.length ? "Allegato" : null),
         last_message_sender_id: res.message.sender_id,
       });
 
@@ -429,6 +1338,10 @@ export default function MessagesClient({
       supabase.removeChannel(convChannelRef.current);
       convChannelRef.current = null;
     }
+    if (activePresenceTimer.current) {
+      window.clearInterval(activePresenceTimer.current);
+      activePresenceTimer.current = null;
+    }
 
     const msgChannel = supabase
       .channel(`db:messages:${conversationId}`)
@@ -444,17 +1357,49 @@ export default function MessagesClient({
           const row = payload.new;
           if (!row || typeof row !== "object" || !("id" in row)) return;
           const message = row as MessageRow;
-          setMessages((prev) => {
-            if (prev.some((m) => m.id === message.id)) return prev;
-            return [...prev, message];
-          });
+          if (message.sender_id === meId) return;
+          window.setTimeout(() => {
+            void loadMessages(conversationId);
+            void markConversationRead(conversationId);
+          }, 250);
           applyConversationPatch({
             id: conversationId,
             last_message_at: message.created_at,
-            last_message_body: message.body,
+            last_message_body: message.body ?? "Allegato",
             last_message_sender_id: message.sender_id,
           });
           queueMicrotask(scrollToBottom);
+        },
+      )
+      .on(
+        "postgres_changes",
+        {
+          event: "UPDATE",
+          schema: "public",
+          table: "messages",
+          filter: `conversation_id=eq.${conversationId}`,
+        },
+        (payload: RealtimePostgresChangesPayload<MessageRow>) => {
+          const row = payload.new;
+          if (!row || typeof row !== "object" || !("id" in row)) return;
+          const message = row as MessageRow;
+          setMessages((prev) =>
+            prev.map((item) =>
+              item.id === message.id ? { ...item, read_at: message.read_at } : item,
+            ),
+          );
+        },
+      )
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "quotes",
+          filter: `conversation_id=eq.${conversationId}`,
+        },
+        () => {
+          void loadQuotes(conversationId);
         },
       )
       .subscribe();
@@ -464,6 +1409,10 @@ export default function MessagesClient({
     if (presenceChannelRef.current) {
       supabase.removeChannel(presenceChannelRef.current);
       presenceChannelRef.current = null;
+    }
+    if (activePresenceTimer.current) {
+      window.clearInterval(activePresenceTimer.current);
+      activePresenceTimer.current = null;
     }
 
     stopTypingTimers();
@@ -505,6 +1454,10 @@ export default function MessagesClient({
       });
 
     presenceChannelRef.current = presenceChannel;
+    void touchActiveConversation(conversationId);
+    activePresenceTimer.current = window.setInterval(() => {
+      void touchActiveConversation(conversationId);
+    }, 25000);
   }
 
   function selectConversation(id: string) {
@@ -514,9 +1467,19 @@ export default function MessagesClient({
     setActiveId(id);
     setActiveDetail(null);
     setMessages([]);
+    setQuotes([]);
+    setQuoteContext(null);
     setAttachments([]);
+    setPendingFiles([]);
     setMessagesError(null);
     setSendError(null);
+    setQuoteError(null);
+    setQuoteModalOpen(false);
+    setActiveQuote(null);
+    setQuoteDecisionError(null);
+    setReviewError(null);
+    setReviewModalOpen(false);
+    setReviewFiles([]);
     setDeleteError(null);
     setMenuOpen(false);
     setConfirmDeleteOpen(false);
@@ -561,6 +1524,15 @@ export default function MessagesClient({
   useEffect(() => {
     conversationsRef.current = conversations;
   }, [conversations]);
+
+  useEffect(() => {
+    if (!meId || role !== "customer") return;
+    const timer = window.setTimeout(() => {
+      void loadMyReviews();
+    }, 0);
+    return () => window.clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [meId, role]);
 
   // Realtime: keep conversation list fresh (status changes + last message preview + new conversations)
   useEffect(() => {
@@ -640,6 +1612,10 @@ export default function MessagesClient({
         supabase.removeChannel(presenceChannelRef.current);
         presenceChannelRef.current = null;
       }
+      if (activePresenceTimer.current) {
+        window.clearInterval(activePresenceTimer.current);
+        activePresenceTimer.current = null;
+      }
     };
   }, [supabase]);
 
@@ -653,34 +1629,38 @@ export default function MessagesClient({
     null;
   const chatEnabled = currentRequestStatus === "accepted";
   const chatReadOnly = isReadOnlyStatus(currentRequestStatus);
+  const participantOnline =
+    remoteOnline ||
+    Boolean(activeDetail?.participant?.is_online) ||
+    Boolean(activeConvListRow?.participant?.is_online);
+  const canSendMessage = chatEnabled && !sending && (Boolean(draft.trim()) || pendingFiles.length > 0);
+  const currentRequestId = activeDetail?.request?.id ?? null;
+  const reviewAlreadySent = currentRequestId ? reviewedRequestIds.has(currentRequestId) : false;
+  const timeline = useMemo(
+    () =>
+      [
+        ...messages.map((message) => ({
+          kind: "message" as const,
+          at: message.created_at,
+          message,
+        })),
+        ...quotes.map((quote) => ({
+          kind: "quote" as const,
+          at: quote.created_at,
+          quote,
+        })),
+      ].sort((a, b) => a.at.localeCompare(b.at)),
+    [messages, quotes],
+  );
 
-  async function uploadAttachments(files: FileList | null) {
-    const requestId = activeDetail?.request?.id ?? null;
-    if (!requestId || !files || files.length === 0) return;
+  function addPendingFiles(files: FileList | null) {
+    if (!files || files.length === 0) return;
+    setPendingFiles((current) => [...current, ...Array.from(files)].slice(0, 10));
+  }
 
-    setUploadingAttachment(true);
-    setSendError(null);
-    try {
-      const formData = new FormData();
-      Array.from(files).forEach((file) => formData.append("files", file));
-      const response = await fetch(`/api/contact-requests/${requestId}/attachments`, {
-        method: "POST",
-        body: formData,
-      });
-      const payload = (await response.json().catch(() => ({}))) as { error?: string };
-      if (!response.ok) {
-        throw new Error(payload.error ?? "Impossibile caricare gli allegati.");
-      }
-      const attachmentData = await fetchJson<AttachmentsResponse>(
-        `/api/contact-requests/${requestId}/attachments`,
-        { method: "GET" },
-      );
-      setAttachments(attachmentData.attachments ?? []);
-    } catch (e) {
-      setSendError(e instanceof Error ? e.message : "Errore imprevisto.");
-    } finally {
-      setUploadingAttachment(false);
-    }
+  function addReviewFiles(files: FileList | null) {
+    if (!files || files.length === 0) return;
+    setReviewFiles((current) => [...current, ...Array.from(files)].slice(0, 6));
   }
 
   const showListOnMobile = mobilePanel === "list";
@@ -689,7 +1669,7 @@ export default function MessagesClient({
   return (
     <main
       className={[
-        embedded ? "h-[calc(100vh-80px)]" : "h-screen",
+        embedded ? "h-full min-h-[560px]" : "h-screen",
         "flex flex-col overflow-hidden bg-background md:flex-row",
       ].join(" ")}
     >
@@ -762,6 +1742,11 @@ export default function MessagesClient({
                       <div className="font-label-md text-primary truncate">
                         {fullName(c.participant)}
                       </div>
+                      {role === "customer" && c.participant?.headline ? (
+                        <div className="text-[12px] font-semibold text-primary/75 truncate">
+                          {c.participant.headline}
+                        </div>
+                      ) : null}
                       <div className="text-[12px] text-on-surface-variant truncate">
                         {c.last_message_body ?? c.request_subject ?? "Richiesta di contatto"}
                       </div>
@@ -825,18 +1810,18 @@ export default function MessagesClient({
                       <span
                         className={[
                           "inline-flex items-center gap-1",
-                          remoteOnline ? "text-emerald-600" : "text-outline",
+                          participantOnline ? "text-emerald-600" : "text-outline",
                         ].join(" ")}
                       >
                         <span
                           className={[
                             "w-2 h-2 rounded-full",
-                            remoteOnline ? "bg-emerald-500" : "bg-outline-variant",
+                            participantOnline ? "bg-emerald-500" : "bg-outline-variant",
                           ].join(" ")}
                         />
                         {remoteTyping
                           ? "Sta scrivendo…"
-                          : remoteOnline
+                          : participantOnline
                             ? "Online ora"
                             : "Offline"}
                       </span>
@@ -844,34 +1829,79 @@ export default function MessagesClient({
                   </div>
                 </div>
 
-                <div className="relative">
-                  <button
-                    type="button"
-                    className="px-3 py-2 rounded-full border border-outline-variant/40 hover:bg-surface-container-low transition-colors text-primary"
-                    onClick={() => setMenuOpen((v) => !v)}
-                    aria-haspopup="menu"
-                    aria-expanded={menuOpen}
-                  >
-                    ⋯
-                  </button>
-
-                  {menuOpen ? (
-                    <div
-                      className="absolute right-0 mt-2 w-48 bg-surface-container-lowest border border-outline-variant/30 rounded-xl shadow-[0_4px_20px_rgba(8,43,95,0.08)] overflow-hidden z-20"
-                      role="menu"
+                <div className="flex items-center gap-2">
+                  {role === "professional" && chatEnabled ? (
+                    <button
+                      type="button"
+                      className="flex h-10 w-10 items-center justify-center rounded-full border border-outline-variant/40 text-primary transition-colors hover:bg-surface-container-low"
+                      onClick={() => setQuoteModalOpen(true)}
+                      title="Invia preventivo"
+                      aria-label="Invia preventivo"
                     >
-                      <button
-                        type="button"
-                        className="w-full text-left px-4 py-3 hover:bg-surface-container-low transition-colors text-error font-label-md text-[13px]"
-                        onClick={() => {
-                          setConfirmDeleteOpen(true);
-                          setMenuOpen(false);
-                        }}
-                      >
-                        Cancella chat
-                      </button>
-                    </div>
+                      <span className="material-symbols-outlined" aria-hidden>
+                        request_quote
+                      </span>
+                    </button>
                   ) : null}
+
+                  {role === "customer" ? (
+                    <button
+                      type="button"
+                      className={[
+                        "flex h-10 w-10 items-center justify-center rounded-full border transition-colors",
+                        chatEnabled && !reviewAlreadySent
+                          ? "border-[#FF8500]/40 text-[#FF8500] hover:bg-[#FF8500]/10"
+                          : "cursor-not-allowed border-outline-variant/40 text-outline",
+                      ].join(" ")}
+                      disabled={!chatEnabled || reviewAlreadySent}
+                      onClick={() => {
+                        setReviewError(null);
+                        setReviewModalOpen(true);
+                      }}
+                      title={
+                        reviewAlreadySent
+                          ? "Recensione già inviata"
+                          : chatEnabled
+                            ? "Lascia una recensione"
+                            : "Recensione disponibile dopo accettazione"
+                      }
+                      aria-label="Lascia una recensione"
+                    >
+                      <span className="material-symbols-outlined" aria-hidden>
+                        star
+                      </span>
+                    </button>
+                  ) : null}
+
+                  <div className="relative">
+                    <button
+                      type="button"
+                      className="px-3 py-2 rounded-full border border-outline-variant/40 hover:bg-surface-container-low transition-colors text-primary"
+                      onClick={() => setMenuOpen((v) => !v)}
+                      aria-haspopup="menu"
+                      aria-expanded={menuOpen}
+                    >
+                      ⋯
+                    </button>
+
+                    {menuOpen ? (
+                      <div
+                        className="absolute right-0 mt-2 w-48 bg-surface-container-lowest border border-outline-variant/30 rounded-xl shadow-[0_4px_20px_rgba(8,43,95,0.08)] overflow-hidden z-20"
+                        role="menu"
+                      >
+                        <button
+                          type="button"
+                          className="w-full text-left px-4 py-3 hover:bg-surface-container-low transition-colors text-error font-label-md text-[13px]"
+                          onClick={() => {
+                            setConfirmDeleteOpen(true);
+                            setMenuOpen(false);
+                          }}
+                        >
+                          Cancella chat
+                        </button>
+                      </div>
+                    ) : null}
+                  </div>
                 </div>
               </div>
 
@@ -945,30 +1975,43 @@ export default function MessagesClient({
                   <div className="mb-3 text-[11px] font-bold uppercase tracking-widest text-on-surface-variant">
                     Allegati condivisi
                   </div>
-                  <div className="flex flex-wrap gap-2">
+                  <div className="grid gap-3 sm:grid-cols-2">
                     {attachments.map((attachment) => (
-                      <a
+                      <div
                         key={attachment.path}
-                        href={attachment.signed_url}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="inline-flex max-w-full items-center gap-2 rounded-full bg-primary-fixed px-3 py-2 text-sm font-bold text-on-primary-fixed-variant hover:underline"
+                        className="overflow-hidden rounded-2xl bg-surface-container-low p-2"
                       >
-                        <span className="material-symbols-outlined text-[18px]">
-                          attach_file
-                        </span>
-                        <span className="truncate">{fileNameFromPath(attachment.path)}</span>
-                      </a>
+                        <AttachmentPreview
+                          attachment={attachment}
+                          onOpen={(item) => setMediaViewer(item)}
+                        />
+                      </div>
                     ))}
                   </div>
                 </div>
               ) : null}
 
-              {messages.map((m) => {
+              {timeline.map((item) => {
+                if (item.kind === "quote") {
+                  return (
+                    <QuoteTimelineCard
+                      key={`quote-${item.quote.id}`}
+                      quote={item.quote}
+                      role={role}
+                      context={quoteContext}
+                      onOpen={() => {
+                        setQuoteDecisionError(null);
+                        setActiveQuote(item.quote);
+                      }}
+                    />
+                  );
+                }
+
+                const m = item.message;
                 const mine = meId ? m.sender_id === meId : false;
                 return (
                   <div
-                    key={m.id}
+                    key={`message-${m.id}`}
                     className={["flex", mine ? "justify-end" : "justify-start"].join(" ")}
                   >
                     <div className="max-w-[70%]">
@@ -980,9 +2023,19 @@ export default function MessagesClient({
                             : "bg-surface-container-lowest border-outline-variant/30 rounded-tl-none",
                         ].join(" ")}
                       >
-                        <p className="text-body-md leading-relaxed whitespace-pre-wrap break-words">
-                          {m.body}
-                        </p>
+                        {m.body ? (
+                          <p className="text-body-md leading-relaxed whitespace-pre-wrap break-words">
+                            {m.body}
+                          </p>
+                        ) : null}
+                        {m.attachments?.map((attachment) => (
+                          <AttachmentPreview
+                            key={attachment.id}
+                            attachment={attachment}
+                            mine={mine}
+                            onOpen={(attachmentItem) => setMediaViewer(attachmentItem)}
+                          />
+                        ))}
                       </div>
                       <div
                         className={[
@@ -992,6 +2045,11 @@ export default function MessagesClient({
                       >
                         {formatTime(m.created_at)}
                       </div>
+                      {mine && m.read_at ? (
+                        <div className="mt-0.5 text-right text-[10px] font-bold text-primary">
+                          Messaggio visualizzato
+                        </div>
+                      ) : null}
                     </div>
                   </div>
                 );
@@ -1004,6 +2062,22 @@ export default function MessagesClient({
               {sendError ? (
                 <div className="mb-3 p-3 text-sm text-on-error-container bg-error-container rounded-xl border border-error/20">
                   {sendError}
+                </div>
+              ) : null}
+
+              {pendingFiles.length > 0 ? (
+                <div className="mb-3 grid gap-2 sm:grid-cols-3">
+                  {pendingFiles.map((file, index) => (
+                    <PendingFilePreview
+                      key={`${file.name}-${file.lastModified}-${index}`}
+                      file={file}
+                      onRemove={() =>
+                        setPendingFiles((current) =>
+                          current.filter((_, itemIndex) => itemIndex !== index),
+                        )
+                      }
+                    />
+                  ))}
                 </div>
               ) : null}
 
@@ -1028,10 +2102,10 @@ export default function MessagesClient({
                     type="file"
                     className="sr-only"
                     multiple
-                    disabled={!chatEnabled || uploadingAttachment}
-                    accept="image/png,image/jpeg,image/webp,video/mp4,video/quicktime"
+                    disabled={!chatEnabled || sending}
+                    accept="image/png,image/jpeg,image/webp,video/mp4,video/quicktime,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,.doc,.docx"
                     onChange={(event) => {
-                      void uploadAttachments(event.target.files);
+                      addPendingFiles(event.target.files);
                       event.target.value = "";
                     }}
                   />
@@ -1050,10 +2124,10 @@ export default function MessagesClient({
                 />
                 <button
                   type="submit"
-                  disabled={sending || !draft.trim() || !chatEnabled}
+                  disabled={!canSendMessage}
                   className={[
                     "w-12 h-12 rounded-full flex items-center justify-center text-white shadow-md transition-all",
-                    sending || !draft.trim() || !chatEnabled
+                    !canSendMessage
                       ? "bg-outline-variant cursor-not-allowed"
                       : "bg-[#FF8500] hover:bg-[#FF9A2B] active:scale-[0.98]",
                   ].join(" ")}
@@ -1103,6 +2177,69 @@ export default function MessagesClient({
                   </div>
                 </div>
               </div>
+            ) : null}
+
+            {mediaViewer ? (
+              <MediaViewer attachment={mediaViewer} onClose={() => setMediaViewer(null)} />
+            ) : null}
+
+            {quoteModalOpen ? (
+              <QuoteSendModal
+                context={quoteContext}
+                description={quoteDescription}
+                amount={quoteAmount}
+                discount={quoteDiscount}
+                busy={quoteSubmitting}
+                error={quoteError}
+                onDescriptionChange={setQuoteDescription}
+                onAmountChange={setQuoteAmount}
+                onDiscountChange={setQuoteDiscount}
+                onCancel={() => {
+                  setQuoteModalOpen(false);
+                  setQuoteError(null);
+                }}
+                onSubmit={() => void sendQuote()}
+              />
+            ) : null}
+
+            {activeQuote ? (
+              <QuoteDetailModal
+                quote={activeQuote}
+                context={quoteContext}
+                role={role}
+                busy={quoteDecisionBusy}
+                error={quoteDecisionError}
+                onClose={() => {
+                  setActiveQuote(null);
+                  setQuoteDecisionError(null);
+                }}
+                onDecision={(status) => void decideQuote(status)}
+              />
+            ) : null}
+
+            {reviewModalOpen ? (
+              <ReviewModal
+                rating={reviewRating}
+                title={reviewTitle}
+                body={reviewBody}
+                files={reviewFiles}
+                busy={reviewSubmitting}
+                error={reviewError}
+                onRatingChange={setReviewRating}
+                onTitleChange={setReviewTitle}
+                onBodyChange={setReviewBody}
+                onFilesChange={addReviewFiles}
+                onRemoveFile={(index) =>
+                  setReviewFiles((current) =>
+                    current.filter((_, itemIndex) => itemIndex !== index),
+                  )
+                }
+                onCancel={() => {
+                  setReviewModalOpen(false);
+                  setReviewError(null);
+                }}
+                onSubmit={() => void submitReview()}
+              />
             ) : null}
           </>
         )}

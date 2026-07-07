@@ -68,12 +68,14 @@ export default async function ProfessionalMessagesPage({
   }
 
   return (
-    <MessagesClient
-      embedded
-      initialMe={initialMe}
-      initialConversations={initialConversations}
-      initialConversationsError={initialConversationsError}
-      initialActiveConversationId={initialActiveConversationId}
-    />
+    <div className="h-[calc(100vh-80px)] overflow-hidden">
+      <MessagesClient
+        embedded
+        initialMe={initialMe}
+        initialConversations={initialConversations}
+        initialConversationsError={initialConversationsError}
+        initialActiveConversationId={initialActiveConversationId}
+      />
+    </div>
   );
 }

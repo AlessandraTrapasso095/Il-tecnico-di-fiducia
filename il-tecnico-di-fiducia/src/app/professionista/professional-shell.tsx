@@ -126,6 +126,18 @@ function notificationText(notification: NotificationRow) {
     return `${actor} ha rifiutato la richiesta`;
   }
 
+  if (notification.type === "message_received") {
+    return `${actor} ti ha inviato un messaggio`;
+  }
+
+  if (notification.type === "quote_accepted") {
+    return `${actor} ha accettato il tuo preventivo`;
+  }
+
+  if (notification.type === "quote_rejected") {
+    return `${actor} ha rifiutato il tuo preventivo`;
+  }
+
   if (notification.type === "review_created") {
     return `${actor} ha lasciato una recensione`;
   }
@@ -259,6 +271,17 @@ export default function ProfessionalShell({ profile, children }: ProfessionalShe
       mounted = false;
     };
   }, []);
+
+  async function loadNotifications() {
+    try {
+      const response = await fetchJson<NotificationsResponse>("/api/notifications?limit=10", {
+        method: "GET",
+      });
+      setNotifications(response.notifications ?? []);
+    } catch {
+      setNotifications([]);
+    }
+  }
 
   useEffect(() => {
     if (!searchOpen) return;
@@ -514,6 +537,7 @@ export default function ProfessionalShell({ profile, children }: ProfessionalShe
                 onClick={() => {
                   setNotificationsOpen((value) => !value);
                   setSearchOpen(false);
+                  void loadNotifications();
                 }}
               >
                 <span className="material-symbols-outlined">notifications</span>
