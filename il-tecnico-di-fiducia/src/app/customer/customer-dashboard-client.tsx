@@ -1,8 +1,16 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  type MouseEvent as ReactMouseEvent,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import Image from "next/image";
 import Link from "next/link";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 
 import { SignOutButton } from "@/components/auth/sign-out-button";
 import { HeaderBackButton } from "@/components/navigation/header-back-button";
@@ -114,6 +122,10 @@ type NotificationRow = {
 
 type NotificationsResponse = {
   notifications: NotificationRow[];
+};
+
+type NotificationRealtimeRow = Omit<NotificationRow, "actor" | "entity" | "href"> & {
+  recipient_id?: string;
 };
 
 type InitialMessages = {
@@ -290,11 +302,26 @@ function RatingStars({
   );
 }
 
+function customerNotificationFallbackHref(notification: NotificationRealtimeRow) {
+  if (notification.entity_type === "conversation" && notification.entity_id) {
+    return `/customer?section=messages&conversation=${notification.entity_id}`;
+  }
+
+  if (notification.entity_type === "contact_request") {
+    return "/customer?section=messages";
+  }
+
+  return "/customer";
+}
+
 export default function CustomerDashboardClient({
   profile,
   initialFilters,
   initialMessages,
 }: CustomerDashboardClientProps) {
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
   const supabase = useMemo(() => createClient(), []);
   const [view, setView] = useState<"explore" | "messages">(initialMessages.initialView);
   const [messagesKey, setMessagesKey] = useState(0);
@@ -379,6 +406,10 @@ export default function CustomerDashboardClient({
     () => notifications.filter((notification) => !notification.read_at).length,
     [notifications],
   );
+  const currentRelativeUrl = useMemo(() => {
+    const query = searchParams.toString();
+    return query ? `${pathname}?${query}` : pathname;
+  }, [pathname, searchParams]);
 
   async function loadFilters() {
     try {
@@ -480,8 +511,14 @@ export default function CustomerDashboardClient({
   }
 
   function openMessages(conversationId?: string | null) {
-    setActiveConversationId(conversationId ?? null);
-    setMessagesKey((value) => value + 1);
+    const nextConversationId = conversationId ?? null;
+    const shouldReloadMessages =
+      view !== "messages" || activeConversationId !== nextConversationId;
+
+    setActiveConversationId(nextConversationId);
+    if (shouldReloadMessages) {
+      setMessagesKey((value) => value + 1);
+    }
     setView("messages");
     window.requestAnimationFrame(() => {
       document
@@ -513,6 +550,68 @@ export default function CustomerDashboardClient({
     setTravel(false);
   }
 
+  const mergeRealtimeNotification = useCallback((row: NotificationRealtimeRow | null | undefined) => {
+    if (!row?.id) return;
+
+    setNotifications((current) => {
+      const nextNotification: NotificationRow = {
+        ...row,
+        href: customerNotificationFallbackHref(row),
+        actor: null,
+        entity: null,
+      };
+      const index = current.findIndex((notification) => notification.id === row.id);
+
+      if (index === -1) {
+        return [nextNotification, ...current].slice(0, 10);
+      }
+
+      const next = [...current];
+      next[index] = {
+        ...next[index],
+        ...row,
+      };
+      return next;
+    });
+  }, []);
+
+  function handleCustomerNotificationClick(
+    event: ReactMouseEvent<HTMLAnchorElement>,
+    notification: NotificationRow,
+  ) {
+    setNotificationsOpen(false);
+    void markNotificationRead(notification.id);
+
+    if (typeof window === "undefined") return;
+
+    const target = new URL(notification.href, window.location.origin);
+    const targetRelativeUrl = `${target.pathname}${target.search}`;
+    const isCustomerTarget = target.pathname === "/customer" || target.pathname === "/cliente";
+
+    if (!isCustomerTarget) {
+      if (targetRelativeUrl === currentRelativeUrl) {
+        event.preventDefault();
+      }
+      return;
+    }
+
+    event.preventDefault();
+
+    const section = target.searchParams.get("section");
+    const conversationId = target.searchParams.get("conversation");
+
+    if (targetRelativeUrl !== currentRelativeUrl) {
+      router.push(targetRelativeUrl, { scroll: false });
+    }
+
+    if (section === "messages") {
+      openMessages(conversationId);
+      return;
+    }
+
+    setView("explore");
+  }
+
   useEffect(() => {
     const t = window.setTimeout(() => {
       void loadFilters();
@@ -539,7 +638,16 @@ export default function CustomerDashboardClient({
           table: "notifications",
           filter: `recipient_id=eq.${profile.id}`,
         },
-        () => {
+        (payload) => {
+          if (payload.eventType === "INSERT" || payload.eventType === "UPDATE") {
+            mergeRealtimeNotification(payload.new as NotificationRealtimeRow);
+          }
+          if (payload.eventType === "DELETE") {
+            const deleted = payload.old as Partial<NotificationRealtimeRow>;
+            setNotifications((current) =>
+              current.filter((notification) => notification.id !== deleted.id),
+            );
+          }
           void loadNotifications();
         },
       )
@@ -548,7 +656,7 @@ export default function CustomerDashboardClient({
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [loadNotifications, profile.id, supabase]);
+  }, [loadNotifications, mergeRealtimeNotification, profile.id, supabase]);
 
   useEffect(() => {
     if (searchDebounce.current) window.clearTimeout(searchDebounce.current);
@@ -628,16 +736,21 @@ export default function CustomerDashboardClient({
       .map((notification) => notification.id);
     if (ids.length === 0) return;
 
-    await fetchJson<{ ok: true }>("/api/notifications", {
-      method: "PATCH",
-      body: JSON.stringify({ ids }),
-    });
     const readAt = new Date().toISOString();
     setNotifications((current) =>
       current.map((notification) =>
         ids.includes(notification.id) ? { ...notification, read_at: readAt } : notification,
       ),
     );
+
+    try {
+      await fetchJson<{ ok: true }>("/api/notifications", {
+        method: "PATCH",
+        body: JSON.stringify({ ids }),
+      });
+    } catch {
+      void loadNotifications();
+    }
   }
 
   async function toggleSaved(professional: ProfessionalRow) {
@@ -942,10 +1055,9 @@ export default function CustomerDashboardClient({
                             key={notification.id}
                             href={notification.href}
                             className="flex gap-3 rounded-2xl p-3 transition-colors hover:bg-surface-container-low"
-                            onClick={() => {
-                              setNotificationsOpen(false);
-                              void markNotificationRead(notification.id);
-                            }}
+                            onClick={(event) =>
+                              handleCustomerNotificationClick(event, notification)
+                            }
                           >
                             <div className="relative flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-full border border-primary-fixed bg-surface-container-high text-primary">
                               {actor.avatar_url ? (

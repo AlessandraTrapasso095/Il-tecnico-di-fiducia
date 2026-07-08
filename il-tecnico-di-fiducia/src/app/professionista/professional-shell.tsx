@@ -2,8 +2,8 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
-import type { ReactNode } from "react";
+import { usePathname, useSearchParams } from "next/navigation";
+import type { MouseEvent, ReactNode } from "react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { SignOutButton } from "@/components/auth/sign-out-button";
@@ -46,6 +46,10 @@ type NotificationRow = {
 
 type NotificationsResponse = {
   notifications: NotificationRow[];
+};
+
+type NotificationRealtimeRow = Omit<NotificationRow, "actor" | "entity" | "href"> & {
+  recipient_id?: string;
 };
 
 type ProfessionalSearchRow = {
@@ -226,9 +230,26 @@ function LogoWordmark() {
   );
 }
 
+function professionalNotificationFallbackHref(notification: NotificationRealtimeRow) {
+  if (notification.entity_type === "conversation" && notification.entity_id) {
+    return `/professionista/messaggi?conversation=${notification.entity_id}`;
+  }
+
+  if (notification.entity_type === "contact_request") {
+    return "/professionista/messaggi";
+  }
+
+  if (notification.entity_type === "support_ticket" && notification.entity_id) {
+    return `/professionista/supporto?ticket=${notification.entity_id}`;
+  }
+
+  return "/professionista";
+}
+
 export default function ProfessionalShell({ profile, children }: ProfessionalShellProps) {
   const supabase = useMemo(() => createClient(), []);
   const pathname = usePathname();
+  const searchParams = useSearchParams();
   const [shellProfile, setShellProfile] = useState(profile);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
@@ -245,6 +266,10 @@ export default function ProfessionalShell({ profile, children }: ProfessionalShe
     () => notifications.filter((notification) => !notification.read_at).length,
     [notifications],
   );
+  const currentRelativeUrl = useMemo(() => {
+    const query = searchParams.toString();
+    return query ? `${pathname}?${query}` : pathname;
+  }, [pathname, searchParams]);
 
   const loadNotifications = useCallback(async () => {
     try {
@@ -256,6 +281,48 @@ export default function ProfessionalShell({ profile, children }: ProfessionalShe
       setNotifications([]);
     }
   }, []);
+
+  const mergeRealtimeNotification = useCallback((row: NotificationRealtimeRow | null | undefined) => {
+    if (!row?.id) return;
+
+    setNotifications((current) => {
+      const nextNotification: NotificationRow = {
+        ...row,
+        href: professionalNotificationFallbackHref(row),
+        actor: null,
+        entity: null,
+      };
+      const index = current.findIndex((notification) => notification.id === row.id);
+
+      if (index === -1) {
+        return [nextNotification, ...current].slice(0, 10);
+      }
+
+      const next = [...current];
+      next[index] = {
+        ...next[index],
+        ...row,
+      };
+      return next;
+    });
+  }, []);
+
+  function handleNotificationClick(
+    event: MouseEvent<HTMLAnchorElement>,
+    notification: NotificationRow,
+  ) {
+    setNotificationsOpen(false);
+    void markNotificationRead(notification.id);
+
+    if (typeof window === "undefined") return;
+
+    const target = new URL(notification.href, window.location.origin);
+    const targetRelativeUrl = `${target.pathname}${target.search}`;
+
+    if (targetRelativeUrl === currentRelativeUrl) {
+      event.preventDefault();
+    }
+  }
 
   useEffect(() => {
     function onAvatarUpdated(event: Event) {
@@ -292,7 +359,16 @@ export default function ProfessionalShell({ profile, children }: ProfessionalShe
           table: "notifications",
           filter: `recipient_id=eq.${profile.id}`,
         },
-        () => {
+        (payload) => {
+          if (payload.eventType === "INSERT" || payload.eventType === "UPDATE") {
+            mergeRealtimeNotification(payload.new as NotificationRealtimeRow);
+          }
+          if (payload.eventType === "DELETE") {
+            const deleted = payload.old as Partial<NotificationRealtimeRow>;
+            setNotifications((current) =>
+              current.filter((notification) => notification.id !== deleted.id),
+            );
+          }
           void loadNotifications();
         },
       )
@@ -301,7 +377,7 @@ export default function ProfessionalShell({ profile, children }: ProfessionalShe
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [loadNotifications, profile.id, supabase]);
+  }, [loadNotifications, mergeRealtimeNotification, profile.id, supabase]);
 
   useEffect(() => {
     if (!searchOpen) return;
@@ -365,17 +441,23 @@ export default function ProfessionalShell({ profile, children }: ProfessionalShe
       .map((notification) => notification.id);
     if (ids.length === 0) return;
 
-    await fetchJson<{ ok: true }>("/api/notifications", {
-      method: "PATCH",
-      body: JSON.stringify({ ids }),
-    });
+    const readAt = new Date().toISOString();
     setNotifications((current) =>
       current.map((notification) =>
         ids.includes(notification.id)
-          ? { ...notification, read_at: new Date().toISOString() }
+          ? { ...notification, read_at: readAt }
           : notification,
       ),
     );
+
+    try {
+      await fetchJson<{ ok: true }>("/api/notifications", {
+        method: "PATCH",
+        body: JSON.stringify({ ids }),
+      });
+    } catch {
+      void loadNotifications();
+    }
   }
 
   async function markNotificationRead(notificationId: string) {
@@ -590,10 +672,7 @@ export default function ProfessionalShell({ profile, children }: ProfessionalShe
                           key={notification.id}
                           href={notification.href}
                           className="flex gap-3 rounded-2xl bg-surface-container-low p-3 text-sm transition hover:bg-surface-container"
-                          onClick={() => {
-                            setNotificationsOpen(false);
-                            void markNotificationRead(notification.id);
-                          }}
+                          onClick={(event) => handleNotificationClick(event, notification)}
                         >
                           <Avatar
                             person={
