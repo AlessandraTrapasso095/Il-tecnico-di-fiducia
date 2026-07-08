@@ -21,6 +21,15 @@ type SendPayload = {
   body: string;
 };
 
+type MessageSendLogContext = {
+  conversationId: string;
+  userId: string;
+  role: string;
+  hasText?: boolean;
+  bodyLength?: number;
+  attachmentCount?: number;
+};
+
 const UUID_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const MAX_FILES = 10;
@@ -56,6 +65,51 @@ function isMissingColumnError(error: unknown, column: string) {
     maybeError?.code === "PGRST204" ||
     haystack.includes(column.toLowerCase())
   );
+}
+
+function errorDetails(error: unknown) {
+  const maybe = error as
+    | {
+        name?: string;
+        code?: string;
+        status?: number | string;
+        message?: string;
+        details?: string;
+        hint?: string;
+        stack?: string;
+      }
+    | null
+    | undefined;
+
+  if (!maybe || typeof maybe !== "object") {
+    return { message: String(error) };
+  }
+
+  return {
+    name: maybe.name,
+    code: maybe.code,
+    status: maybe.status,
+    message: maybe.message,
+    details: maybe.details,
+    hint: maybe.hint,
+    stack: maybe.stack,
+  };
+}
+
+function logMessageSend(stage: string, context: MessageSendLogContext, extra?: unknown) {
+  console.info("[messages] POST debug", {
+    stage,
+    ...context,
+    ...(extra ? { extra } : {}),
+  });
+}
+
+function logMessageSendError(stage: string, context: MessageSendLogContext, error: unknown) {
+  console.error("[messages] POST failed", {
+    stage,
+    ...context,
+    error: errorDetails(error),
+  });
 }
 
 function logMessageLoadError(
@@ -194,7 +248,11 @@ async function notifyMessageRecipient({
       : conversation.customer_id;
   if (!recipientId || recipientId === senderId) return;
 
-  const [{ data: active }, { data: activity }, { data: people }] = await Promise.all([
+  const [
+    { data: active, error: activeError },
+    { data: activity, error: activityError },
+    { data: people, error: peopleError },
+  ] = await Promise.all([
     service
       .from("conversation_active_presence")
       .select("active_at")
@@ -212,6 +270,29 @@ async function notifyMessageRecipient({
       .in("id", [senderId, recipientId]),
   ]);
 
+  if (activeError) {
+    console.error("[messages] Failed to load active conversation presence", {
+      conversationId,
+      recipientId,
+      error: errorDetails(activeError),
+    });
+  }
+  if (activityError) {
+    console.error("[messages] Failed to load recipient activity", {
+      conversationId,
+      recipientId,
+      error: errorDetails(activityError),
+    });
+  }
+  if (peopleError) {
+    console.error("[messages] Failed to load message notification profiles", {
+      conversationId,
+      senderId,
+      recipientId,
+      error: errorDetails(peopleError),
+    });
+  }
+
   const activeWindowMs = 45 * 1000;
   const onlineWindowMs = 2 * 60 * 1000;
   const activeAt = active?.active_at ?? null;
@@ -223,13 +304,22 @@ async function notifyMessageRecipient({
 
   if (recipientActiveInChat) return;
 
-  await service.from("notifications").insert({
+  const { error: notificationError } = await service.from("notifications").insert({
     recipient_id: recipientId,
     actor_id: senderId,
     type: "message_received",
     entity_type: "conversation",
     entity_id: conversationId,
   });
+
+  if (notificationError) {
+    console.error("[messages] Failed to create message notification", {
+      conversationId,
+      senderId,
+      recipientId,
+      error: errorDetails(notificationError),
+    });
+  }
 
   if (recipientOnline) return;
 
@@ -417,23 +507,49 @@ export async function POST(
     return NextResponse.json({ error: "Invalid conversation id" }, { status: 400 });
   }
 
+  const logContext: MessageSendLogContext = {
+    conversationId: id,
+    userId: user.id,
+    role: profile.role,
+  };
+
+  try {
   const contentType = request.headers.get("content-type") ?? "";
   let body = "";
   let files: File[] = [];
 
   if (contentType.includes("multipart/form-data")) {
-    const formData = await request.formData();
+    let formData: FormData;
+    try {
+      formData = await request.formData();
+    } catch (error) {
+      logMessageSendError("parse_form_data", logContext, error);
+      return NextResponse.json({ error: "Invalid multipart payload" }, { status: 400 });
+    }
     body = String(formData.get("body") ?? "").trim();
     files = formData.getAll("files").filter((item): item is File => item instanceof File);
   } else {
     let payload: SendPayload;
     try {
       payload = (await request.json()) as SendPayload;
-    } catch {
+    } catch (error) {
+      logMessageSendError("parse_json", logContext, error);
       return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
     }
     body = String(payload.body ?? "").trim();
   }
+
+  logContext.hasText = body.length > 0;
+  logContext.bodyLength = body.length;
+  logContext.attachmentCount = files.length;
+  logMessageSend("payload_received", logContext, {
+    contentType: contentType.split(";")[0],
+    files: files.map((file) => ({
+      name: file.name,
+      type: file.type,
+      size: file.size,
+    })),
+  });
 
   if (!body && files.length === 0) {
     return NextResponse.json(
@@ -508,8 +624,14 @@ export async function POST(
     .single();
 
   if (error) {
-    return NextResponse.json({ error: error.message }, { status: 400 });
+    logMessageSendError("messages_insert", logContext, error);
+    return NextResponse.json(
+      { error: "Failed to save message" },
+      { status: 500 },
+    );
   }
+
+  logMessageSend("message_inserted", logContext, { messageId: data.id });
 
   const uploadedRows = [];
   const storageClient = createServiceClient();
@@ -527,7 +649,11 @@ export async function POST(
       });
 
     if (uploadError) {
-      return NextResponse.json({ error: uploadError.message }, { status: 400 });
+      logMessageSendError("storage_upload", logContext, uploadError);
+      return NextResponse.json(
+        { error: "Failed to upload attachment" },
+        { status: 500 },
+      );
     }
 
     uploadedRows.push({
@@ -549,26 +675,46 @@ export async function POST(
       .insert(uploadedRows);
 
     if (attachmentError) {
-      return NextResponse.json({ error: attachmentError.message }, { status: 400 });
+      logMessageSendError("message_attachments_insert", logContext, attachmentError);
+      return NextResponse.json(
+        { error: "Failed to save message attachment" },
+        { status: 500 },
+      );
     }
   }
 
-  const attachmentsByMessage = await signedAttachments(supabase, [data.id], {
-    conversationId: id,
-    userId: user.id,
-    role: profile.role,
-  });
+  let attachmentsByMessage = new Map<string, MessageAttachment[]>();
+  try {
+    attachmentsByMessage = await signedAttachments(supabase, [data.id], {
+      conversationId: id,
+      userId: user.id,
+      role: profile.role,
+    });
+  } catch (error) {
+    logMessageSendError("signed_attachments_non_blocking", logContext, error);
+  }
   const message = {
     ...data,
     read_at: null,
     attachments: attachmentsByMessage.get(data.id) ?? [],
   };
 
-  await notifyMessageRecipient({
-    conversationId: id,
-    senderId: user.id,
-    body,
-  });
+  try {
+    await notifyMessageRecipient({
+      conversationId: id,
+      senderId: user.id,
+      body,
+    });
+  } catch (error) {
+    logMessageSendError("notify_recipient_non_blocking", logContext, error);
+  }
 
   return NextResponse.json({ message });
+  } catch (error) {
+    logMessageSendError("unexpected", logContext, error);
+    return NextResponse.json(
+      { error: "Internal message send error" },
+      { status: 500 },
+    );
+  }
 }
