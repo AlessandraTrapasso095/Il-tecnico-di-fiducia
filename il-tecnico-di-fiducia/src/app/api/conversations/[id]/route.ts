@@ -38,7 +38,7 @@ export async function GET(
 
   const { data: requestRow } = await supabase
     .from("contact_requests")
-    .select("id, subject, status, responded_at, created_at, updated_at")
+    .select("id, subject, message, status, responded_at, created_at, updated_at")
     .eq("id", conversation.request_id)
     .maybeSingle();
 

@@ -22,6 +22,44 @@ type CreateDiscountPayload = {
   is_active?: boolean;
 };
 
+type SupabaseErrorLike = {
+  code?: string;
+  message?: string;
+  details?: string;
+  hint?: string;
+  status?: number;
+};
+
+function logSupabaseDiscountError(
+  operation: string,
+  error: SupabaseErrorLike,
+  payload: Record<string, unknown>,
+) {
+  console.error("[admin/subscription-discounts] Supabase error", {
+    operation,
+    table: "public.subscription_discount_codes",
+    queryPayload: payload,
+    code: error.code,
+    status: error.status,
+    message: error.message,
+    details: error.details,
+    hint: error.hint,
+    raw: error,
+  });
+}
+
+function isSchemaCacheOrMissingTableError(error: SupabaseErrorLike) {
+  const message = error.message?.toLowerCase() ?? "";
+  return (
+    error.code === "PGRST205" ||
+    error.code === "PGRST204" ||
+    error.code === "42P01" ||
+    message.includes("schema cache") ||
+    message.includes("could not find the table") ||
+    message.includes("does not exist")
+  );
+}
+
 function normalizeCode(code: string) {
   return code.trim().toUpperCase();
 }
@@ -164,6 +202,10 @@ export async function GET() {
   if (!auth.ok) return auth.response;
 
   const { supabase } = auth.ctx;
+  const queryPayload = {
+    select: "*",
+    order: "created_at.desc",
+  };
 
   const { data, error } = await supabase
     .from("subscription_discount_codes")
@@ -171,7 +213,42 @@ export async function GET() {
     .order("created_at", { ascending: false });
 
   if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    logSupabaseDiscountError("GET list ordered", error, queryPayload);
+
+    if (isSchemaCacheOrMissingTableError(error)) {
+      return NextResponse.json({
+        discounts: [],
+        warning:
+          "Tabella scontistiche non ancora disponibile nella schema cache. Applica la migration repair e ricarica la cache Supabase.",
+      });
+    }
+
+    const fallback = await supabase.from("subscription_discount_codes").select("*");
+
+    if (fallback.error) {
+      logSupabaseDiscountError("GET list fallback", fallback.error, { select: "*" });
+
+      if (isSchemaCacheOrMissingTableError(fallback.error)) {
+        return NextResponse.json({
+          discounts: [],
+          warning:
+            "Tabella scontistiche non ancora disponibile nella schema cache. Applica la migration repair e ricarica la cache Supabase.",
+        });
+      }
+
+      return NextResponse.json(
+        {
+          error: "Impossibile caricare le scontistiche.",
+          code: fallback.error.code,
+          message: fallback.error.message,
+          details: fallback.error.details,
+          hint: fallback.error.hint,
+        },
+        { status: 500 },
+      );
+    }
+
+    return NextResponse.json({ discounts: fallback.data ?? [] });
   }
 
   return NextResponse.json({ discounts: data ?? [] });

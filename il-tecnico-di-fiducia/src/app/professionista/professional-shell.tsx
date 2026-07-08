@@ -4,12 +4,13 @@ import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import type { ReactNode } from "react";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { SignOutButton } from "@/components/auth/sign-out-button";
 import { HeaderBackButton } from "@/components/navigation/header-back-button";
 import { Footer } from "@/components/site/footer";
 import { fetchJson } from "@/lib/api/fetch-json";
+import { createClient } from "@/lib/supabase/client";
 
 type ProfessionalShellProfile = {
   id: string;
@@ -226,6 +227,7 @@ function LogoWordmark() {
 }
 
 export default function ProfessionalShell({ profile, children }: ProfessionalShellProps) {
+  const supabase = useMemo(() => createClient(), []);
   const pathname = usePathname();
   const [shellProfile, setShellProfile] = useState(profile);
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -244,6 +246,17 @@ export default function ProfessionalShell({ profile, children }: ProfessionalShe
     [notifications],
   );
 
+  const loadNotifications = useCallback(async () => {
+    try {
+      const response = await fetchJson<NotificationsResponse>("/api/notifications?limit=10", {
+        method: "GET",
+      });
+      setNotifications(response.notifications ?? []);
+    } catch {
+      setNotifications([]);
+    }
+  }, []);
+
   useEffect(() => {
     function onAvatarUpdated(event: Event) {
       const avatarUrl = (event as CustomEvent<{ avatar_url?: string | null }>).detail
@@ -259,33 +272,36 @@ export default function ProfessionalShell({ profile, children }: ProfessionalShe
   }, []);
 
   useEffect(() => {
-    let mounted = true;
+    const handle = window.setTimeout(() => {
+      void loadNotifications();
+    }, 0);
 
-    fetchJson<NotificationsResponse>("/api/notifications?limit=10", { method: "GET" })
-      .then((response) => {
-        if (!mounted) return;
-        setNotifications(response.notifications ?? []);
-      })
-      .catch(() => {
-        if (!mounted) return;
-        setNotifications([]);
-      });
+    return () => window.clearTimeout(handle);
+  }, [loadNotifications]);
+
+  useEffect(() => {
+    if (!profile.id) return;
+
+    const channel = supabase
+      .channel(`db:notifications:${profile.id}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "notifications",
+          filter: `recipient_id=eq.${profile.id}`,
+        },
+        () => {
+          void loadNotifications();
+        },
+      )
+      .subscribe();
 
     return () => {
-      mounted = false;
+      supabase.removeChannel(channel);
     };
-  }, []);
-
-  async function loadNotifications() {
-    try {
-      const response = await fetchJson<NotificationsResponse>("/api/notifications?limit=10", {
-        method: "GET",
-      });
-      setNotifications(response.notifications ?? []);
-    } catch {
-      setNotifications([]);
-    }
-  }
+  }, [loadNotifications, profile.id, supabase]);
 
   useEffect(() => {
     if (!searchOpen) return;

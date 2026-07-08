@@ -47,6 +47,7 @@ export type ConversationsResponse = {
 export type ContactRequestSummary = {
   id: string;
   subject: string;
+  message?: string | null;
   status: RequestStatus;
   responded_at: string | null;
   created_at: string;

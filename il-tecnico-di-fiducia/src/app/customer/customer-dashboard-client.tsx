@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
 
@@ -8,6 +8,7 @@ import { SignOutButton } from "@/components/auth/sign-out-button";
 import { HeaderBackButton } from "@/components/navigation/header-back-button";
 import { Footer } from "@/components/site/footer";
 import { fetchJson } from "@/lib/api/fetch-json";
+import { createClient } from "@/lib/supabase/client";
 import type { ConversationRow, MeResponse } from "@/lib/types/chat";
 import {
   mergeProfessionCategories,
@@ -294,6 +295,7 @@ export default function CustomerDashboardClient({
   initialFilters,
   initialMessages,
 }: CustomerDashboardClientProps) {
+  const supabase = useMemo(() => createClient(), []);
   const [view, setView] = useState<"explore" | "messages">(initialMessages.initialView);
   const [messagesKey, setMessagesKey] = useState(0);
   const [activeConversationId, setActiveConversationId] = useState<string | null>(
@@ -407,7 +409,7 @@ export default function CustomerDashboardClient({
     }
   }
 
-  async function loadNotifications() {
+  const loadNotifications = useCallback(async () => {
     try {
       const res = await fetchJson<NotificationsResponse>("/api/notifications?limit=10", {
         method: "GET",
@@ -416,7 +418,7 @@ export default function CustomerDashboardClient({
     } catch {
       setNotifications([]);
     }
-  }
+  }, []);
 
   async function loadRequests() {
     setRequestsLoading(true);
@@ -523,6 +525,30 @@ export default function CustomerDashboardClient({
     return () => window.clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  useEffect(() => {
+    if (!profile.id) return;
+
+    const channel = supabase
+      .channel(`db:notifications:${profile.id}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "notifications",
+          filter: `recipient_id=eq.${profile.id}`,
+        },
+        () => {
+          void loadNotifications();
+        },
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [loadNotifications, profile.id, supabase]);
 
   useEffect(() => {
     if (searchDebounce.current) window.clearTimeout(searchDebounce.current);

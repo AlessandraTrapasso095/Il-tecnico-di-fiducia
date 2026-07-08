@@ -32,6 +32,7 @@ type MessagesClientProps = {
 type ContactRequestSummary = {
   id: string;
   subject: string;
+  message?: string | null;
   status: RequestStatus;
   responded_at: string | null;
   created_at: string;
@@ -58,6 +59,8 @@ type ReviewsMineResponse = {
 
 type PresencePayload = {
   user_id: string;
+  role: string | null;
+  active_conversation_id: string | null;
   online_at: string;
 };
 
@@ -965,12 +968,17 @@ export default function MessagesClient({
 
   const typingStopTimer = useRef<number | null>(null);
   const activePresenceTimer = useRef<number | null>(null);
+  const activityHeartbeatTimer = useRef<number | null>(null);
   const hasBroadcastTypingOn = useRef(false);
 
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
   const convChannelRef = useRef<RealtimeChannel | null>(null);
+  const convChannelConversationIdRef = useRef<string | null>(null);
   const presenceChannelRef = useRef<RealtimeChannel | null>(null);
+  const presenceChannelConversationIdRef = useRef<string | null>(null);
   const convListChannelRef = useRef<RealtimeChannel | null>(null);
+  const messageReloadTimersRef = useRef<Map<string, number>>(new Map());
+  const activeIdRef = useRef<string | null>(activeId);
   const conversationsRef = useRef<ConversationRow[]>(conversations);
 
   const filteredConversations = conversations.filter((c) => {
@@ -994,6 +1002,65 @@ export default function MessagesClient({
       next[idx] = { ...next[idx], ...patch };
       return sortConversations(next);
     });
+  }
+
+  function setConversationParticipantOnline(conversationId: string, online: boolean) {
+    setConversations((prev) =>
+      prev.map((conversation) =>
+        conversation.id === conversationId && conversation.participant
+          ? {
+              ...conversation,
+              participant: {
+                ...conversation.participant,
+                is_online: online,
+              },
+            }
+          : conversation,
+      ),
+    );
+  }
+
+  function scheduleMessagesReload(conversationId: string, delayMs = 150) {
+    const current = messageReloadTimersRef.current.get(conversationId);
+    if (current) {
+      window.clearTimeout(current);
+    }
+
+    const timer = window.setTimeout(() => {
+      messageReloadTimersRef.current.delete(conversationId);
+      if (activeIdRef.current !== conversationId) return;
+      void loadMessages(conversationId);
+    }, delayMs);
+
+    messageReloadTimersRef.current.set(conversationId, timer);
+  }
+
+  async function touchUserActivity() {
+    try {
+      await fetchJson<{ ok: true }>("/api/activity", { method: "POST" });
+    } catch {
+      // Best-effort heartbeat for server-side online/email decisions.
+    }
+  }
+
+  function clearConversationRealtime() {
+    stopTypingTimers();
+    if (convChannelRef.current) {
+      supabase.removeChannel(convChannelRef.current);
+      convChannelRef.current = null;
+      convChannelConversationIdRef.current = null;
+    }
+    if (presenceChannelRef.current) {
+      supabase.removeChannel(presenceChannelRef.current);
+      presenceChannelRef.current = null;
+      presenceChannelConversationIdRef.current = null;
+    }
+    if (activePresenceTimer.current) {
+      window.clearInterval(activePresenceTimer.current);
+      activePresenceTimer.current = null;
+    }
+    setRemoteOnline(false);
+    setRemoteTyping(false);
   }
 
   async function hydrateConversation(id: string) {
@@ -1261,14 +1328,33 @@ export default function MessagesClient({
     const body = draft.trim();
     if (!activeId || (!body && pendingFiles.length === 0)) return;
     if (!chatEnabled) return;
+
+    const conversationId = activeId;
+    const localId =
+      typeof crypto !== "undefined" && "randomUUID" in crypto
+        ? `local-${crypto.randomUUID()}`
+        : `local-${Date.now()}`;
+    const localMessage: MessageRow = {
+      id: localId,
+      conversation_id: conversationId,
+      sender_id: meId ?? "",
+      body: body || null,
+      created_at: new Date().toISOString(),
+      read_at: null,
+      attachments: [],
+    };
+
     setSendError(null);
     setSending(true);
+    setMessages((prev) => [...prev, localMessage]);
+    queueMicrotask(scrollToBottom);
+
     try {
       const formData = new FormData();
       formData.append("body", body);
       pendingFiles.forEach((file) => formData.append("files", file));
 
-      const response = await fetch(`/api/conversations/${activeId}/messages`, {
+      const response = await fetch(`/api/conversations/${conversationId}/messages`, {
         method: "POST",
         body: formData,
         credentials: "same-origin",
@@ -1287,15 +1373,17 @@ export default function MessagesClient({
       hasBroadcastTypingOn.current = false;
 
       setMessages((prev) => {
-        const next = [...prev];
-        if (!next.some((m) => m.id === res.message.id)) {
-          next.push(res.message);
+        const withoutLocal = prev.filter((message) => message.id !== localId);
+        if (withoutLocal.some((message) => message.id === res.message.id)) {
+          return withoutLocal.map((message) =>
+            message.id === res.message.id ? res.message : message,
+          );
         }
-        return next;
+        return [...withoutLocal, res.message];
       });
 
       applyConversationPatch({
-        id: activeId,
+        id: conversationId,
         last_message_at: res.message.created_at,
         last_message_body: res.message.body ?? (res.message.attachments?.length ? "Allegato" : null),
         last_message_sender_id: res.message.sender_id,
@@ -1303,6 +1391,7 @@ export default function MessagesClient({
 
       queueMicrotask(scrollToBottom);
     } catch (e) {
+      setMessages((prev) => prev.filter((message) => message.id !== localId));
       setSendError(e instanceof Error ? e.message : "Errore imprevisto.");
     } finally {
       setSending(false);
@@ -1316,14 +1405,7 @@ export default function MessagesClient({
     try {
       await fetchJson<{ ok: true }>(`/api/conversations/${activeId}`, { method: "DELETE" });
 
-      if (convChannelRef.current) {
-        supabase.removeChannel(convChannelRef.current);
-        convChannelRef.current = null;
-      }
-      if (presenceChannelRef.current) {
-        supabase.removeChannel(presenceChannelRef.current);
-        presenceChannelRef.current = null;
-      }
+      clearConversationRealtime();
 
       setConversations((prev) => prev.filter((c) => c.id !== activeId));
       setActiveId(null);
@@ -1387,81 +1469,103 @@ export default function MessagesClient({
   function setupConversationSubscriptions(conversationId: string, otherUserId: string) {
     if (!meId) return;
 
-    if (convChannelRef.current) {
+    if (
+      convChannelRef.current &&
+      convChannelConversationIdRef.current !== conversationId
+    ) {
       supabase.removeChannel(convChannelRef.current);
       convChannelRef.current = null;
+      convChannelConversationIdRef.current = null;
     }
     if (activePresenceTimer.current) {
       window.clearInterval(activePresenceTimer.current);
       activePresenceTimer.current = null;
     }
 
-    const msgChannel = supabase
-      .channel(`db:messages:${conversationId}`)
-      .on(
-        "postgres_changes",
-        {
-          event: "INSERT",
-          schema: "public",
-          table: "messages",
-          filter: `conversation_id=eq.${conversationId}`,
-        },
-        (payload: RealtimePostgresChangesPayload<MessageRow>) => {
-          const row = payload.new;
-          if (!row || typeof row !== "object" || !("id" in row)) return;
-          const message = row as MessageRow;
-          if (message.sender_id === meId) return;
-          window.setTimeout(() => {
-            void loadMessages(conversationId);
-            void markConversationRead(conversationId);
-          }, 250);
-          applyConversationPatch({
-            id: conversationId,
-            last_message_at: message.created_at,
-            last_message_body: message.body ?? "Allegato",
-            last_message_sender_id: message.sender_id,
-          });
-          queueMicrotask(scrollToBottom);
-        },
-      )
-      .on(
-        "postgres_changes",
-        {
-          event: "UPDATE",
-          schema: "public",
-          table: "messages",
-          filter: `conversation_id=eq.${conversationId}`,
-        },
-        (payload: RealtimePostgresChangesPayload<MessageRow>) => {
-          const row = payload.new;
-          if (!row || typeof row !== "object" || !("id" in row)) return;
-          const message = row as MessageRow;
-          setMessages((prev) =>
-            prev.map((item) =>
-              item.id === message.id ? { ...item, read_at: message.read_at } : item,
-            ),
-          );
-        },
-      )
-      .on(
-        "postgres_changes",
-        {
-          event: "*",
-          schema: "public",
-          table: "quotes",
-          filter: `conversation_id=eq.${conversationId}`,
-        },
-        () => {
-          void loadQuotes(conversationId);
-        },
-      )
-      .subscribe();
+    if (!convChannelRef.current) {
+      const msgChannel = supabase
+        .channel(`db:messages:${conversationId}`)
+        .on(
+          "postgres_changes",
+          {
+            event: "INSERT",
+            schema: "public",
+            table: "messages",
+            filter: `conversation_id=eq.${conversationId}`,
+          },
+          (payload: RealtimePostgresChangesPayload<MessageRow>) => {
+            const row = payload.new;
+            if (!row || typeof row !== "object" || !("id" in row)) return;
+            const message = row as MessageRow;
+            scheduleMessagesReload(conversationId, 120);
+            if (message.sender_id !== meId) {
+              void markConversationRead(conversationId);
+            }
+            applyConversationPatch({
+              id: conversationId,
+              last_message_at: message.created_at,
+              last_message_body: message.body ?? "Allegato",
+              last_message_sender_id: message.sender_id,
+            });
+            queueMicrotask(scrollToBottom);
+          },
+        )
+        .on(
+          "postgres_changes",
+          {
+            event: "*",
+            schema: "public",
+            table: "message_attachments",
+            filter: `conversation_id=eq.${conversationId}`,
+          },
+          () => {
+            scheduleMessagesReload(conversationId, 120);
+          },
+        )
+        .on(
+          "postgres_changes",
+          {
+            event: "UPDATE",
+            schema: "public",
+            table: "messages",
+            filter: `conversation_id=eq.${conversationId}`,
+          },
+          (payload: RealtimePostgresChangesPayload<MessageRow>) => {
+            const row = payload.new;
+            if (!row || typeof row !== "object" || !("id" in row)) return;
+            const message = row as MessageRow;
+            setMessages((prev) =>
+              prev.map((item) =>
+                item.id === message.id ? { ...item, read_at: message.read_at } : item,
+              ),
+            );
+          },
+        )
+        .on(
+          "postgres_changes",
+          {
+            event: "*",
+            schema: "public",
+            table: "quotes",
+            filter: `conversation_id=eq.${conversationId}`,
+          },
+          () => {
+            void loadQuotes(conversationId);
+          },
+        )
+        .subscribe();
 
-    convChannelRef.current = msgChannel;
+      convChannelRef.current = msgChannel;
+      convChannelConversationIdRef.current = conversationId;
+    }
 
-    if (presenceChannelRef.current) {
+    if (
+      presenceChannelRef.current &&
+      presenceChannelConversationIdRef.current !== conversationId
+    ) {
       supabase.removeChannel(presenceChannelRef.current);
       presenceChannelRef.current = null;
+      presenceChannelConversationIdRef.current = null;
     }
     if (activePresenceTimer.current) {
       window.clearInterval(activePresenceTimer.current);
@@ -1472,41 +1576,57 @@ export default function MessagesClient({
     setRemoteTyping(false);
     setRemoteOnline(false);
 
-    const presenceChannel = supabase
-      .channel(`conversation:${conversationId}`, {
-        config: { private: true, presence: { key: meId } },
-      })
-      .on("presence", { event: "sync" }, () => {
-        const state = presenceChannel.presenceState() as RealtimePresenceState<PresencePayload>;
-        const hasOther = Boolean(state[otherUserId]?.length);
-        setRemoteOnline(hasOther);
-      })
-      .on("presence", { event: "join" }, ({ key }) => {
-        if (key === otherUserId) {
-          setRemoteOnline(true);
-        }
-      })
-      .on("presence", { event: "leave" }, ({ key }) => {
-        if (key === otherUserId) {
-          setRemoteOnline(false);
-          setRemoteTyping(false);
-        }
-      })
-      .on("broadcast", { event: "typing" }, ({ payload }) => {
-        const p = payload as TypingPayload | undefined;
-        if (!p || p.user_id !== otherUserId) return;
-        setRemoteTyping(Boolean(p.is_typing));
-      })
-      .subscribe(async (status) => {
-        if (status === "SUBSCRIBED") {
-          await presenceChannel.track({
-            user_id: meId,
-            online_at: new Date().toISOString(),
-          } satisfies PresencePayload);
-        }
-      });
+    if (!presenceChannelRef.current) {
+      const presenceChannel = supabase
+        .channel(`conversation:${conversationId}`, {
+          config: { private: true, presence: { key: meId } },
+        })
+        .on("presence", { event: "sync" }, () => {
+          const state =
+            presenceChannel.presenceState() as RealtimePresenceState<PresencePayload>;
+          const hasOther = Boolean(state[otherUserId]?.length);
+          setRemoteOnline(hasOther);
+          setConversationParticipantOnline(conversationId, hasOther);
+        })
+        .on("presence", { event: "join" }, ({ key }) => {
+          if (key === otherUserId) {
+            setRemoteOnline(true);
+            setConversationParticipantOnline(conversationId, true);
+          }
+        })
+        .on("presence", { event: "leave" }, ({ key }) => {
+          if (key === otherUserId) {
+            setRemoteOnline(false);
+            setRemoteTyping(false);
+            setConversationParticipantOnline(conversationId, false);
+          }
+        })
+        .on("broadcast", { event: "typing" }, ({ payload }) => {
+          const p = payload as TypingPayload | undefined;
+          if (!p || p.user_id !== otherUserId) return;
+          setRemoteTyping(Boolean(p.is_typing));
+        })
+        .subscribe(async (status) => {
+          if (status === "SUBSCRIBED") {
+            await presenceChannel.track({
+              user_id: meId,
+              role,
+              active_conversation_id: conversationId,
+              online_at: new Date().toISOString(),
+            } satisfies PresencePayload);
+          }
+        });
 
-    presenceChannelRef.current = presenceChannel;
+      presenceChannelRef.current = presenceChannel;
+      presenceChannelConversationIdRef.current = conversationId;
+    } else {
+      void presenceChannelRef.current.track({
+        user_id: meId,
+        role,
+        active_conversation_id: conversationId,
+        online_at: new Date().toISOString(),
+      } satisfies PresencePayload);
+    }
     void touchActiveConversation(conversationId);
     activePresenceTimer.current = window.setInterval(() => {
       void touchActiveConversation(conversationId);
@@ -1531,6 +1651,7 @@ export default function MessagesClient({
       setBlockedChatNotice(
         "Chat non disponibile: il professionista non ha un abbonamento attivo.",
       );
+      clearConversationRealtime();
       return;
     }
 
@@ -1595,6 +1716,10 @@ export default function MessagesClient({
   useEffect(() => {
     conversationsRef.current = conversations;
   }, [conversations]);
+
+  useEffect(() => {
+    activeIdRef.current = activeId;
+  }, [activeId]);
 
   useEffect(() => {
     if (!meId || role !== "customer") return;
@@ -1671,17 +1796,40 @@ export default function MessagesClient({
     };
   }, [meId, role, activeId, supabase]);
 
+  useEffect(() => {
+    if (!meId || !role || role === "admin") return;
+    void touchUserActivity();
+    activityHeartbeatTimer.current = window.setInterval(() => {
+      void touchUserActivity();
+    }, 25000);
+
+    return () => {
+      if (activityHeartbeatTimer.current) {
+        window.clearInterval(activityHeartbeatTimer.current);
+        activityHeartbeatTimer.current = null;
+      }
+    };
+  }, [meId, role]);
+
   // Cleanup active chat channels on unmount.
   useEffect(() => {
+    const reloadTimers = messageReloadTimersRef.current;
+
     return () => {
+      for (const timer of reloadTimers.values()) {
+        window.clearTimeout(timer);
+      }
+      reloadTimers.clear();
       stopTypingTimers();
       if (convChannelRef.current) {
         supabase.removeChannel(convChannelRef.current);
         convChannelRef.current = null;
+        convChannelConversationIdRef.current = null;
       }
       if (presenceChannelRef.current) {
         supabase.removeChannel(presenceChannelRef.current);
         presenceChannelRef.current = null;
+        presenceChannelConversationIdRef.current = null;
       }
       if (activePresenceTimer.current) {
         window.clearInterval(activePresenceTimer.current);
@@ -1708,8 +1856,22 @@ export default function MessagesClient({
   const currentRequestId = activeDetail?.request?.id ?? null;
   const reviewAlreadySent = currentRequestId ? reviewedRequestIds.has(currentRequestId) : false;
   const timeline = useMemo(
-    () =>
-      [
+    () => {
+      const request = activeDetail?.request ?? null;
+      const requestItems =
+        request && (request.message || attachments.length > 0)
+          ? [
+              {
+                kind: "request" as const,
+                at: request.created_at,
+                request,
+                attachments,
+              },
+            ]
+          : [];
+
+      return [
+        ...requestItems,
         ...messages.map((message) => ({
           kind: "message" as const,
           at: message.created_at,
@@ -1720,8 +1882,9 @@ export default function MessagesClient({
           at: quote.created_at,
           quote,
         })),
-      ].sort((a, b) => a.at.localeCompare(b.at)),
-    [messages, quotes],
+      ].sort((a, b) => a.at.localeCompare(b.at));
+    },
+    [activeDetail?.request, attachments, messages, quotes],
   );
 
   function addPendingFiles(files: FileList | null) {
@@ -2066,28 +2229,56 @@ export default function MessagesClient({
                 </div>
               ) : null}
 
-              {attachments.length > 0 ? (
-                <div className="mx-auto max-w-[720px] rounded-2xl border border-outline-variant/30 bg-surface-container-lowest p-4 shadow-sm">
-                  <div className="mb-3 text-[11px] font-bold uppercase tracking-widest text-on-surface-variant">
-                    Allegati condivisi
-                  </div>
-                  <div className="grid gap-3 sm:grid-cols-2">
-                    {attachments.map((attachment) => (
-                      <div
-                        key={attachment.path}
-                        className="overflow-hidden rounded-2xl bg-surface-container-low p-2"
-                      >
-                        <AttachmentPreview
-                          attachment={attachment}
-                          onOpen={(item) => setMediaViewer(item)}
-                        />
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              ) : null}
-
               {timeline.map((item) => {
+                if (item.kind === "request") {
+                  const mine = role === "customer";
+                  return (
+                    <div
+                      key={`request-${item.request.id}`}
+                      className={["flex", mine ? "justify-end" : "justify-start"].join(" ")}
+                    >
+                      <div className="max-w-[70%]">
+                        <div
+                          className={[
+                            "px-4 py-3 rounded-2xl shadow-sm border",
+                            mine
+                              ? "bg-primary text-white border-primary/20 rounded-tr-none"
+                              : "bg-surface-container-lowest border-outline-variant/30 rounded-tl-none",
+                          ].join(" ")}
+                        >
+                          <div
+                            className={[
+                              "mb-2 text-[11px] font-bold uppercase tracking-widest",
+                              mine ? "text-white/70" : "text-on-surface-variant",
+                            ].join(" ")}
+                          >
+                            Richiesta iniziale
+                          </div>
+                          <p className="text-body-md leading-relaxed whitespace-pre-wrap break-words">
+                            {item.request.message || item.request.subject}
+                          </p>
+                          {item.attachments.map((attachment) => (
+                            <AttachmentPreview
+                              key={attachment.path}
+                              attachment={attachment}
+                              mine={mine}
+                              onOpen={(attachmentItem) => setMediaViewer(attachmentItem)}
+                            />
+                          ))}
+                        </div>
+                        <div
+                          className={[
+                            "mt-1 text-[10px] text-outline",
+                            mine ? "text-right" : "text-left",
+                          ].join(" ")}
+                        >
+                          {formatTime(item.request.created_at)}
+                        </div>
+                      </div>
+                    </div>
+                  );
+                }
+
                 if (item.kind === "quote") {
                   return (
                     <QuoteTimelineCard
@@ -2105,6 +2296,7 @@ export default function MessagesClient({
 
                 const m = item.message;
                 const mine = meId ? m.sender_id === meId : false;
+                const pending = m.id.startsWith("local-");
                 return (
                   <div
                     key={`message-${m.id}`}
@@ -2139,9 +2331,9 @@ export default function MessagesClient({
                           mine ? "text-right" : "text-left",
                         ].join(" ")}
                       >
-                        {formatTime(m.created_at)}
+                        {pending ? "Invio…" : formatTime(m.created_at)}
                       </div>
-                      {mine && m.read_at ? (
+                      {mine && !pending && m.read_at ? (
                         <div className="mt-0.5 text-right text-[10px] font-bold text-primary">
                           Messaggio visualizzato
                         </div>

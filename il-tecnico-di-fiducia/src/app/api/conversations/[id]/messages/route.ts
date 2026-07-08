@@ -311,10 +311,20 @@ export async function GET(
 
   const conversation = await getConversationForSend(id);
   if (!conversation) {
+    console.error("[messages] Conversation not found", {
+      conversationId: id,
+      userId: user.id,
+      role: profile.role,
+    });
     return NextResponse.json({ error: "Conversation not found" }, { status: 404 });
   }
 
   if (!canAccessConversation(conversation, user.id, profile.role)) {
+    console.error("[messages] Forbidden conversation read", {
+      conversationId: id,
+      userId: user.id,
+      role: profile.role,
+    });
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
@@ -398,6 +408,14 @@ export async function POST(
   if (!id) {
     return NextResponse.json({ error: "Missing id" }, { status: 400 });
   }
+  if (!UUID_PATTERN.test(id)) {
+    console.error("[messages] Invalid conversation id for send", {
+      conversationId: id,
+      userId: user.id,
+      role: profile.role,
+    });
+    return NextResponse.json({ error: "Invalid conversation id" }, { status: 400 });
+  }
 
   const contentType = request.headers.get("content-type") ?? "";
   let body = "";
@@ -430,10 +448,20 @@ export async function POST(
 
   const conversation = await getConversationForSend(id);
   if (!conversation) {
+    console.error("[messages] Conversation not found for send", {
+      conversationId: id,
+      userId: user.id,
+      role: profile.role,
+    });
     return NextResponse.json({ error: "Conversation not found" }, { status: 404 });
   }
 
   if (!canAccessConversation(conversation, user.id, profile.role)) {
+    console.error("[messages] Forbidden conversation send", {
+      conversationId: id,
+      userId: user.id,
+      role: profile.role,
+    });
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
