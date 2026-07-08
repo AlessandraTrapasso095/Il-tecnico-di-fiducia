@@ -18,6 +18,7 @@ const NAV_ITEMS = [
   { href: "/admin", label: "Dashboard", icon: "dashboard" },
   { href: "/admin/clienti", label: "Clienti", icon: "groups" },
   { href: "/admin/professionisti", label: "Professionisti", icon: "engineering" },
+  { href: "/admin/scontistiche", label: "Scontistiche", icon: "percent" },
   { href: "/admin/admin", label: "Admin", icon: "shield_person" },
   { href: "/admin/supporto", label: "Supporto", icon: "support_agent" },
   { href: "/admin/impostazioni", label: "Impostazioni", icon: "settings" },
@@ -107,7 +108,7 @@ export function AdminShell({ children, title, subtitle, adminName }: AdminShellP
         </div>
       </aside>
 
-      <nav className="fixed bottom-0 left-0 right-0 z-50 grid grid-cols-6 border-t border-outline-variant/30 bg-surface-container-lowest/90 px-2 py-2 backdrop-blur-xl lg:hidden">
+      <nav className="fixed bottom-0 left-0 right-0 z-50 grid grid-cols-7 border-t border-outline-variant/30 bg-surface-container-lowest/90 px-2 py-2 backdrop-blur-xl lg:hidden">
         {NAV_ITEMS.map((item) => {
           const active = isActive(pathname, item.href);
           return (

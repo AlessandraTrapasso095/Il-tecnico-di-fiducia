@@ -6,6 +6,7 @@ import {
   escapeHtml,
   sendTransactionalEmail,
 } from "@/lib/server/email";
+import { isProfessionalVisibleToCustomers } from "@/lib/server/professional-visibility";
 import { createServiceClient } from "@/lib/supabase/service";
 
 type UpdateQuotePayload = {
@@ -98,6 +99,13 @@ export async function PATCH(
   const currentQuote = current as QuoteRow | null;
   if (!currentQuote || currentQuote.client_id !== user.id) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
+  }
+
+  if (!(await isProfessionalVisibleToCustomers(currentQuote.professional_id))) {
+    return NextResponse.json(
+      { error: "Chat unavailable: professional subscription is not active" },
+      { status: 403 },
+    );
   }
 
   if (currentQuote.status !== "pending") {

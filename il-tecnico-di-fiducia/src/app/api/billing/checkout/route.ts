@@ -31,14 +31,15 @@ export async function POST(request: Request) {
       ...(stripeCustomerId
         ? { customer: stripeCustomerId }
         : { customer_email: user.email ?? undefined }),
+      allow_promotion_codes: true,
       line_items: [{ price: priceId, quantity: 1 }],
       subscription_data: {
         metadata: {
           professional_id: user.id,
         },
       },
-      success_url: `${baseUrl}/professionista/impostazioni/abbonamento?billing=success&session_id={CHECKOUT_SESSION_ID}`,
-      cancel_url: `${baseUrl}/professionista/impostazioni/abbonamento?billing=cancel`,
+      success_url: `${baseUrl}/professionista/abbonamento?billing=success&session_id={CHECKOUT_SESSION_ID}`,
+      cancel_url: `${baseUrl}/professionista/abbonamento?billing=cancel`,
     });
   } catch (err) {
     const message =

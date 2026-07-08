@@ -7,6 +7,10 @@ import {
   escapeHtml,
   sendTransactionalEmail,
 } from "@/lib/server/email";
+import {
+  isProfessionalVisibleToCustomers,
+  loadCustomerVisibleProfessionalIds,
+} from "@/lib/server/professional-visibility";
 import { createServiceClient } from "@/lib/supabase/service";
 
 type ContactRequestPayload = {
@@ -84,9 +88,11 @@ export async function GET(request: NextRequest) {
 
   if (profile.role === "customer") {
     const proIds = Array.from(new Set(rows.map((r) => r.professional_id)));
+    const service = createServiceClient();
+    const visibleIds = await loadCustomerVisibleProfessionalIds(proIds, service);
     const { data: pros } =
       proIds.length > 0
-        ? await supabase
+        ? await service
             .from("professional_directory")
             .select("id, first_name, last_name, province_code, avatar_url, headline")
             .in("id", proIds)
@@ -101,6 +107,7 @@ export async function GET(request: NextRequest) {
       requests: rows.map((r) => ({
         ...r,
         conversation_id: conversationIdByRequestId.get(r.id) ?? null,
+        professional_available: visibleIds.has(r.professional_id),
         participant: proById.get(r.professional_id) ?? null,
       })),
     });
@@ -175,6 +182,13 @@ export async function POST(request: Request) {
     return NextResponse.json(
       { error: "Subject and message are required" },
       { status: 400 },
+    );
+  }
+
+  if (!(await isProfessionalVisibleToCustomers(payload.professional_id))) {
+    return NextResponse.json(
+      { error: "Professional is not available" },
+      { status: 403 },
     );
   }
 

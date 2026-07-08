@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { requireAuth } from "@/lib/api/auth";
+import { isProfessionalVisibleToCustomers } from "@/lib/server/professional-visibility";
 
 export async function GET(
   _request: Request,
@@ -42,6 +43,13 @@ export async function GET(
     .maybeSingle();
 
   if (profile.role === "customer") {
+    if (!(await isProfessionalVisibleToCustomers(conversation.professional_id))) {
+      return NextResponse.json(
+        { error: "Chat unavailable: professional subscription is not active" },
+        { status: 403 },
+      );
+    }
+
     const { data: pro } = await supabase
       .from("professional_directory")
       .select("id, first_name, last_name, province_code, avatar_url, headline")

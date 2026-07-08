@@ -3,6 +3,7 @@ import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 import type { UserRole, ViewerProfile } from "@/lib/api/auth";
+import { isProfessionalVisibleToCustomers } from "@/lib/server/professional-visibility";
 import { createServiceClient } from "@/lib/supabase/service";
 
 export type ProfessionalProfileDetails = {
@@ -66,6 +67,13 @@ export async function loadProfessionalProfile({
   professionalId,
 }: LoadProfessionalProfileOptions) {
   const isOwner = viewer.role === "professional" && viewer.id === professionalId;
+
+  if (
+    viewer.role === "customer" &&
+    !(await isProfessionalVisibleToCustomers(professionalId))
+  ) {
+    return null;
+  }
 
   const { data: directory } = await supabase
     .from("professional_directory")

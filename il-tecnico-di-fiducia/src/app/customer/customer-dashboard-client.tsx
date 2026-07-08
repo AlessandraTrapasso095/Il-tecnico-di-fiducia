@@ -69,6 +69,7 @@ type ContactRequestRow = {
   created_at: string;
   updated_at: string;
   conversation_id: string | null;
+  professional_available?: boolean | null;
   participant: {
     id: string;
     first_name: string;
@@ -1424,6 +1425,11 @@ export default function CustomerDashboardClient({
                             <span className="text-xs text-outline">
                               {formatDate(r.updated_at ?? r.created_at)}
                             </span>
+                            {r.professional_available === false ? (
+                              <span className="inline-flex items-center rounded-full bg-error-container px-2 py-0.5 text-[10px] font-bold text-on-error-container">
+                                Chat non disponibile
+                              </span>
+                            ) : null}
                           </div>
                         </div>
                         <span className="material-symbols-outlined text-primary" aria-hidden>

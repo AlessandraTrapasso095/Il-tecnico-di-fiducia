@@ -14,6 +14,18 @@ Copy `.env.example` to `.env.local` and fill the values:
 
 Migrations live in `supabase/migrations/` and reference data lives in `supabase/seed/`.
 
+### Stripe subscriptions and discount codes
+
+Stripe subscription checkout uses `STRIPE_SECRET_KEY` and
+`STRIPE_PRO_SUBSCRIPTION_PRICE_ID` server-side only. Admin-created discount codes
+are generated as Stripe Coupons + Promotion Codes from `/admin/scontistiche` and
+stored in `public.subscription_discount_codes`.
+
+No additional Stripe environment variables are required for discount codes beyond
+the existing Stripe subscription values. Checkout has promotion codes enabled, so
+eligible professionals can enter the admin-created code directly in Stripe
+Checkout. Webhooks remain the source of truth for the subscription state.
+
 ### Admin area
 
 The admin area has a dedicated login at `/admin/login`; do not use the customer or

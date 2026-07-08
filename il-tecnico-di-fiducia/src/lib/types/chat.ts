@@ -36,6 +36,7 @@ export type ConversationRow = {
   created_at: string;
   updated_at: string;
   request_subject?: string | null;
+  professional_available?: boolean | null;
   participant?: Participant | null;
 };
 

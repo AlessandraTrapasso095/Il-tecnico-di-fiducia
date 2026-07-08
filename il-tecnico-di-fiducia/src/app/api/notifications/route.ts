@@ -86,6 +86,12 @@ function notificationHref(
     return "/customer";
   }
 
+  if (notification.entity_type === "subscription_discount_code") {
+    if (recipientRole === "professional") {
+      return "/professionista/abbonamento";
+    }
+  }
+
   if (recipientRole === "admin") return "/admin";
   return recipientRole === "professional" ? "/professionista" : "/customer";
 }

@@ -35,6 +35,14 @@ type SubscriptionResponse = {
     updated_at: string | null;
   } | null;
   is_active: boolean;
+  discount_code: {
+    id: string;
+    code: string;
+    title: string;
+    percent_off: number;
+    starts_at: string | null;
+    expires_at: string | null;
+  } | null;
 };
 
 type PostAuthor = {
@@ -447,6 +455,15 @@ export default function ProfessionalDashboardClient({
             </Link>
           </div>
         </div>
+        {!subscription?.is_active && subscription?.discount_code ? (
+          <div className="mt-5 rounded-2xl border border-[#FF8500]/25 bg-white/70 px-4 py-3 text-sm text-primary">
+            Usa il codice sconto{" "}
+            <span className="font-bold text-[#FF8500]">
+              “{subscription.discount_code.code}”
+            </span>{" "}
+            in fase di checkout per ricevere il {subscription.discount_code.percent_off}% di sconto.
+          </div>
+        ) : null}
       </section>
 
       {dashboardError ? (

@@ -160,6 +160,10 @@ function notificationText(notification: NotificationRow) {
       : "Il tuo ticket è stato segnato come risolto";
   }
 
+  if (notification.type === "subscription_discount_created") {
+    return "Hai ricevuto un codice sconto per l’abbonamento";
+  }
+
   return "Nuova notifica";
 }
 

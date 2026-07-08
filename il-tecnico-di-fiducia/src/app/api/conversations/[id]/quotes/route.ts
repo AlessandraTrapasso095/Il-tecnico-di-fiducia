@@ -7,6 +7,7 @@ import {
   escapeHtml,
   sendTransactionalEmail,
 } from "@/lib/server/email";
+import { isProfessionalVisibleToCustomers } from "@/lib/server/professional-visibility";
 import { createServiceClient } from "@/lib/supabase/service";
 
 type QuoteRow = {
@@ -231,7 +232,7 @@ export async function GET(
   const auth = await requireAuth();
   if (!auth.ok) return auth.response;
 
-  const { supabase } = auth.ctx;
+  const { supabase, profile } = auth.ctx;
   const { id } = await params;
 
   if (!id) {
@@ -240,7 +241,7 @@ export async function GET(
 
   const { data: conversation, error: conversationError } = await supabase
     .from("conversations")
-    .select("id")
+    .select("id, professional_id")
     .eq("id", id)
     .maybeSingle();
 
@@ -250,6 +251,16 @@ export async function GET(
 
   if (!conversation) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
+  }
+
+  if (
+    profile.role === "customer" &&
+    !(await isProfessionalVisibleToCustomers(conversation.professional_id))
+  ) {
+    return NextResponse.json(
+      { error: "Chat unavailable: professional subscription is not active" },
+      { status: 403 },
+    );
   }
 
   const context = await loadQuoteContext(id);
@@ -325,6 +336,13 @@ export async function POST(
 
   if (!conversation || conversation.professional_id !== user.id) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
+  }
+
+  if (!(await isProfessionalVisibleToCustomers(conversation.professional_id))) {
+    return NextResponse.json(
+      { error: "Chat unavailable: professional subscription is not active" },
+      { status: 403 },
+    );
   }
 
   if (conversation.status !== "accepted") {

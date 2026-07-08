@@ -2,6 +2,10 @@ import { NextResponse } from "next/server";
 
 import { requireAuth } from "@/lib/api/auth";
 import { attachProfessionalRatings } from "@/lib/server/professional-ratings";
+import {
+  isProfessionalVisibleToCustomers,
+  loadCustomerVisibleProfessionalIds,
+} from "@/lib/server/professional-visibility";
 
 type SavePayload = {
   professional_id: string;
@@ -43,12 +47,18 @@ export async function GET() {
     return NextResponse.json({ professionals: [] });
   }
 
+  const visibleIds = await loadCustomerVisibleProfessionalIds(ids);
+  const visibleOrderedIds = ids.filter((id) => visibleIds.has(id));
+  if (visibleOrderedIds.length === 0) {
+    return NextResponse.json({ professionals: [] });
+  }
+
   const { data: professionals, error: professionalsError } = await supabase
     .from("professional_directory")
     .select(
       "id, first_name, last_name, province_code, headline, specializations, avatar_url, available_remote, available_travel",
     )
-    .in("id", ids);
+    .in("id", visibleOrderedIds);
 
   if (professionalsError) {
     return NextResponse.json(
@@ -63,7 +73,7 @@ export async function GET() {
       professional,
     ]),
   );
-  const orderedProfessionals = ids
+  const orderedProfessionals = visibleOrderedIds
     .map((id) => byId.get(id))
     .filter((professional): professional is SavedProfessionalRow => Boolean(professional));
 
@@ -89,6 +99,13 @@ export async function POST(request: Request) {
     return NextResponse.json(
       { error: "professional_id is required" },
       { status: 400 },
+    );
+  }
+
+  if (!(await isProfessionalVisibleToCustomers(payload.professional_id))) {
+    return NextResponse.json(
+      { error: "Professional is not available" },
+      { status: 403 },
     );
   }
 

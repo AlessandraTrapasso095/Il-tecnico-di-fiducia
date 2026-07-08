@@ -16,6 +16,14 @@ type SubscriptionResponse = {
     updated_at: string | null;
   } | null;
   is_active: boolean;
+  discount_code: {
+    id: string;
+    code: string;
+    title: string;
+    percent_off: number;
+    starts_at: string | null;
+    expires_at: string | null;
+  } | null;
 };
 
 type SubscriptionSettingsClientProps = {
@@ -167,6 +175,20 @@ export default function SubscriptionSettingsClient({
                 </div>
               </div>
             </div>
+
+            {!subscription.is_active && subscription.discount_code ? (
+              <div className="mt-6 rounded-2xl border border-[#FF8500]/25 bg-white/70 px-5 py-4 text-primary">
+                <p className="font-label-md text-sm uppercase tracking-[0.14em] text-[#FF8500]">
+                  Codice sconto disponibile
+                </p>
+                <p className="mt-2 text-body-md">
+                  Usa il codice sconto{" "}
+                  <span className="font-bold">“{subscription.discount_code.code}”</span>{" "}
+                  in fase di checkout per ricevere il{" "}
+                  {subscription.discount_code.percent_off}% di sconto.
+                </p>
+              </div>
+            ) : null}
 
             <div className="mt-8 flex flex-col gap-3 sm:flex-row">
               {status === "stripe_active" ? (

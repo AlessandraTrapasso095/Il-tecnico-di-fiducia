@@ -3,6 +3,7 @@ import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 import type { ConversationRow, UserRole } from "@/lib/types/chat";
+import { loadCustomerVisibleProfessionalIds } from "@/lib/server/professional-visibility";
 import { createServiceClient } from "@/lib/supabase/service";
 
 type ListConversationsArgs = {
@@ -78,9 +79,10 @@ export async function listConversationsForViewer({
 
   if (role === "customer") {
     const proIds = Array.from(new Set(convs.map((c) => c.professional_id)));
+    const visibleIds = await loadCustomerVisibleProfessionalIds(proIds, service);
     const { data: pros } =
       proIds.length > 0
-        ? await supabase
+        ? await service
             .from("professional_directory")
             .select("id, first_name, last_name, province_code, avatar_url, headline")
             .in("id", proIds)
@@ -94,6 +96,7 @@ export async function listConversationsForViewer({
       const participant = proById.get(c.professional_id) ?? null;
       return {
         ...c,
+        professional_available: visibleIds.has(c.professional_id),
         participant: participant
           ? { ...participant, is_online: online.get(participant.id) ?? false }
           : null,

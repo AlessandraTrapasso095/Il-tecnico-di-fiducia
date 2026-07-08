@@ -1155,10 +1155,19 @@ export default function ProfessionalProfileClient({
                   editable={isOwner}
                   onEdit={() => openEdit("contact")}
                 >
-                  <div className="grid gap-3 sm:grid-cols-2">
-                    <InfoPill icon="phone" label="Telefono" value={profile.phone || "Non indicato"} />
-                    <InfoPill icon="mail" label="Email" value={contactEmail || "Non indicato"} />
-                  </div>
+                  {!profileAccess.can_view_contacts ? (
+                    <p className="mb-4 rounded-2xl bg-primary-fixed/45 p-4 text-sm text-on-primary-fixed-variant">
+                      {viewer.role === "customer"
+                        ? "I dati saranno visibili dopo l’accettazione della richiesta."
+                        : "I dati saranno visibili dopo aver seguito questo professionista."}
+                    </p>
+                  ) : null}
+                  <ContactInfoRows
+                    canView={profileAccess.can_view_contacts}
+                    phone={profile.phone}
+                    email={contactEmail}
+                    className="grid gap-3 sm:grid-cols-2"
+                  />
                 </SectionCard>
               </>
             ) : tab === "works" ? (
@@ -1221,16 +1230,13 @@ export default function ProfessionalProfileClient({
                     : "Visibili dopo aver seguito questo professionista."}
                 </p>
               ) : null}
-              <div
-                className={[
-                  "mt-5 space-y-3 text-left",
-                  profileAccess.can_view_contacts
-                    ? ""
-                    : "select-none opacity-35 blur-[2px]",
-                ].join(" ")}
-              >
-                <InfoPill icon="phone" label="Telefono" value={profile.phone || "—"} />
-                <InfoPill icon="mail" label="Email" value={contactEmail || "—"} />
+              <div className="mt-5">
+                <ContactInfoRows
+                  canView={profileAccess.can_view_contacts}
+                  phone={profile.phone}
+                  email={contactEmail}
+                  className="space-y-3 text-left"
+                />
               </div>
               {viewer.role === "customer" && !profileAccess.can_view_contacts ? (
                 <button
@@ -1487,6 +1493,50 @@ function InfoPill({ icon, label, value }: { icon: string; label: string; value: 
         <div className="text-xs text-on-surface-variant">{label}</div>
         <div className="truncate font-label-md text-primary">{value}</div>
       </div>
+    </div>
+  );
+}
+
+function ContactInfoRows({
+  canView,
+  phone,
+  email,
+  className,
+}: {
+  canView: boolean;
+  phone: string | null;
+  email: string | null;
+  className: string;
+}) {
+  if (canView) {
+    return (
+      <div className={className}>
+        <InfoPill icon="phone" label="Telefono" value={phone || "Non indicato"} />
+        <InfoPill icon="mail" label="Email" value={email || "Non indicato"} />
+      </div>
+    );
+  }
+
+  return (
+    <div
+      className="relative overflow-hidden rounded-2xl bg-surface-container-low/55 p-1"
+      aria-label="Dati di contatto oscurati"
+    >
+      <div
+        className={`${className} pointer-events-none select-none opacity-65 blur-[1.5px]`}
+        aria-hidden="true"
+      >
+        <InfoPill icon="phone" label="Telefono" value="••••••••••" />
+        <InfoPill icon="mail" label="Email" value="••••••@••••••.it" />
+      </div>
+      <div
+        className="pointer-events-none absolute inset-0 rounded-2xl bg-surface-container-lowest/20"
+        aria-hidden="true"
+      />
+      <div
+        className="pointer-events-none absolute inset-0 rounded-2xl ring-1 ring-outline-variant/30"
+        aria-hidden="true"
+      />
     </div>
   );
 }

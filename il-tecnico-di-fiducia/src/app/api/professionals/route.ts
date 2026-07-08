@@ -9,6 +9,7 @@ import {
   attachProfessionalRatings,
   type ProfessionalWithRating,
 } from "@/lib/server/professional-ratings";
+import { loadCustomerVisibleProfessionalIds } from "@/lib/server/professional-visibility";
 
 type ProfessionalDirectoryRow = {
   id: string;
@@ -229,7 +230,7 @@ export async function GET(request: NextRequest) {
   const auth = await requireAuth();
   if (!auth.ok) return auth.response;
 
-  const { supabase } = auth.ctx;
+  const { supabase, profile } = auth.ctx;
 
   const searchParams = request.nextUrl.searchParams;
 
@@ -249,6 +250,18 @@ export async function GET(request: NextRequest) {
   const rangeFrom = (page - 1) * pageSize;
   const rangeTo = rangeFrom + pageSize - 1;
   const q = query && query.trim().length > 0 ? sanitizeOrSearchQuery(query) : "";
+  const emptyResponse = {
+    page,
+    page_size: pageSize,
+    total: 0,
+    professionals: [],
+  };
+  const customerVisibleProfessionalIds =
+    profile.role === "customer" ? await loadCustomerVisibleProfessionalIds() : null;
+
+  if (customerVisibleProfessionalIds && customerVisibleProfessionalIds.size === 0) {
+    return NextResponse.json(emptyResponse);
+  }
 
   let selectedCategory: CategoryRow | null = null;
   let professionalIdsFromCategory: string[] | null = null;
@@ -287,6 +300,11 @@ export async function GET(request: NextRequest) {
     selectedCategory = (categoryResult.data as CategoryRow | null) ?? null;
     professionalIdsFromCategory =
       (mappingResult.data ?? []).map((m) => m.professional_id) ?? [];
+    if (customerVisibleProfessionalIds) {
+      professionalIdsFromCategory = professionalIdsFromCategory.filter((id) =>
+        customerVisibleProfessionalIds.has(id),
+      );
+    }
   } else if (categorySlugRaw) {
     const categorySlug = normalizeSearchText(categorySlugRaw).replace(/\s+/g, "-");
     if (categorySlug) {
@@ -327,19 +345,24 @@ export async function GET(request: NextRequest) {
     queryBuilder = queryBuilder.eq("available_travel", true);
   }
 
+  if (customerVisibleProfessionalIds) {
+    const idsForQuery = professionalIdsFromCategory ?? [...customerVisibleProfessionalIds];
+    if (idsForQuery.length === 0) {
+      return NextResponse.json(emptyResponse);
+    }
+    queryBuilder = queryBuilder.in("id", idsForQuery);
+  }
+
   const requiresLocalSearch =
     q.length > 0 || selectedCategory !== null || subcategory.length > 0;
 
   if (!requiresLocalSearch && professionalIdsFromCategory) {
     if (professionalIdsFromCategory.length === 0) {
-      return NextResponse.json({
-        page,
-        page_size: pageSize,
-        total: 0,
-        professionals: [],
-      });
+      return NextResponse.json(emptyResponse);
     }
-    queryBuilder = queryBuilder.in("id", professionalIdsFromCategory);
+    if (!customerVisibleProfessionalIds) {
+      queryBuilder = queryBuilder.in("id", professionalIdsFromCategory);
+    }
   }
 
   if (requiresLocalSearch) {

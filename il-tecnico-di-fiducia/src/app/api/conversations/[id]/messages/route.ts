@@ -13,6 +13,7 @@ import {
   escapeHtml,
   sendTransactionalEmail,
 } from "@/lib/server/email";
+import { isProfessionalVisibleToCustomers } from "@/lib/server/professional-visibility";
 import { createServiceClient } from "@/lib/supabase/service";
 import type { MessageAttachment, MessageRow } from "@/lib/types/chat";
 
@@ -164,6 +165,16 @@ async function getConversationForSend(conversationId: string) {
   return data ?? null;
 }
 
+function canAccessConversation(
+  conversation: Awaited<ReturnType<typeof getConversationForSend>>,
+  userId: string,
+  role: string,
+) {
+  if (!conversation) return false;
+  if (role === "admin") return true;
+  return conversation.customer_id === userId || conversation.professional_id === userId;
+}
+
 async function notifyMessageRecipient({
   conversationId,
   senderId,
@@ -298,6 +309,25 @@ export async function GET(
     role: profile.role,
   };
 
+  const conversation = await getConversationForSend(id);
+  if (!conversation) {
+    return NextResponse.json({ error: "Conversation not found" }, { status: 404 });
+  }
+
+  if (!canAccessConversation(conversation, user.id, profile.role)) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
+
+  if (
+    profile.role === "customer" &&
+    !(await isProfessionalVisibleToCustomers(conversation.professional_id))
+  ) {
+    return NextResponse.json(
+      { error: "Chat unavailable: professional subscription is not active" },
+      { status: 403 },
+    );
+  }
+
   let { data, error } = await supabase
     .from("messages")
     .select("id, conversation_id, sender_id, body, created_at, read_at")
@@ -398,18 +428,20 @@ export async function POST(
     return NextResponse.json({ error: `Max ${MAX_FILES} files` }, { status: 400 });
   }
 
-  const { data: conversation, error: conversationError } = await supabase
-    .from("conversations")
-    .select("id, status")
-    .eq("id", id)
-    .maybeSingle();
-
-  if (conversationError) {
-    return NextResponse.json({ error: "Failed to verify conversation" }, { status: 500 });
-  }
-
+  const conversation = await getConversationForSend(id);
   if (!conversation) {
     return NextResponse.json({ error: "Conversation not found" }, { status: 404 });
+  }
+
+  if (!canAccessConversation(conversation, user.id, profile.role)) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
+
+  if (!(await isProfessionalVisibleToCustomers(conversation.professional_id))) {
+    return NextResponse.json(
+      { error: "Chat unavailable: professional subscription is not active" },
+      { status: 403 },
+    );
   }
 
   if (conversation.status !== "accepted") {

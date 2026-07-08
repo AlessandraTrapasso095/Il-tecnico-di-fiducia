@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { requireAuth } from "@/lib/api/auth";
 import { isNonEmptyString } from "@/lib/api/validation";
 import { normalizeItalianProvinceCode } from "@/lib/locations/italian-provinces";
+import { isProfessionalVisibleToCustomers } from "@/lib/server/professional-visibility";
 
 type UpdateProfessionalPayload = {
   first_name?: string;
@@ -66,6 +67,13 @@ export async function GET(
   const { id } = await params;
   if (!id) {
     return NextResponse.json({ error: "Missing id" }, { status: 400 });
+  }
+
+  if (
+    profile.role === "customer" &&
+    !(await isProfessionalVisibleToCustomers(id))
+  ) {
+    return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
 
   const { data: professional, error: professionalError } = await supabase

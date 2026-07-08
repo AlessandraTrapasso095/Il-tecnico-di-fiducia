@@ -158,6 +158,13 @@ function isReadOnlyStatus(status: string | null | undefined) {
   );
 }
 
+function isUnavailableCustomerConversation(
+  role: string | null,
+  conversation: ConversationRow | null | undefined,
+) {
+  return role === "customer" && conversation?.professional_available === false;
+}
+
 function fileNameFromPath(path: string) {
   return decodeURIComponent(path.split("/").pop() ?? "allegato");
 }
@@ -922,6 +929,7 @@ export default function MessagesClient({
   const [messages, setMessages] = useState<MessageRow[]>([]);
   const [attachments, setAttachments] = useState<RequestAttachment[]>([]);
   const [messagesError, setMessagesError] = useState<string | null>(null);
+  const [blockedChatNotice, setBlockedChatNotice] = useState<string | null>(null);
   const [draft, setDraft] = useState("");
   const [pendingFiles, setPendingFiles] = useState<File[]>([]);
   const [mediaViewer, setMediaViewer] = useState<ViewableAttachment | null>(null);
@@ -1508,6 +1516,24 @@ export default function MessagesClient({
   function selectConversation(id: string) {
     if (!meId) return;
 
+    const conv = conversationsRef.current.find((c) => c.id === id) ?? null;
+    if (isUnavailableCustomerConversation(role, conv)) {
+      setMobilePanel("list");
+      setActiveId(null);
+      setActiveDetail(null);
+      setMessages([]);
+      setQuotes([]);
+      setQuoteContext(null);
+      setAttachments([]);
+      setPendingFiles([]);
+      setMessagesError(null);
+      setSendError(null);
+      setBlockedChatNotice(
+        "Chat non disponibile: il professionista non ha un abbonamento attivo.",
+      );
+      return;
+    }
+
     setMobilePanel("chat");
     setActiveId(id);
     setActiveDetail(null);
@@ -1517,6 +1543,7 @@ export default function MessagesClient({
     setAttachments([]);
     setPendingFiles([]);
     setMessagesError(null);
+    setBlockedChatNotice(null);
     setSendError(null);
     setQuoteError(null);
     setQuoteModalOpen(false);
@@ -1532,7 +1559,6 @@ export default function MessagesClient({
     setRemoteTyping(false);
     stopTypingTimers();
 
-    const conv = conversationsRef.current.find((c) => c.id === id) ?? null;
     const otherUserId = conv
       ? conv.customer_id === meId
         ? conv.professional_id
@@ -1770,14 +1796,20 @@ export default function MessagesClient({
           ) : (
             filteredConversations.map((c) => {
               const selected = c.id === activeId;
+              const unavailable = isUnavailableCustomerConversation(role, c);
               return (
                 <button
                   key={c.id}
                   type="button"
-                  onClick={() => selectConversation(c.id)}
+                  disabled={unavailable}
+                  onClick={() => {
+                    if (!unavailable) selectConversation(c.id);
+                  }}
                   className={[
                     "w-full text-left p-3 rounded-2xl border transition-all",
-                    selected
+                    unavailable
+                      ? "cursor-not-allowed border-outline-variant/30 bg-surface-container-highest/60 opacity-80"
+                      : selected
                       ? "bg-surface-container-high border-primary-container shadow-sm"
                       : "bg-surface-container-lowest border-outline-variant/30 hover:bg-surface-container",
                   ].join(" ")}
@@ -1792,8 +1824,17 @@ export default function MessagesClient({
                           {c.participant.headline}
                         </div>
                       ) : null}
-                      <div className="text-[12px] text-on-surface-variant truncate">
-                        {c.last_message_body ?? c.request_subject ?? "Richiesta di contatto"}
+                      <div
+                        className={[
+                          "text-[12px] truncate",
+                          unavailable
+                            ? "font-semibold text-on-error-container"
+                            : "text-on-surface-variant",
+                        ].join(" ")}
+                      >
+                        {unavailable
+                          ? "Chat non disponibile: il professionista non ha un abbonamento attivo"
+                          : c.last_message_body ?? c.request_subject ?? "Richiesta di contatto"}
                       </div>
                     </div>
                     <div className="shrink-0 text-[10px] text-outline">
@@ -1809,6 +1850,11 @@ export default function MessagesClient({
                     >
                       {statusLabel(c.status)}
                     </span>
+                    {unavailable ? (
+                      <span className="inline-flex items-center rounded-full bg-error-container px-2 py-0.5 text-[10px] font-bold text-on-error-container">
+                        Non disponibile
+                      </span>
+                    ) : null}
                   </div>
                 </button>
               );
@@ -1826,6 +1872,11 @@ export default function MessagesClient({
         {!activeId ? (
           <div className="flex-1 flex items-center justify-center p-6">
             <div className="max-w-[448px] text-center">
+              {blockedChatNotice ? (
+                <div className="mb-4 rounded-2xl border border-error/20 bg-error-container p-4 text-sm font-semibold text-on-error-container">
+                  {blockedChatNotice}
+                </div>
+              ) : null}
               <div className="text-headline-sm text-primary mb-2">
                 Seleziona una conversazione
               </div>
