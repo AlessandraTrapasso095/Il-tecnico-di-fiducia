@@ -1,12 +1,39 @@
 import type { ConversationRow, MeResponse, UserRole } from "@/lib/types/chat";
+import { AuthenticatedPresence } from "@/components/realtime/authenticated-presence";
 import { listConversationsForViewer } from "@/lib/server/conversations";
 import { createClient } from "@/lib/supabase/server";
+import { unstable_rethrow } from "next/navigation";
 
 import MessagesClient from "./messages-client";
 
 export const dynamic = "force-dynamic";
 
 type SearchParams = Promise<{ [key: string]: string | string[] | undefined }>;
+
+function serializeMessagesPageError(error: unknown) {
+  if (error instanceof Error) {
+    return {
+      name: error.name,
+      message: error.message,
+      stack: error.stack,
+      cause: error.cause,
+    };
+  }
+
+  if (error && typeof error === "object") {
+    const record = error as Record<string, unknown>;
+    return {
+      code: record.code,
+      message: record.message,
+      details: record.details,
+      hint: record.hint,
+      status: record.status,
+      raw: record,
+    };
+  }
+
+  return { error };
+}
 
 export default async function MessagesPage({
   searchParams,
@@ -85,17 +112,30 @@ export default async function MessagesPage({
       userId: user.id,
       role,
     });
-  } catch {
+  } catch (error) {
+    unstable_rethrow(error);
+    console.error("[messages/page] initial_conversations", {
+      conversation_id: initialActiveConversationId,
+      user_id: user.id,
+      role,
+      error: serializeMessagesPageError(error),
+    });
     initialConversationsError = "Impossibile caricare le conversazioni.";
   }
 
   return (
-    <MessagesClient
-      initialMe={initialMe}
-      initialMeError={initialMeError}
-      initialConversations={initialConversations}
-      initialConversationsError={initialConversationsError}
-      initialActiveConversationId={initialActiveConversationId}
-    />
+    <AuthenticatedPresence
+      userId={user.id}
+      role={role}
+      activeConversationId={initialActiveConversationId}
+    >
+      <MessagesClient
+        initialMe={initialMe}
+        initialMeError={initialMeError}
+        initialConversations={initialConversations}
+        initialConversationsError={initialConversationsError}
+        initialActiveConversationId={initialActiveConversationId}
+      />
+    </AuthenticatedPresence>
   );
 }

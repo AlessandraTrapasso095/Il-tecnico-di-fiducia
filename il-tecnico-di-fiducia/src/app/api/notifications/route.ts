@@ -2,6 +2,7 @@ import { NextResponse, type NextRequest } from "next/server";
 
 import { requireAuth } from "@/lib/api/auth";
 import { clampInt } from "@/lib/api/validation";
+import { logApiError } from "@/lib/server/api-logger";
 import { createServiceClient } from "@/lib/supabase/service";
 
 type MarkReadPayload = {
@@ -97,10 +98,11 @@ function notificationHref(
 }
 
 export async function GET(request: NextRequest) {
-  const auth = await requireAuth();
-  if (!auth.ok) return auth.response;
+  try {
+    const auth = await requireAuth();
+    if (!auth.ok) return auth.response;
 
-  const { supabase, user, profile } = auth.ctx;
+    const { supabase, user, profile } = auth.ctx;
 
   const limit = clampInt(request.nextUrl.searchParams.get("limit"), 50, 1, 200);
   const unreadOnly = request.nextUrl.searchParams.get("unread") === "true";
@@ -119,6 +121,13 @@ export async function GET(request: NextRequest) {
   const { data, error } = await builder;
 
   if (error) {
+    logApiError("NOTIFICATIONS ERROR", {
+      user_id: user.id,
+      role: profile.role,
+      query: "notifications select recipient list",
+      unread_only: unreadOnly,
+      error,
+    });
     return NextResponse.json(
       { error: "Failed to load notifications" },
       { status: 500 },
@@ -223,6 +232,17 @@ export async function GET(request: NextRequest) {
       };
     }),
   });
+  } catch (error) {
+    logApiError("NOTIFICATIONS ERROR", {
+      query: "GET /api/notifications",
+      search: request.nextUrl.search,
+      error,
+    });
+    return NextResponse.json(
+      { error: "Failed to load notifications" },
+      { status: 500 },
+    );
+  }
 }
 
 export async function PATCH(request: Request) {

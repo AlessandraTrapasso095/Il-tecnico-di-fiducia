@@ -14,6 +14,7 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation";
 
 import { SignOutButton } from "@/components/auth/sign-out-button";
 import { HeaderBackButton } from "@/components/navigation/header-back-button";
+import { AuthenticatedPresence } from "@/components/realtime/authenticated-presence";
 import { Footer } from "@/components/site/footer";
 import { fetchJson } from "@/lib/api/fetch-json";
 import { createClient } from "@/lib/supabase/client";
@@ -236,7 +237,7 @@ function notificationText(notification: NotificationRow) {
   }
 
   if (notification.type === "message_received") {
-    return `${actor} ti ha inviato un messaggio`;
+    return `Hai ricevuto un nuovo messaggio da ${actor}`;
   }
 
   if (notification.type === "quote_sent") {
@@ -447,7 +448,7 @@ export default function CustomerDashboardClient({
       });
       setNotifications(res.notifications ?? []);
     } catch {
-      setNotifications([]);
+      // Realtime inserts/updates must keep the badge coherent even if hydration fails.
     }
   }, []);
 
@@ -845,7 +846,12 @@ export default function CustomerDashboardClient({
     "https://images.pexels.com/photos/3184465/pexels-photo-3184465.jpeg?auto=compress&cs=tinysrgb&w=1800&h=900&fit=crop";
 
   return (
-    <div className="min-h-screen bg-surface text-on-surface">
+    <div className="flex min-h-screen flex-col bg-surface text-on-surface">
+      <AuthenticatedPresence
+        userId={profile.id}
+        role="customer"
+        activeConversationId={view === "messages" ? activeConversationId : null}
+      >
       <header className="fixed top-0 z-50 h-[92px] w-full bg-surface-container-lowest/88 shadow-sm backdrop-blur-md">
         <div className="mx-auto flex h-full w-full max-w-[1280px] items-center justify-between gap-3 px-4 sm:px-6">
           <div className="flex min-w-0 items-center gap-2">
@@ -1115,10 +1121,16 @@ export default function CustomerDashboardClient({
         </div>
       </header>
 
-      <main className="pt-[92px]">
+      <main
+        className={
+          view === "messages"
+            ? "flex h-[100dvh] min-h-0 flex-col overflow-hidden pt-[92px]"
+            : "pt-[92px]"
+        }
+      >
         {view === "messages" ? (
-          <section id="messaggi-cliente" className="px-4 py-4 sm:px-6">
-            <div className="mx-auto flex h-[calc(100vh-124px)] max-w-[1280px] flex-col overflow-hidden rounded-[28px] border border-outline-variant/30 bg-surface-container-lowest shadow-[0_4px_20px_rgba(8,43,95,0.08)]">
+          <section id="messaggi-cliente" className="flex min-h-0 flex-1 overflow-hidden px-4 py-4 sm:px-6">
+            <div className="mx-auto flex h-full min-h-0 flex-1 max-w-[1280px] flex-col overflow-hidden rounded-[28px] border border-outline-variant/30 bg-surface-container-lowest shadow-[0_4px_20px_rgba(8,43,95,0.08)]">
               <div className="flex flex-col gap-3 border-b border-outline-variant/30 p-4 sm:flex-row sm:items-center sm:justify-between">
                 <div>
                   <div className="font-headline-sm text-headline-sm text-primary">
@@ -1136,7 +1148,7 @@ export default function CustomerDashboardClient({
                   Torna a Cerca
                 </button>
               </div>
-              <div className="min-h-0 flex-1">
+              <div className="min-h-0 flex-1 overflow-hidden">
                 <MessagesClient
                   key={messagesKey}
                   embedded
@@ -1730,6 +1742,7 @@ export default function CustomerDashboardClient({
           </div>
         </div>
       ) : null}
+      </AuthenticatedPresence>
     </div>
   );
 }

@@ -12,11 +12,23 @@ export default async function ProfessionalAreaLayout({
   children: ReactNode;
 }) {
   const { supabase, profile } = await requirePageAuth({ allowedRoles: ["professional"] });
-  const { data: professionalProfile } = await supabase
+  const { data: professionalProfile, error: professionalProfileError } = await supabase
     .from("professional_profiles")
     .select("avatar_url")
     .eq("id", profile.id)
     .maybeSingle();
+
+  if (professionalProfileError) {
+    console.error("[professionista/layout] professional_profile_avatar", {
+      user_id: profile.id,
+      error: {
+        code: professionalProfileError.code,
+        message: professionalProfileError.message,
+        details: professionalProfileError.details,
+        hint: professionalProfileError.hint,
+      },
+    });
+  }
 
   return (
     <ProfessionalShell

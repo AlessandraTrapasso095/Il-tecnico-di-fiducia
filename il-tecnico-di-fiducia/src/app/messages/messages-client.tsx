@@ -2,9 +2,10 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 
-import type { RealtimeChannel, RealtimePresenceState } from "@supabase/supabase-js";
+import type { RealtimeChannel } from "@supabase/supabase-js";
 import type { RealtimePostgresChangesPayload } from "@supabase/realtime-js";
 
+import { useAuthenticatedPresence } from "@/components/realtime/authenticated-presence";
 import { ApiError, fetchJson } from "@/lib/api/fetch-json";
 import type {
   ConversationDetailResponse,
@@ -55,13 +56,6 @@ type AttachmentsResponse = {
 
 type ReviewsMineResponse = {
   reviews: { id: string; request_id: string }[];
-};
-
-type PresencePayload = {
-  user_id: string;
-  role: string | null;
-  active_conversation_id: string | null;
-  online_at: string;
 };
 
 type TypingPayload = {
@@ -191,6 +185,33 @@ function fileKindFromFile(file: File): "image" | "video" | "document" {
   return "document";
 }
 
+const UUID_PATTERN =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+function sortMessagesByDate(items: MessageRow[]) {
+  return [...items].sort((a, b) => a.created_at.localeCompare(b.created_at));
+}
+
+function mergeMessage(current: MessageRow[], incoming: MessageRow) {
+  const incomingAttachments = incoming.attachments ?? [];
+  const normalized: MessageRow = {
+    ...incoming,
+    attachments: incomingAttachments,
+  };
+  const index = current.findIndex((message) => message.id === normalized.id);
+  if (index === -1) {
+    return sortMessagesByDate([...current, normalized]);
+  }
+  const next = [...current];
+  next[index] = {
+    ...next[index],
+    ...normalized,
+    attachments:
+      incomingAttachments.length > 0 ? incomingAttachments : next[index].attachments ?? [],
+  };
+  return sortMessagesByDate(next);
+}
+
 function AttachmentPreview({
   attachment,
   mine,
@@ -206,11 +227,15 @@ function AttachmentPreview({
     return (
       <button
         type="button"
-        className="mt-3 block overflow-hidden rounded-2xl border border-outline-variant/30 bg-surface-container-lowest text-left"
+        className="mt-3 block max-w-[min(260px,70vw)] overflow-hidden rounded-xl border border-outline-variant/30 bg-surface-container-lowest text-left"
         onClick={() => onOpen(attachment)}
       >
         {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src={attachment.signed_url} alt={name} className="max-h-64 w-full object-cover" />
+        <img
+          src={attachment.signed_url}
+          alt={name}
+          className="h-auto max-h-[320px] w-full max-w-[min(260px,70vw)] object-cover"
+        />
       </button>
     );
   }
@@ -219,14 +244,14 @@ function AttachmentPreview({
     return (
       <div
         className={[
-          "mt-3 overflow-hidden rounded-2xl border bg-surface-container-lowest",
+          "mt-3 max-w-[min(300px,72vw)] overflow-hidden rounded-xl border bg-surface-container-lowest",
           mine ? "border-white/20" : "border-outline-variant/30",
         ].join(" ")}
       >
         <video
           src={attachment.signed_url}
           controls
-          className="max-h-64 w-full bg-inverse-surface object-contain"
+          className="h-auto max-h-[320px] w-full max-w-[min(300px,72vw)] bg-inverse-surface object-contain"
         />
         <button
           type="button"
@@ -811,7 +836,9 @@ function ReviewModal({
           </div>
 
           <label className="block">
-            <span className="mb-2 block text-sm font-bold text-primary">Titolo recensione</span>
+            <span className="mb-2 block text-sm font-bold text-primary">
+              Titolo recensione <span className="font-normal text-on-surface-variant">(opzionale)</span>
+            </span>
             <input
               type="text"
               value={title}
@@ -822,7 +849,9 @@ function ReviewModal({
           </label>
 
           <label className="block">
-            <span className="mb-2 block text-sm font-bold text-primary">Testo recensione</span>
+            <span className="mb-2 block text-sm font-bold text-primary">
+              Testo recensione <span className="font-normal text-on-surface-variant">(opzionale)</span>
+            </span>
             <textarea
               value={body}
               onChange={(event) => onBodyChange(event.target.value)}
@@ -909,6 +938,7 @@ export default function MessagesClient({
   embedded = false,
 }: MessagesClientProps) {
   const supabase = useMemo(() => createClient(), []);
+  const { isUserOnline, presenceReady } = useAuthenticatedPresence();
 
   const me = initialMe;
   const meError = initialMeError ?? null;
@@ -963,12 +993,10 @@ export default function MessagesClient({
   const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
 
-  const [remoteOnline, setRemoteOnline] = useState(false);
   const [remoteTyping, setRemoteTyping] = useState(false);
 
   const typingStopTimer = useRef<number | null>(null);
   const activePresenceTimer = useRef<number | null>(null);
-  const activityHeartbeatTimer = useRef<number | null>(null);
   const hasBroadcastTypingOn = useRef(false);
 
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
@@ -978,7 +1006,10 @@ export default function MessagesClient({
   const presenceChannelConversationIdRef = useRef<string | null>(null);
   const convListChannelRef = useRef<RealtimeChannel | null>(null);
   const messageReloadTimersRef = useRef<Map<string, number>>(new Map());
+  const loadMessagesRequestRef = useRef(0);
+  const markReadInFlightRef = useRef<Set<string>>(new Set());
   const activeIdRef = useRef<string | null>(activeId);
+  const messagesRef = useRef<MessageRow[]>(messages);
   const conversationsRef = useRef<ConversationRow[]>(conversations);
 
   const filteredConversations = conversations.filter((c) => {
@@ -1004,20 +1035,16 @@ export default function MessagesClient({
     });
   }
 
-  function setConversationParticipantOnline(conversationId: string, online: boolean) {
-    setConversations((prev) =>
-      prev.map((conversation) =>
-        conversation.id === conversationId && conversation.participant
-          ? {
-              ...conversation,
-              participant: {
-                ...conversation.participant,
-                is_online: online,
-              },
-            }
-          : conversation,
-      ),
-    );
+  function setMessagesSynced(updater: MessageRow[] | ((current: MessageRow[]) => MessageRow[])) {
+    setMessages((current) => {
+      const next =
+        typeof updater === "function"
+          ? (updater as (current: MessageRow[]) => MessageRow[])(current)
+          : updater;
+      const sorted = sortMessagesByDate(next);
+      messagesRef.current = sorted;
+      return sorted;
+    });
   }
 
   function scheduleMessagesReload(conversationId: string, delayMs = 150) {
@@ -1029,21 +1056,23 @@ export default function MessagesClient({
     const timer = window.setTimeout(() => {
       messageReloadTimersRef.current.delete(conversationId);
       if (activeIdRef.current !== conversationId) return;
-      void loadMessages(conversationId);
+      void loadMessages(conversationId, { background: true }).catch((error) => {
+        console.error("[messages] Failed to reload messages", {
+          error,
+          conversationId,
+          userId: meId,
+        });
+      });
     }, delayMs);
 
     messageReloadTimersRef.current.set(conversationId, timer);
   }
 
-  async function touchUserActivity() {
-    try {
-      await fetchJson<{ ok: true }>("/api/activity", { method: "POST" });
-    } catch {
-      // Best-effort heartbeat for server-side online/email decisions.
-    }
-  }
-
   function clearConversationRealtime() {
+    const activePresenceConversationId = presenceChannelConversationIdRef.current;
+    if (activePresenceConversationId) {
+      void clearActiveConversationPresence(activePresenceConversationId);
+    }
     stopTypingTimers();
     if (convChannelRef.current) {
       supabase.removeChannel(convChannelRef.current);
@@ -1059,7 +1088,6 @@ export default function MessagesClient({
       window.clearInterval(activePresenceTimer.current);
       activePresenceTimer.current = null;
     }
-    setRemoteOnline(false);
     setRemoteTyping(false);
   }
 
@@ -1069,16 +1097,16 @@ export default function MessagesClient({
       const detail = await fetchJson<ConversationDetailResponse>(`/api/conversations/${id}`, {
         method: "GET",
       });
+      const hydratedConversation: ConversationRow = {
+        ...detail.conversation,
+        participant: detail.participant ?? null,
+        request_subject: detail.request?.subject ?? null,
+      };
       setConversations((prev) => {
         if (prev.some((c) => c.id === id)) return prev;
-        return sortConversations([
-          ...prev,
-          {
-            ...detail.conversation,
-            participant: detail.participant ?? null,
-            request_subject: detail.request?.subject ?? null,
-          },
-        ]);
+        const next = sortConversations([...prev, hydratedConversation]);
+        conversationsRef.current = next;
+        return next;
       });
       setConversationsError(null);
     } catch (e) {
@@ -1086,7 +1114,23 @@ export default function MessagesClient({
     }
   }
 
-  async function loadMessages(id: string) {
+  async function loadMessages(
+    id: string,
+    options: { background?: boolean } = {},
+  ): Promise<MessageRow[]> {
+    if (!id || !UUID_PATTERN.test(id)) {
+      console.error("[messages] Failed to load messages", {
+        error: "Invalid conversation id",
+        conversationId: id,
+        userId: meId,
+      });
+      if (!options.background) {
+        setMessagesError("Conversazione non valida.");
+      }
+      return [];
+    }
+
+    const requestId = ++loadMessagesRequestRef.current;
     const url = `/api/conversations/${id}/messages?limit=200`;
     const response = await fetch(url, {
       method: "GET",
@@ -1103,17 +1147,28 @@ export default function MessagesClient({
         status: response.status,
         body: payload,
         conversationId: id,
+        userId: meId,
       });
-      throw new ApiError(
-        (payload as { error?: string } | null)?.error ?? `Request failed (${response.status})`,
-        response.status,
-      );
+      if (options.background) {
+        return messagesRef.current;
+      }
+      const message =
+        (payload as { error?: string } | null)?.error ?? `Request failed (${response.status})`;
+      throw new ApiError(message, response.status);
     }
 
     const data = payload as MessagesResponse;
-    setMessages(data.messages ?? []);
+    const nextMessages = sortMessagesByDate(data.messages ?? []);
+    if (activeIdRef.current && activeIdRef.current !== id) {
+      return nextMessages;
+    }
+    if (requestId !== loadMessagesRequestRef.current && activeIdRef.current === id) {
+      return nextMessages;
+    }
+    setMessagesSynced(nextMessages);
     queueMicrotask(scrollToBottom);
     setMessagesError(null);
+    return nextMessages;
   }
 
   async function loadQuotes(id: string) {
@@ -1238,17 +1293,46 @@ export default function MessagesClient({
     }
   }
 
-  async function markConversationRead(id: string) {
+  async function markConversationRead(id: string, candidateMessages?: MessageRow[]) {
+    if (!meId || !id) return;
+    const source =
+      candidateMessages ??
+      messagesRef.current.filter((message) => message.conversation_id === id);
+    const hasUnreadIncoming = source.some(
+      (message) =>
+        !message.id.startsWith("local-") && message.sender_id !== meId && !message.read_at,
+    );
+    if (!hasUnreadIncoming || markReadInFlightRef.current.has(id)) return;
+
+    markReadInFlightRef.current.add(id);
     try {
       await fetchJson<{ ok: true }>(`/api/conversations/${id}/read`, { method: "POST" });
+      const readAt = new Date().toISOString();
+      setMessagesSynced((current) =>
+        current.map((message) =>
+          message.conversation_id === id && message.sender_id !== meId && !message.read_at
+            ? { ...message, read_at: readAt }
+            : message,
+        ),
+      );
     } catch {
       // Read receipts are best-effort and should never block the chat UI.
+    } finally {
+      markReadInFlightRef.current.delete(id);
     }
   }
 
   async function touchActiveConversation(id: string) {
     try {
       await fetchJson<{ ok: true }>(`/api/conversations/${id}/presence`, { method: "POST" });
+    } catch {
+      // Active-chat presence is best-effort.
+    }
+  }
+
+  async function clearActiveConversationPresence(id: string) {
+    try {
+      await fetchJson<{ ok: true }>(`/api/conversations/${id}/presence`, { method: "DELETE" });
     } catch {
       // Active-chat presence is best-effort.
     }
@@ -1277,18 +1361,18 @@ export default function MessagesClient({
       }
     } catch (e) {
       setActiveDetail(null);
-      setMessages([]);
+      setMessagesSynced([]);
       setAttachments([]);
       setMessagesError(e instanceof Error ? e.message : "Errore imprevisto.");
       return;
     }
 
     try {
-      await loadMessages(id);
+      const loadedMessages = await loadMessages(id);
       void loadQuotes(id);
-      void markConversationRead(id);
+      void markConversationRead(id, loadedMessages);
     } catch (e) {
-      setMessages([]);
+      setMessagesSynced([]);
       setMessagesError(e instanceof Error ? e.message : "Errore imprevisto.");
     }
   }
@@ -1346,7 +1430,7 @@ export default function MessagesClient({
 
     setSendError(null);
     setSending(true);
-    setMessages((prev) => [...prev, localMessage]);
+    setMessagesSynced((prev) => [...prev, localMessage]);
     queueMicrotask(scrollToBottom);
 
     try {
@@ -1372,7 +1456,7 @@ export default function MessagesClient({
       setPendingFiles([]);
       hasBroadcastTypingOn.current = false;
 
-      setMessages((prev) => {
+      setMessagesSynced((prev) => {
         const withoutLocal = prev.filter((message) => message.id !== localId);
         if (withoutLocal.some((message) => message.id === res.message.id)) {
           return withoutLocal.map((message) =>
@@ -1391,7 +1475,7 @@ export default function MessagesClient({
 
       queueMicrotask(scrollToBottom);
     } catch (e) {
-      setMessages((prev) => prev.filter((message) => message.id !== localId));
+      setMessagesSynced((prev) => prev.filter((message) => message.id !== localId));
       setSendError(e instanceof Error ? e.message : "Errore imprevisto.");
     } finally {
       setSending(false);
@@ -1409,8 +1493,9 @@ export default function MessagesClient({
 
       setConversations((prev) => prev.filter((c) => c.id !== activeId));
       setActiveId(null);
+      activeIdRef.current = null;
       setActiveDetail(null);
-      setMessages([]);
+      setMessagesSynced([]);
       setMobilePanel("list");
       setConfirmDeleteOpen(false);
       setMenuOpen(false);
@@ -1497,9 +1582,10 @@ export default function MessagesClient({
             const row = payload.new;
             if (!row || typeof row !== "object" || !("id" in row)) return;
             const message = row as MessageRow;
-            scheduleMessagesReload(conversationId, 120);
+            setMessagesSynced((current) => mergeMessage(current, message));
+            scheduleMessagesReload(conversationId, 250);
             if (message.sender_id !== meId) {
-              void markConversationRead(conversationId);
+              void markConversationRead(conversationId, [message]);
             }
             applyConversationPatch({
               id: conversationId,
@@ -1519,7 +1605,7 @@ export default function MessagesClient({
             filter: `conversation_id=eq.${conversationId}`,
           },
           () => {
-            scheduleMessagesReload(conversationId, 120);
+            scheduleMessagesReload(conversationId, 150);
           },
         )
         .on(
@@ -1534,11 +1620,27 @@ export default function MessagesClient({
             const row = payload.new;
             if (!row || typeof row !== "object" || !("id" in row)) return;
             const message = row as MessageRow;
-            setMessages((prev) =>
+            setMessagesSynced((prev) =>
               prev.map((item) =>
-                item.id === message.id ? { ...item, read_at: message.read_at } : item,
+                item.id === message.id
+                  ? { ...item, ...message, attachments: item.attachments ?? [] }
+                  : item,
               ),
             );
+          },
+        )
+        .on(
+          "postgres_changes",
+          {
+            event: "DELETE",
+            schema: "public",
+            table: "messages",
+            filter: `conversation_id=eq.${conversationId}`,
+          },
+          (payload: RealtimePostgresChangesPayload<MessageRow>) => {
+            const row = payload.old as Partial<MessageRow> | null;
+            if (!row?.id) return;
+            setMessagesSynced((prev) => prev.filter((message) => message.id !== row.id));
           },
         )
         .on(
@@ -1563,6 +1665,10 @@ export default function MessagesClient({
       presenceChannelRef.current &&
       presenceChannelConversationIdRef.current !== conversationId
     ) {
+      const previousPresenceConversationId = presenceChannelConversationIdRef.current;
+      if (previousPresenceConversationId) {
+        void clearActiveConversationPresence(previousPresenceConversationId);
+      }
       supabase.removeChannel(presenceChannelRef.current);
       presenceChannelRef.current = null;
       presenceChannelConversationIdRef.current = null;
@@ -1574,58 +1680,21 @@ export default function MessagesClient({
 
     stopTypingTimers();
     setRemoteTyping(false);
-    setRemoteOnline(false);
 
     if (!presenceChannelRef.current) {
       const presenceChannel = supabase
         .channel(`conversation:${conversationId}`, {
-          config: { private: true, presence: { key: meId } },
-        })
-        .on("presence", { event: "sync" }, () => {
-          const state =
-            presenceChannel.presenceState() as RealtimePresenceState<PresencePayload>;
-          const hasOther = Boolean(state[otherUserId]?.length);
-          setRemoteOnline(hasOther);
-          setConversationParticipantOnline(conversationId, hasOther);
-        })
-        .on("presence", { event: "join" }, ({ key }) => {
-          if (key === otherUserId) {
-            setRemoteOnline(true);
-            setConversationParticipantOnline(conversationId, true);
-          }
-        })
-        .on("presence", { event: "leave" }, ({ key }) => {
-          if (key === otherUserId) {
-            setRemoteOnline(false);
-            setRemoteTyping(false);
-            setConversationParticipantOnline(conversationId, false);
-          }
+          config: { private: true },
         })
         .on("broadcast", { event: "typing" }, ({ payload }) => {
           const p = payload as TypingPayload | undefined;
           if (!p || p.user_id !== otherUserId) return;
           setRemoteTyping(Boolean(p.is_typing));
         })
-        .subscribe(async (status) => {
-          if (status === "SUBSCRIBED") {
-            await presenceChannel.track({
-              user_id: meId,
-              role,
-              active_conversation_id: conversationId,
-              online_at: new Date().toISOString(),
-            } satisfies PresencePayload);
-          }
-        });
+        .subscribe();
 
       presenceChannelRef.current = presenceChannel;
       presenceChannelConversationIdRef.current = conversationId;
-    } else {
-      void presenceChannelRef.current.track({
-        user_id: meId,
-        role,
-        active_conversation_id: conversationId,
-        online_at: new Date().toISOString(),
-      } satisfies PresencePayload);
     }
     void touchActiveConversation(conversationId);
     activePresenceTimer.current = window.setInterval(() => {
@@ -1640,8 +1709,9 @@ export default function MessagesClient({
     if (isUnavailableCustomerConversation(role, conv)) {
       setMobilePanel("list");
       setActiveId(null);
+      activeIdRef.current = null;
       setActiveDetail(null);
-      setMessages([]);
+      setMessagesSynced([]);
       setQuotes([]);
       setQuoteContext(null);
       setAttachments([]);
@@ -1657,8 +1727,9 @@ export default function MessagesClient({
 
     setMobilePanel("chat");
     setActiveId(id);
+    activeIdRef.current = id;
     setActiveDetail(null);
-    setMessages([]);
+    setMessagesSynced([]);
     setQuotes([]);
     setQuoteContext(null);
     setAttachments([]);
@@ -1676,7 +1747,6 @@ export default function MessagesClient({
     setDeleteError(null);
     setMenuOpen(false);
     setConfirmDeleteOpen(false);
-    setRemoteOnline(false);
     setRemoteTyping(false);
     stopTypingTimers();
 
@@ -1716,6 +1786,10 @@ export default function MessagesClient({
   useEffect(() => {
     conversationsRef.current = conversations;
   }, [conversations]);
+
+  useEffect(() => {
+    messagesRef.current = messages;
+  }, [messages]);
 
   useEffect(() => {
     activeIdRef.current = activeId;
@@ -1796,26 +1870,15 @@ export default function MessagesClient({
     };
   }, [meId, role, activeId, supabase]);
 
-  useEffect(() => {
-    if (!meId || !role || role === "admin") return;
-    void touchUserActivity();
-    activityHeartbeatTimer.current = window.setInterval(() => {
-      void touchUserActivity();
-    }, 25000);
-
-    return () => {
-      if (activityHeartbeatTimer.current) {
-        window.clearInterval(activityHeartbeatTimer.current);
-        activityHeartbeatTimer.current = null;
-      }
-    };
-  }, [meId, role]);
-
   // Cleanup active chat channels on unmount.
   useEffect(() => {
     const reloadTimers = messageReloadTimersRef.current;
 
     return () => {
+      const activePresenceConversationId = presenceChannelConversationIdRef.current;
+      if (activePresenceConversationId) {
+        void clearActiveConversationPresence(activePresenceConversationId);
+      }
       for (const timer of reloadTimers.values()) {
         window.clearTimeout(timer);
       }
@@ -1848,10 +1911,16 @@ export default function MessagesClient({
     null;
   const chatEnabled = currentRequestStatus === "accepted";
   const chatReadOnly = isReadOnlyStatus(currentRequestStatus);
-  const participantOnline =
-    remoteOnline ||
+  const participantId =
+    activeDetail?.participant?.id ?? activeConvListRow?.participant?.id ?? null;
+  const initialParticipantOnline =
     Boolean(activeDetail?.participant?.is_online) ||
     Boolean(activeConvListRow?.participant?.is_online);
+  const participantOnline = participantId
+    ? presenceReady
+      ? isUserOnline(participantId)
+      : initialParticipantOnline
+    : false;
   const canSendMessage = chatEnabled && !sending && (Boolean(draft.trim()) || pendingFiles.length > 0);
   const currentRequestId = activeDetail?.request?.id ?? null;
   const reviewAlreadySent = currentRequestId ? reviewedRequestIds.has(currentRequestId) : false;
@@ -1903,7 +1972,7 @@ export default function MessagesClient({
   return (
     <main
       className={[
-        embedded ? "h-full min-h-[560px]" : "h-screen",
+        embedded ? "h-full min-h-0" : "h-[100dvh] min-h-0",
         "flex flex-col overflow-hidden bg-background md:flex-row",
       ].join(" ")}
     >
@@ -2346,7 +2415,7 @@ export default function MessagesClient({
               <div ref={messagesEndRef} />
             </div>
 
-            <footer className="border-t border-outline-variant/30 bg-surface-container-lowest p-4">
+            <footer className="shrink-0 border-t border-outline-variant/30 bg-surface-container-lowest p-4">
               {sendError ? (
                 <div className="mb-3 p-3 text-sm text-on-error-container bg-error-container rounded-xl border border-error/20">
                   {sendError}

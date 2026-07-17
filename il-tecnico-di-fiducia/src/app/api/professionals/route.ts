@@ -5,6 +5,7 @@ import { requireAuth } from "@/lib/api/auth";
 import { clampInt } from "@/lib/api/validation";
 import { ITALIAN_PROVINCES_BY_NAME } from "@/lib/locations/italian-provinces";
 import { PROFESSION_CATEGORIES } from "@/lib/professions/taxonomy";
+import { logApiError } from "@/lib/server/api-logger";
 import {
   attachProfessionalRatings,
   type ProfessionalWithRating,
@@ -227,6 +228,7 @@ async function loadProfessionalCategoryLookup(
 }
 
 export async function GET(request: NextRequest) {
+  try {
   const auth = await requireAuth();
   if (!auth.ok) return auth.response;
 
@@ -284,6 +286,13 @@ export async function GET(request: NextRequest) {
     ]);
 
     if (mappingResult.error) {
+      logApiError("PROFESSIONALS ERROR", {
+        user_id: auth.ctx.user.id,
+        role: profile.role,
+        query: "professional_categories select professional_id by category_id",
+        category_id: categoryId,
+        error: mappingResult.error,
+      });
       return NextResponse.json(
         { error: "Failed to filter by category" },
         { status: 500 },
@@ -291,6 +300,13 @@ export async function GET(request: NextRequest) {
     }
 
     if (categoryResult.error) {
+      logApiError("PROFESSIONALS ERROR", {
+        user_id: auth.ctx.user.id,
+        role: profile.role,
+        query: "categories select id, name, slug by id",
+        category_id: categoryId,
+        error: categoryResult.error,
+      });
       return NextResponse.json(
         { error: "Failed to load category" },
         { status: 500 },
@@ -315,6 +331,13 @@ export async function GET(request: NextRequest) {
         .maybeSingle();
 
       if (categoryError) {
+        logApiError("PROFESSIONALS ERROR", {
+          user_id: auth.ctx.user.id,
+          role: profile.role,
+          query: "categories select id, name, slug by slug",
+          category_slug: categorySlug,
+          error: categoryError,
+        });
         return NextResponse.json(
           { error: "Failed to load category" },
           { status: 500 },
@@ -371,6 +394,13 @@ export async function GET(request: NextRequest) {
       .limit(MAX_LOCAL_SEARCH_CANDIDATES);
 
     if (error) {
+      logApiError("PROFESSIONALS ERROR", {
+        user_id: auth.ctx.user.id,
+        role: profile.role,
+        query: "professional_directory local search candidates",
+        search: request.nextUrl.search,
+        error,
+      });
       return NextResponse.json(
         { error: "Failed to load professionals" },
         { status: 500 },
@@ -445,6 +475,13 @@ export async function GET(request: NextRequest) {
       .limit(200);
 
     if (error) {
+      logApiError("PROFESSIONALS ERROR", {
+        user_id: auth.ctx.user.id,
+        role: profile.role,
+        query: "professional_directory recommended",
+        search: request.nextUrl.search,
+        error,
+      });
       return NextResponse.json(
         { error: "Failed to load professionals" },
         { status: 500 },
@@ -498,6 +535,13 @@ export async function GET(request: NextRequest) {
     .range(rangeFrom, rangeTo);
 
   if (error) {
+    logApiError("PROFESSIONALS ERROR", {
+      user_id: auth.ctx.user.id,
+      role: profile.role,
+      query: "professional_directory paginated",
+      search: request.nextUrl.search,
+      error,
+    });
     return NextResponse.json(
       { error: "Failed to load professionals" },
       { status: 500 },
@@ -513,4 +557,15 @@ export async function GET(request: NextRequest) {
       ((data ?? []) as ProfessionalDirectoryRow[]),
     ),
   });
+  } catch (error) {
+    logApiError("PROFESSIONALS ERROR", {
+      query: "GET /api/professionals",
+      search: request.nextUrl.search,
+      error,
+    });
+    return NextResponse.json(
+      { error: "Failed to load professionals" },
+      { status: 500 },
+    );
+  }
 }

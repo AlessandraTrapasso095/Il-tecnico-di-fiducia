@@ -232,11 +232,9 @@ function canAccessConversation(
 async function notifyMessageRecipient({
   conversationId,
   senderId,
-  body,
 }: {
   conversationId: string;
   senderId: string;
-  body: string | null;
 }) {
   const service = createServiceClient();
   const conversation = await getConversationForSend(conversationId);
@@ -294,7 +292,7 @@ async function notifyMessageRecipient({
   }
 
   const activeWindowMs = 45 * 1000;
-  const onlineWindowMs = 2 * 60 * 1000;
+  const onlineWindowMs = 60 * 1000;
   const activeAt = active?.active_at ?? null;
   const lastSeenAt = activity?.last_seen_at ?? null;
   const recipientActiveInChat =
@@ -304,13 +302,35 @@ async function notifyMessageRecipient({
 
   if (recipientActiveInChat) return;
 
-  const { error: notificationError } = await service.from("notifications").insert({
-    recipient_id: recipientId,
-    actor_id: senderId,
-    type: "message_received",
-    entity_type: "conversation",
-    entity_id: conversationId,
-  });
+  const { data: existingNotification, error: existingNotificationError } = await service
+    .from("notifications")
+    .select("id")
+    .eq("recipient_id", recipientId)
+    .eq("actor_id", senderId)
+    .eq("type", "message_received")
+    .eq("entity_type", "conversation")
+    .eq("entity_id", conversationId)
+    .is("read_at", null)
+    .maybeSingle();
+
+  if (existingNotificationError) {
+    console.error("[messages] Failed to check existing message notification", {
+      conversationId,
+      senderId,
+      recipientId,
+      error: errorDetails(existingNotificationError),
+    });
+  }
+
+  const { error: notificationError } = existingNotification?.id
+    ? { error: null }
+    : await service.from("notifications").insert({
+        recipient_id: recipientId,
+        actor_id: senderId,
+        type: "message_received",
+        entity_type: "conversation",
+        entity_id: conversationId,
+      });
 
   if (notificationError) {
     console.error("[messages] Failed to create message notification", {
@@ -335,8 +355,6 @@ async function notifyMessageRecipient({
     recipient?.role === "professional"
       ? `${baseUrl}/professionista/messaggi?conversation=${encodeURIComponent(conversationId)}`
       : `${baseUrl}/customer?section=messages&conversation=${encodeURIComponent(conversationId)}`;
-  const preview = body?.trim() || "Ti ha inviato un allegato.";
-
   try {
     await sendTransactionalEmail({
       to: recipient?.email,
@@ -344,8 +362,7 @@ async function notifyMessageRecipient({
       text: [
         `Ciao ${recipientName},`,
         "",
-        `${senderName} ti ha inviato un messaggio:`,
-        preview,
+        `${senderName} ti ha inviato un nuovo messaggio sulla piattaforma.`,
         "",
         `Apri la chat: ${href}`,
       ].join("\n"),
@@ -354,9 +371,6 @@ async function notifyMessageRecipient({
           <h2 style="color:#002654">Nuovo messaggio</h2>
           <p>Ciao ${escapeHtml(recipientName)},</p>
           <p><strong>${escapeHtml(senderName)}</strong> ti ha inviato un messaggio.</p>
-          <div style="margin:18px 0;padding:16px;border-radius:14px;background:#f1f3ff">
-            ${escapeHtml(preview).replaceAll("\n", "<br />")}
-          </div>
           <p>
             <a href="${escapeHtml(href)}" style="display:inline-block;background:#FF8500;color:#fff;text-decoration:none;padding:12px 20px;border-radius:999px;font-weight:700">
               Apri chat
@@ -703,7 +717,6 @@ export async function POST(
     await notifyMessageRecipient({
       conversationId: id,
       senderId: user.id,
-      body,
     });
   } catch (error) {
     logMessageSendError("notify_recipient_non_blocking", logContext, error);

@@ -4,6 +4,7 @@ import type { SupabaseClient, User } from "@supabase/supabase-js";
 import { NextResponse } from "next/server";
 
 import { createClient } from "@/lib/supabase/server";
+import { logApiError } from "@/lib/server/api-logger";
 
 export type UserRole = "customer" | "professional" | "admin";
 
@@ -38,7 +39,22 @@ type RequireAuthResult =
 export async function requireAuth(
   options: RequireAuthOptions = {},
 ): Promise<RequireAuthResult> {
-  const supabase = await createClient();
+  let supabase: SupabaseClient;
+  try {
+    supabase = await createClient();
+  } catch (error) {
+    logApiError("AUTH ERROR", {
+      stage: "create_client",
+      error,
+    });
+    return {
+      ok: false,
+      response: NextResponse.json(
+        { error: "Failed to initialize auth" },
+        { status: 500 },
+      ),
+    };
+  }
 
   const {
     data: { user },
@@ -46,6 +62,12 @@ export async function requireAuth(
   } = await supabase.auth.getUser();
 
   if (userError || !user) {
+    if (userError && userError.name !== "AuthSessionMissingError") {
+      logApiError("AUTH ERROR", {
+        stage: "get_user",
+        error: userError,
+      });
+    }
     return {
       ok: false,
       response: NextResponse.json({ error: "Unauthorized" }, { status: 401 }),
@@ -57,6 +79,10 @@ export async function requireAuth(
   );
 
   if (activeError) {
+    logApiError("AUTH ERROR", {
+      stage: "is_active_user",
+      error: activeError,
+    });
     return {
       ok: false,
       response: NextResponse.json(
@@ -84,6 +110,11 @@ export async function requireAuth(
     .maybeSingle();
 
   if (profileError || !profile) {
+    logApiError("AUTH ERROR", {
+      stage: "profiles_maybe_single",
+      user_id: user.id,
+      error: profileError ?? new Error("Profile not found"),
+    });
     return {
       ok: false,
       response: NextResponse.json(
@@ -119,8 +150,12 @@ export async function requireAuth(
   // Never block API requests on presence tracking.
   try {
     await supabase.rpc("touch_user_activity");
-  } catch {
-    // ignore
+  } catch (error) {
+    logApiError("AUTH ERROR", {
+      stage: "touch_user_activity_non_blocking",
+      user_id: user.id,
+      error,
+    });
   }
 
   return {

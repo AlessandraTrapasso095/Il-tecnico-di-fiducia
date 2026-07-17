@@ -67,7 +67,7 @@ export async function listConversationsForViewer({
       .select("user_id, last_seen_at")
       .in("user_id", uniqueIds);
 
-    const onlineWindowMs = 2 * 60 * 1000;
+    const onlineWindowMs = 60 * 1000;
     return new Map(
       (data ?? []).map((row) => [
         row.user_id,

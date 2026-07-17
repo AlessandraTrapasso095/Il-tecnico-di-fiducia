@@ -8,6 +8,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { SignOutButton } from "@/components/auth/sign-out-button";
 import { HeaderBackButton } from "@/components/navigation/header-back-button";
+import { AuthenticatedPresence } from "@/components/realtime/authenticated-presence";
 import { Footer } from "@/components/site/footer";
 import { fetchJson } from "@/lib/api/fetch-json";
 import { createClient } from "@/lib/supabase/client";
@@ -132,7 +133,7 @@ function notificationText(notification: NotificationRow) {
   }
 
   if (notification.type === "message_received") {
-    return `${actor} ti ha inviato un messaggio`;
+    return `Hai ricevuto un nuovo messaggio da ${actor}`;
   }
 
   if (notification.type === "quote_accepted") {
@@ -144,7 +145,7 @@ function notificationText(notification: NotificationRow) {
   }
 
   if (notification.type === "review_created") {
-    return `${actor} ha lasciato una recensione`;
+    return `${actor} ti ha lasciato una recensione`;
   }
 
   if (notification.type === "support_ticket_replied") {
@@ -266,11 +267,6 @@ export default function ProfessionalShell({ profile, children }: ProfessionalShe
     () => notifications.filter((notification) => !notification.read_at).length,
     [notifications],
   );
-  const currentRelativeUrl = useMemo(() => {
-    const query = searchParams.toString();
-    return query ? `${pathname}?${query}` : pathname;
-  }, [pathname, searchParams]);
-
   const loadNotifications = useCallback(async () => {
     try {
       const response = await fetchJson<NotificationsResponse>("/api/notifications?limit=10", {
@@ -278,7 +274,7 @@ export default function ProfessionalShell({ profile, children }: ProfessionalShe
       });
       setNotifications(response.notifications ?? []);
     } catch {
-      setNotifications([]);
+      // Realtime inserts/updates must keep the badge coherent even if hydration fails.
     }
   }, []);
 
@@ -318,6 +314,7 @@ export default function ProfessionalShell({ profile, children }: ProfessionalShe
 
     const target = new URL(notification.href, window.location.origin);
     const targetRelativeUrl = `${target.pathname}${target.search}`;
+    const currentRelativeUrl = `${window.location.pathname}${window.location.search}`;
 
     if (targetRelativeUrl === currentRelativeUrl) {
       event.preventDefault();
@@ -521,6 +518,15 @@ export default function ProfessionalShell({ profile, children }: ProfessionalShe
 
   return (
     <div className="min-h-screen bg-background text-on-background">
+      <AuthenticatedPresence
+        userId={profile.id}
+        role="professional"
+        activeConversationId={
+          pathname.startsWith("/professionista/messaggi")
+            ? searchParams.get("conversation")
+            : null
+        }
+      >
       <header className="fixed left-0 right-0 top-0 z-50 h-20 border-b border-outline-variant/30 bg-surface-container-lowest/90 backdrop-blur-md">
         <div className="mx-auto flex h-full max-w-[1440px] items-center justify-between gap-4 px-4 sm:px-6 lg:px-8">
           <div className="flex items-center gap-3">
@@ -735,7 +741,7 @@ export default function ProfessionalShell({ profile, children }: ProfessionalShe
       ) : null}
 
       <div className="pt-20 lg:flex lg:items-start">
-        <aside className="sticky top-20 hidden h-[calc(100vh-80px)] w-[280px] shrink-0 flex-col border-r border-outline-variant/30 bg-surface-container-low px-4 py-6 lg:flex">
+        <aside className="sticky top-20 hidden h-[calc(100dvh-80px)] w-[280px] shrink-0 flex-col border-r border-outline-variant/30 bg-surface-container-low px-4 py-6 lg:flex">
           <div className="mb-8 px-2">
             <p className="font-headline-sm text-[22px] text-primary">Il Tecnico</p>
             <p className="font-label-md text-[12px] text-on-surface-variant">
@@ -745,9 +751,10 @@ export default function ProfessionalShell({ profile, children }: ProfessionalShe
           {sidebar}
         </aside>
 
-        <main className="min-h-[calc(100vh-80px)] min-w-0 flex-1">{children}</main>
+        <main className="min-h-[calc(100dvh-80px)] min-w-0 flex-1">{children}</main>
       </div>
       <Footer />
+      </AuthenticatedPresence>
     </div>
   );
 }

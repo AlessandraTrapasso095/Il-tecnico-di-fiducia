@@ -2,6 +2,7 @@ import { NextResponse, type NextRequest } from "next/server";
 
 import { requireAuth } from "@/lib/api/auth";
 import { clampInt, isNonEmptyString } from "@/lib/api/validation";
+import { logApiError } from "@/lib/server/api-logger";
 import {
   appBaseUrl,
   escapeHtml,
@@ -27,10 +28,11 @@ function isValidStatus(
 }
 
 export async function GET(request: NextRequest) {
-  const auth = await requireAuth();
-  if (!auth.ok) return auth.response;
+  try {
+    const auth = await requireAuth();
+    if (!auth.ok) return auth.response;
 
-  const { supabase, user, profile } = auth.ctx;
+    const { supabase, user, profile } = auth.ctx;
 
   const searchParams = request.nextUrl.searchParams;
   const statusFilter = searchParams.get("status");
@@ -65,22 +67,39 @@ export async function GET(request: NextRequest) {
 
   const { data: requests, error, count } = await builder;
 
-  if (error) {
-    return NextResponse.json(
-      { error: "Failed to load requests" },
-      { status: 500 },
-    );
-  }
+    if (error) {
+      logApiError("CONTACT_REQUESTS ERROR", {
+        user_id: user.id,
+        role: profile.role,
+        query: "contact_requests select list",
+        status_filter: statusFilter,
+        error,
+      });
+      return NextResponse.json(
+        { error: "Failed to load requests" },
+        { status: 500 },
+      );
+    }
 
   const rows = requests ?? [];
   const requestIds = rows.map((r) => r.id);
 
-  const { data: conversations } = requestIds.length
-    ? await supabase
-        .from("conversations")
-        .select("id, request_id")
-        .in("request_id", requestIds)
-    : { data: [] };
+    const { data: conversations, error: conversationsError } = requestIds.length
+      ? await supabase
+          .from("conversations")
+          .select("id, request_id")
+          .in("request_id", requestIds)
+      : { data: [], error: null };
+
+    if (conversationsError) {
+      logApiError("CONTACT_REQUESTS ERROR", {
+        user_id: user.id,
+        role: profile.role,
+        query: "conversations select id, request_id by request ids",
+        request_count: requestIds.length,
+        error: conversationsError,
+      });
+    }
 
   const conversationIdByRequestId = new Map(
     (conversations ?? []).map((c) => [c.request_id, c.id]),
@@ -138,15 +157,26 @@ export async function GET(request: NextRequest) {
   }
 
   // Admin (or unexpected role): return bare rows.
-  return NextResponse.json({
-    page,
-    page_size: pageSize,
-    total: count ?? 0,
-    requests: rows.map((r) => ({
-      ...r,
-      conversation_id: conversationIdByRequestId.get(r.id) ?? null,
-    })),
-  });
+    return NextResponse.json({
+      page,
+      page_size: pageSize,
+      total: count ?? 0,
+      requests: rows.map((r) => ({
+        ...r,
+        conversation_id: conversationIdByRequestId.get(r.id) ?? null,
+      })),
+    });
+  } catch (error) {
+    logApiError("CONTACT_REQUESTS ERROR", {
+      query: "GET /api/contact-requests",
+      search: request.nextUrl.search,
+      error,
+    });
+    return NextResponse.json(
+      { error: "Failed to load requests" },
+      { status: 500 },
+    );
+  }
 }
 
 export async function POST(request: Request) {
