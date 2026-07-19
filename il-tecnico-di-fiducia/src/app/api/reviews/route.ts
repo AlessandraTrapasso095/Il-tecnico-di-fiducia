@@ -7,6 +7,7 @@ import {
 } from "@/lib/api/file-signatures";
 import { clampInt, isNonEmptyString, sanitizeFileName } from "@/lib/api/validation";
 import { logApiError } from "@/lib/server/api-logger";
+import { notifyReviewReceived } from "@/lib/server/review-notifications";
 import { createServiceClient } from "@/lib/supabase/service";
 
 type CreateReviewPayload = {
@@ -435,44 +436,17 @@ export async function POST(request: NextRequest) {
   }
 
   try {
-    const service = createServiceClient();
-    const { data: existingNotification, error: existingNotificationError } = await service
-      .from("notifications")
-      .select("id")
-      .eq("recipient_id", data.professional_id)
-      .eq("actor_id", data.customer_id)
-      .eq("type", "review_created")
-      .eq("entity_type", "review")
-      .eq("entity_id", data.id)
-      .maybeSingle();
-
-    if (existingNotificationError) {
-      logApiError("reviews", {
-        query: "notifications select existing review_created",
-        userId: user.id,
-        error: existingNotificationError,
-      });
-    }
-
-    if (!existingNotification?.id) {
-      const { error: notificationError } = await service.from("notifications").insert({
-        recipient_id: data.professional_id,
-        actor_id: data.customer_id,
-        type: "review_created",
-        entity_type: "review",
-        entity_id: data.id,
-      });
-
-      if (notificationError) {
-        logApiError("reviews", {
-          query: "notifications insert review_created",
-          userId: user.id,
-          error: notificationError,
-        });
-      }
-    }
+    await notifyReviewReceived({
+      service: createServiceClient(),
+      review: data,
+    });
   } catch (notificationError) {
-    console.error("[reviews] Failed to create review notification", notificationError);
+    console.error("[reviews] Failed to start review notification side effects", {
+      review_id: data.id,
+      error: notificationError,
+      message: notificationError instanceof Error ? notificationError.message : null,
+      stack: notificationError instanceof Error ? notificationError.stack : null,
+    });
   }
 
   const uploadedAttachments: ReturnType<typeof reviewAttachmentResponse>[] = [];

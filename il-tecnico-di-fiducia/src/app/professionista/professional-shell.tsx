@@ -144,8 +144,12 @@ function notificationText(notification: NotificationRow) {
     return `${actor} ha rifiutato il tuo preventivo`;
   }
 
-  if (notification.type === "review_created") {
-    return `${actor} ti ha lasciato una recensione`;
+  if (notification.type === "review_received" || notification.type === "review_created") {
+    return `${actor} ti ha lasciato una recensione.`;
+  }
+
+  if (notification.type === "review_replied") {
+    return `${actor} ha risposto alla tua recensione.`;
   }
 
   if (notification.type === "support_ticket_replied") {
@@ -242,6 +246,12 @@ function professionalNotificationFallbackHref(notification: NotificationRealtime
 
   if (notification.entity_type === "support_ticket" && notification.entity_id) {
     return `/professionista/supporto?ticket=${notification.entity_id}`;
+  }
+
+  if (notification.entity_type === "review") {
+    return notification.entity_id
+      ? `/professionista/profilo?tab=reviews&review=${notification.entity_id}`
+      : "/professionista/profilo?tab=reviews";
   }
 
   return "/professionista";
@@ -366,7 +376,6 @@ export default function ProfessionalShell({ profile, children }: ProfessionalShe
               current.filter((notification) => notification.id !== deleted.id),
             );
           }
-          void loadNotifications();
         },
       )
       .subscribe();
@@ -374,7 +383,7 @@ export default function ProfessionalShell({ profile, children }: ProfessionalShe
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [loadNotifications, mergeRealtimeNotification, profile.id, supabase]);
+  }, [mergeRealtimeNotification, profile.id, supabase]);
 
   useEffect(() => {
     if (!searchOpen) return;

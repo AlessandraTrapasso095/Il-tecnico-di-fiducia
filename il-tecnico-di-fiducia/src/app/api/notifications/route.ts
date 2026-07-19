@@ -68,7 +68,19 @@ function notificationHref(
   }
 
   if (notification.entity_type === "review") {
-    return "/professionista/profilo?tab=reviews";
+    const reviewQuery = notification.entity_id
+      ? `?tab=reviews&review=${encodeURIComponent(notification.entity_id)}`
+      : "?tab=reviews";
+
+    if (recipientRole === "customer" && notification.actor_id) {
+      return `/professionisti/${notification.actor_id}${reviewQuery}`;
+    }
+
+    if (recipientRole === "professional") {
+      return `/professionista/profilo${reviewQuery}`;
+    }
+
+    return `/professionista/profilo${reviewQuery}`;
   }
 
   if (notification.entity_type === "support_ticket") {

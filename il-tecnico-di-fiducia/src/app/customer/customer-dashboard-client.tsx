@@ -244,6 +244,14 @@ function notificationText(notification: NotificationRow) {
     return `${actor} ti ha inviato un preventivo`;
   }
 
+  if (notification.type === "review_replied") {
+    return `${actor} ha risposto alla tua recensione.`;
+  }
+
+  if (notification.type === "review_received" || notification.type === "review_created") {
+    return `${actor} ti ha lasciato una recensione.`;
+  }
+
   if (notification.type === "support_ticket_replied") {
     return notification.entity?.subject
       ? `Hai ricevuto una risposta al ticket: ${notification.entity.subject}`
@@ -310,6 +318,12 @@ function customerNotificationFallbackHref(notification: NotificationRealtimeRow)
 
   if (notification.entity_type === "contact_request") {
     return "/customer?section=messages";
+  }
+
+  if (notification.entity_type === "review" && notification.actor_id) {
+    return notification.entity_id
+      ? `/professionisti/${notification.actor_id}?tab=reviews&review=${notification.entity_id}`
+      : `/professionisti/${notification.actor_id}?tab=reviews`;
   }
 
   return "/customer";
@@ -649,7 +663,6 @@ export default function CustomerDashboardClient({
               current.filter((notification) => notification.id !== deleted.id),
             );
           }
-          void loadNotifications();
         },
       )
       .subscribe();
@@ -657,7 +670,7 @@ export default function CustomerDashboardClient({
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [loadNotifications, mergeRealtimeNotification, profile.id, supabase]);
+  }, [mergeRealtimeNotification, profile.id, supabase]);
 
   useEffect(() => {
     if (searchDebounce.current) window.clearTimeout(searchDebounce.current);

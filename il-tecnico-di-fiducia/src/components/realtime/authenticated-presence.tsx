@@ -2,6 +2,7 @@
 
 import {
   createContext,
+  useCallback,
   useContext,
   useEffect,
   useMemo,
@@ -27,7 +28,7 @@ type PresencePayload = {
   online_at: string;
 };
 
-const HEARTBEAT_INTERVAL_MS = 30_000;
+const HEARTBEAT_INTERVAL_MS = 60_000;
 const GLOBAL_PRESENCE_CHANNEL = "presence:authenticated-users";
 const EMPTY_ONLINE_USER_IDS = new Set<string>();
 
@@ -35,12 +36,14 @@ type AuthenticatedPresenceContextValue = {
   onlineUserIds: Set<string>;
   presenceReady: boolean;
   isUserOnline: (userId: string | null | undefined) => boolean;
+  setActiveConversationId: (conversationId: string | null) => void;
 };
 
 const AuthenticatedPresenceContext = createContext<AuthenticatedPresenceContextValue>({
   onlineUserIds: EMPTY_ONLINE_USER_IDS,
   presenceReady: false,
   isUserOnline: () => false,
+  setActiveConversationId: () => {},
 });
 
 export function useAuthenticatedPresence() {
@@ -61,31 +64,35 @@ export function AuthenticatedPresence({
   const [onlineUserIds, setOnlineUserIds] = useState<Set<string>>(() => new Set());
   const [presenceReady, setPresenceReady] = useState(false);
 
-  function payload(): PresencePayload {
+  const payload = useCallback((): PresencePayload => {
     return {
       user_id: userId,
       role,
       active_conversation_id: activeConversationRef.current,
       online_at: new Date().toISOString(),
     };
-  }
+  }, [role, userId]);
 
-  function trackPresence() {
+  const trackPresence = useCallback(() => {
     const channel = channelRef.current;
     if (!channel || !subscribedRef.current) return;
     void channel.track(payload());
-  }
+  }, [payload]);
 
-  function touchActivity() {
+  const touchActivity = useCallback(() => {
     void fetch("/api/activity", {
       method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        active_conversation_id: activeConversationRef.current,
+      }),
       credentials: "same-origin",
     }).catch(() => {
       // Best-effort fallback for server-side last_seen checks.
     });
-  }
+  }, []);
 
-  function syncPresenceState(channel: RealtimeChannel) {
+  const syncPresenceState = useCallback((channel: RealtimeChannel) => {
     try {
       const state = channel.presenceState() as Record<string, PresencePayload[]>;
       const nextOnlineUserIds = new Set<string>();
@@ -104,13 +111,22 @@ export function AuthenticatedPresence({
       console.error("[presence] Failed to sync global presence state", error);
       setPresenceReady(false);
     }
-  }
+  }, []);
+
+  const setPresenceActiveConversationId = useCallback(
+    (conversationId: string | null) => {
+      const nextConversationId = conversationId?.trim() || null;
+      if (activeConversationRef.current === nextConversationId) return;
+      activeConversationRef.current = nextConversationId;
+      trackPresence();
+      touchActivity();
+    },
+    [touchActivity, trackPresence],
+  );
 
   useEffect(() => {
-    activeConversationRef.current = activeConversationId;
-    trackPresence();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeConversationId]);
+    setPresenceActiveConversationId(activeConversationId);
+  }, [activeConversationId, setPresenceActiveConversationId]);
 
   useEffect(() => {
     if (!userId || !role) return;
@@ -151,7 +167,6 @@ export function AuthenticatedPresence({
     }
 
     heartbeatRef.current = window.setInterval(() => {
-      trackPresence();
       touchActivity();
     }, HEARTBEAT_INTERVAL_MS);
 
@@ -187,8 +202,7 @@ export function AuthenticatedPresence({
       subscribedRef.current = false;
       setPresenceReady(false);
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [role, supabase, userId]);
+  }, [role, supabase, syncPresenceState, touchActivity, trackPresence, userId]);
 
   const value = useMemo<AuthenticatedPresenceContextValue>(
     () => ({
@@ -196,8 +210,9 @@ export function AuthenticatedPresence({
       presenceReady,
       isUserOnline: (targetUserId) =>
         Boolean(targetUserId && onlineUserIds.has(targetUserId)),
+      setActiveConversationId: setPresenceActiveConversationId,
     }),
-    [onlineUserIds, presenceReady],
+    [onlineUserIds, presenceReady, setPresenceActiveConversationId],
   );
 
   return (

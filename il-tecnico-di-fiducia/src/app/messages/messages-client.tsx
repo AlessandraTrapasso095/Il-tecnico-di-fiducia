@@ -938,7 +938,11 @@ export default function MessagesClient({
   embedded = false,
 }: MessagesClientProps) {
   const supabase = useMemo(() => createClient(), []);
-  const { isUserOnline, presenceReady } = useAuthenticatedPresence();
+  const {
+    isUserOnline,
+    presenceReady,
+    setActiveConversationId: setPresenceActiveConversationId,
+  } = useAuthenticatedPresence();
 
   const me = initialMe;
   const meError = initialMeError ?? null;
@@ -996,7 +1000,6 @@ export default function MessagesClient({
   const [remoteTyping, setRemoteTyping] = useState(false);
 
   const typingStopTimer = useRef<number | null>(null);
-  const activePresenceTimer = useRef<number | null>(null);
   const hasBroadcastTypingOn = useRef(false);
 
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
@@ -1083,10 +1086,6 @@ export default function MessagesClient({
       supabase.removeChannel(presenceChannelRef.current);
       presenceChannelRef.current = null;
       presenceChannelConversationIdRef.current = null;
-    }
-    if (activePresenceTimer.current) {
-      window.clearInterval(activePresenceTimer.current);
-      activePresenceTimer.current = null;
     }
     setRemoteTyping(false);
   }
@@ -1322,14 +1321,6 @@ export default function MessagesClient({
     }
   }
 
-  async function touchActiveConversation(id: string) {
-    try {
-      await fetchJson<{ ok: true }>(`/api/conversations/${id}/presence`, { method: "POST" });
-    } catch {
-      // Active-chat presence is best-effort.
-    }
-  }
-
   async function clearActiveConversationPresence(id: string) {
     try {
       await fetchJson<{ ok: true }>(`/api/conversations/${id}/presence`, { method: "DELETE" });
@@ -1562,11 +1553,6 @@ export default function MessagesClient({
       convChannelRef.current = null;
       convChannelConversationIdRef.current = null;
     }
-    if (activePresenceTimer.current) {
-      window.clearInterval(activePresenceTimer.current);
-      activePresenceTimer.current = null;
-    }
-
     if (!convChannelRef.current) {
       const msgChannel = supabase
         .channel(`db:messages:${conversationId}`)
@@ -1673,11 +1659,6 @@ export default function MessagesClient({
       presenceChannelRef.current = null;
       presenceChannelConversationIdRef.current = null;
     }
-    if (activePresenceTimer.current) {
-      window.clearInterval(activePresenceTimer.current);
-      activePresenceTimer.current = null;
-    }
-
     stopTypingTimers();
     setRemoteTyping(false);
 
@@ -1696,10 +1677,6 @@ export default function MessagesClient({
       presenceChannelRef.current = presenceChannel;
       presenceChannelConversationIdRef.current = conversationId;
     }
-    void touchActiveConversation(conversationId);
-    activePresenceTimer.current = window.setInterval(() => {
-      void touchActiveConversation(conversationId);
-    }, 25000);
   }
 
   function selectConversation(id: string) {
@@ -1796,6 +1773,11 @@ export default function MessagesClient({
   }, [activeId]);
 
   useEffect(() => {
+    setPresenceActiveConversationId(activeId);
+    return () => setPresenceActiveConversationId(null);
+  }, [activeId, setPresenceActiveConversationId]);
+
+  useEffect(() => {
     if (!meId || role !== "customer") return;
     const timer = window.setTimeout(() => {
       void loadMyReviews();
@@ -1836,7 +1818,8 @@ export default function MessagesClient({
             updated_at: conversation.updated_at,
           });
 
-          if (activeId && conversation.id === activeId) {
+          const currentActiveId = activeIdRef.current;
+          if (currentActiveId && conversation.id === currentActiveId) {
             setActiveDetail((prev) =>
               prev
                 ? {
@@ -1868,7 +1851,7 @@ export default function MessagesClient({
         convListChannelRef.current = null;
       }
     };
-  }, [meId, role, activeId, supabase]);
+  }, [meId, role, supabase]);
 
   // Cleanup active chat channels on unmount.
   useEffect(() => {
@@ -1893,10 +1876,6 @@ export default function MessagesClient({
         supabase.removeChannel(presenceChannelRef.current);
         presenceChannelRef.current = null;
         presenceChannelConversationIdRef.current = null;
-      }
-      if (activePresenceTimer.current) {
-        window.clearInterval(activePresenceTimer.current);
-        activePresenceTimer.current = null;
       }
     };
   }, [supabase]);

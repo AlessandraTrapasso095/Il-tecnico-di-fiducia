@@ -47,6 +47,10 @@ type Viewer = {
   role: "customer" | "professional" | "admin";
 };
 
+function tabFromSearchParam(value: string | null): TabKey | null {
+  return value === "reviews" || value === "works" || value === "bio" ? value : null;
+}
+
 type PostAttachment = PostMediaAttachment & {
   id: string;
   public_url: string;
@@ -313,13 +317,12 @@ export default function ProfessionalProfileClient({
   embeddedInAdminShell = false,
 }: ProfessionalProfileClientProps) {
   const searchParams = useSearchParams();
+  const requestedTabParam = searchParams.get("tab");
+  const highlightedReviewId = searchParams.get("review");
   const [profile, setProfile] = useState(initialProfile);
   const [profileAccess, setProfileAccess] = useState(access);
   const [tab, setTab] = useState<TabKey>(() => {
-    const requestedTab = searchParams.get("tab");
-    return requestedTab === "reviews" || requestedTab === "works" || requestedTab === "bio"
-      ? requestedTab
-      : "bio";
+    return tabFromSearchParam(requestedTabParam) ?? "bio";
   });
   const [mediaMenu, setMediaMenu] = useState<MediaTarget | null>(null);
   const [cropState, setCropState] = useState<{
@@ -351,6 +354,8 @@ export default function ProfessionalProfileClient({
   const [reviewSubmitting, setReviewSubmitting] = useState(false);
   const [reviewError, setReviewError] = useState<string | null>(null);
   const [replyDrafts, setReplyDrafts] = useState<Record<string, string>>({});
+  const [replyErrors, setReplyErrors] = useState<Record<string, string>>({});
+  const [replySubmitting, setReplySubmitting] = useState<Record<string, boolean>>({});
 
   const [contactOpen, setContactOpen] = useState(false);
   const [contactSubject, setContactSubject] = useState("");
@@ -424,6 +429,25 @@ export default function ProfessionalProfileClient({
     },
     [canViewFull, profile.id],
   );
+
+  useEffect(() => {
+    const nextTab = tabFromSearchParam(requestedTabParam);
+    if (nextTab) setTab(nextTab);
+  }, [requestedTabParam]);
+
+  useEffect(() => {
+    if (tab !== "reviews" || !highlightedReviewId || reviewsLoading) return;
+
+    const timeout = window.setTimeout(() => {
+      document
+        .getElementById(`review-${highlightedReviewId}`)
+        ?.scrollIntoView({ behavior: "smooth", block: "center" });
+    }, 80);
+
+    return () => {
+      window.clearTimeout(timeout);
+    };
+  }, [highlightedReviewId, reviews.length, reviewsLoading, tab]);
 
   useEffect(() => {
     const handle = window.setTimeout(() => {
@@ -832,16 +856,58 @@ export default function ProfessionalProfileClient({
 
   async function replyToReview(reviewId: string) {
     const body = (replyDrafts[reviewId] ?? "").replace(/\s+/g, " ").trim();
-    if (!body) return;
-    await fetchJson<{ review: { professional_reply: string; professional_replied_at: string } }>(
-      `/api/reviews/${reviewId}/reply`,
-      {
+    if (!body || replySubmitting[reviewId]) return;
+
+    setReplyErrors((current) => {
+      const next = { ...current };
+      delete next[reviewId];
+      return next;
+    });
+    setReplySubmitting((current) => ({ ...current, [reviewId]: true }));
+
+    try {
+      const response = await fetchJson<{
+        review: {
+          id: string;
+          professional_reply: string | null;
+          professional_replied_at: string | null;
+        };
+      }>(`/api/reviews/${reviewId}/reply`, {
         method: "POST",
         body: JSON.stringify({ body }),
-      },
-    );
-    setReplyDrafts((current) => ({ ...current, [reviewId]: "" }));
-    await loadReviews();
+      });
+
+      setReviews((current) =>
+        current.map((review) =>
+          review.id === reviewId
+            ? {
+                ...review,
+                professional_reply: response.review.professional_reply,
+                professional_replied_at: response.review.professional_replied_at,
+              }
+            : review,
+        ),
+      );
+      setReplyDrafts((current) => {
+        const next = { ...current };
+        delete next[reviewId];
+        return next;
+      });
+    } catch (error) {
+      setReplyErrors((current) => ({
+        ...current,
+        [reviewId]:
+          error instanceof Error
+            ? error.message
+            : "Risposta non salvata. Riprova tra poco.",
+      }));
+    } finally {
+      setReplySubmitting((current) => {
+        const next = { ...current };
+        delete next[reviewId];
+        return next;
+      });
+    }
   }
 
   const containerClass = embeddedInProfessionalShell
@@ -1208,7 +1274,10 @@ export default function ProfessionalProfileClient({
                 submitReview={() => void submitReview()}
                 replyDrafts={replyDrafts}
                 setReplyDrafts={setReplyDrafts}
+                replyErrors={replyErrors}
+                replySubmitting={replySubmitting}
                 replyToReview={(id) => void replyToReview(id)}
+                highlightedReviewId={highlightedReviewId}
               />
             )}
           </div>
@@ -2180,7 +2249,10 @@ function ReviewsTab({
   submitReview,
   replyDrafts,
   setReplyDrafts,
+  replyErrors,
+  replySubmitting,
   replyToReview,
+  highlightedReviewId,
 }: {
   isOwner: boolean;
   reviews: ReviewRow[];
@@ -2195,7 +2267,10 @@ function ReviewsTab({
   submitReview: () => void;
   replyDrafts: Record<string, string>;
   setReplyDrafts: Dispatch<SetStateAction<Record<string, string>>>;
+  replyErrors: Record<string, string>;
+  replySubmitting: Record<string, boolean>;
   replyToReview: (id: string) => void;
+  highlightedReviewId: string | null;
 }) {
   const [mediaViewer, setMediaViewer] = useState<PostMediaAttachment | null>(null);
 
@@ -2251,72 +2326,95 @@ function ReviewsTab({
           />
         ) : (
           <div className="space-y-4">
-            {reviews.map((review) => (
-              <article
-                key={review.id}
-                className="rounded-[22px] border border-outline-variant/30 bg-surface-container-low p-4"
-              >
-                <div className="flex items-start justify-between gap-4">
-                  <div>
-                    <h3 className="font-label-md text-primary">
-                      {review.author
-                        ? fullName(review.author)
-                        : "Cliente"}
-                    </h3>
-                    <div className="mt-1 flex text-[#FF8500]">
-                      {Array.from({ length: 5 }).map((_, index) => (
-                        <span key={index} className="material-symbols-outlined text-[18px]">
-                          {index < review.rating ? "star" : "star_outline"}
-                        </span>
-                      ))}
+            {reviews.map((review) => {
+              const hasProfessionalReply =
+                Boolean(review.professional_reply) || Boolean(review.professional_replied_at);
+              const replyError = replyErrors[review.id];
+              const isReplySubmitting = Boolean(replySubmitting[review.id]);
+
+              return (
+                <article
+                  key={review.id}
+                  id={`review-${review.id}`}
+                  className={[
+                    "rounded-[22px] border border-outline-variant/30 bg-surface-container-low p-4 transition-shadow",
+                    review.id === highlightedReviewId
+                      ? "ring-2 ring-[#FF8500]/70 ring-offset-2 ring-offset-background"
+                      : "",
+                  ].join(" ")}
+                >
+                  <div className="flex items-start justify-between gap-4">
+                    <div>
+                      <h3 className="font-label-md text-primary">
+                        {review.author
+                          ? fullName(review.author)
+                          : "Cliente"}
+                      </h3>
+                      <div className="mt-1 flex text-[#FF8500]">
+                        {Array.from({ length: 5 }).map((_, index) => (
+                          <span key={index} className="material-symbols-outlined text-[18px]">
+                            {index < review.rating ? "star" : "star_outline"}
+                          </span>
+                        ))}
+                      </div>
                     </div>
+                    <span className="text-xs text-on-surface-variant">
+                      {formatDate(review.created_at)}
+                    </span>
                   </div>
-                  <span className="text-xs text-on-surface-variant">
-                    {formatDate(review.created_at)}
-                  </span>
-                </div>
-                {review.body ? (
-                  <p className="mt-3 whitespace-pre-wrap text-on-surface-variant">
-                    {review.title ? (
-                      <span className="mb-1 block font-bold text-primary">{review.title}</span>
-                    ) : null}
-                    {review.body}
-                  </p>
-                ) : null}
-                <PostAttachmentGrid
-                  attachments={review.attachments}
-                  onOpen={setMediaViewer}
-                  className="sm:grid-cols-2"
-                />
-                {review.professional_reply ? (
-                  <div className="mt-4 rounded-2xl bg-primary-fixed p-4 text-on-primary-fixed">
-                    <div className="text-sm font-bold">Risposta del professionista</div>
-                    <p className="mt-1">{review.professional_reply}</p>
-                  </div>
-                ) : isOwner ? (
-                  <div className="mt-4">
-                    <textarea
-                      className="min-h-20 w-full resize-none rounded-2xl border border-outline-variant px-4 py-3 outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
-                      value={replyDrafts[review.id] ?? ""}
-                      onChange={(event) =>
-                        setReplyDrafts((current) => ({
-                          ...current,
-                          [review.id]: event.target.value,
-                        }))
-                      }
-                      placeholder="Rispondi una sola volta a questa recensione..."
-                    />
-                    <button
-                      type="button"
-                      className="mt-2 rounded-full bg-primary px-5 py-2.5 font-button text-white"
-                      onClick={() => replyToReview(review.id)}
-                    >
-                      Rispondi
-                    </button>
-                  </div>
-                ) : null}
-              </article>
-            ))}
+                  {review.body ? (
+                    <p className="mt-3 whitespace-pre-wrap text-on-surface-variant">
+                      {review.title ? (
+                        <span className="mb-1 block font-bold text-primary">{review.title}</span>
+                      ) : null}
+                      {review.body}
+                    </p>
+                  ) : null}
+                  <PostAttachmentGrid
+                    attachments={review.attachments}
+                    onOpen={setMediaViewer}
+                    className="sm:grid-cols-2"
+                  />
+                  {review.professional_reply ? (
+                    <div className="mt-4 rounded-2xl bg-primary-fixed p-4 text-on-primary-fixed">
+                      <div className="text-sm font-bold">Risposta del professionista</div>
+                      <p className="mt-1">{review.professional_reply}</p>
+                    </div>
+                  ) : hasProfessionalReply ? (
+                    <div className="mt-4 rounded-2xl bg-primary-fixed/70 p-4 text-sm text-on-primary-fixed">
+                      Hai già risposto a questa recensione.
+                    </div>
+                  ) : isOwner ? (
+                    <div className="mt-4">
+                      <textarea
+                        className="min-h-20 w-full resize-none rounded-2xl border border-outline-variant px-4 py-3 outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
+                        value={replyDrafts[review.id] ?? ""}
+                        onChange={(event) =>
+                          setReplyDrafts((current) => ({
+                            ...current,
+                            [review.id]: event.target.value,
+                          }))
+                        }
+                        placeholder="Rispondi una sola volta a questa recensione..."
+                      />
+                      {replyError ? (
+                        <div className="mt-2 rounded-2xl bg-error-container p-3 text-sm text-on-error-container">
+                          {replyError}
+                        </div>
+                      ) : null}
+                      <button
+                        type="button"
+                        disabled={isReplySubmitting}
+                        className="mt-2 rounded-full bg-primary px-5 py-2.5 font-button text-white disabled:opacity-60"
+                        onClick={() => replyToReview(review.id)}
+                      >
+                        {isReplySubmitting ? "Invio…" : "Rispondi"}
+                      </button>
+                    </div>
+                  ) : null}
+                </article>
+              );
+            })}
           </div>
         )}
       </section>

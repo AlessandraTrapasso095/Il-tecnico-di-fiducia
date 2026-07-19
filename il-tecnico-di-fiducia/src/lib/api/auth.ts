@@ -146,18 +146,6 @@ export async function requireAuth(
     };
   }
 
-  // Best-effort activity ping (used for admin "online/offline" indicators).
-  // Never block API requests on presence tracking.
-  try {
-    await supabase.rpc("touch_user_activity");
-  } catch (error) {
-    logApiError("AUTH ERROR", {
-      stage: "touch_user_activity_non_blocking",
-      user_id: user.id,
-      error,
-    });
-  }
-
   return {
     ok: true,
     ctx: {
