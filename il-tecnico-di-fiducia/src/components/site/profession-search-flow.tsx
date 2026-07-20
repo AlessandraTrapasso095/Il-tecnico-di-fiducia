@@ -215,19 +215,6 @@ export function ProfessionSearchFlow() {
         id="ricerca-professionisti"
         className="mt-12 rounded-[32px] bg-surface-container-lowest p-5 sm:p-8 shadow-[0_4px_20px_rgba(8,43,95,0.08)] border border-outline-variant/30"
       >
-        <div className="mb-6">
-          <span className="font-label-md text-label-md uppercase tracking-widest text-on-tertiary-container">
-            Ricerca guidata
-          </span>
-          <h3 className="mt-2 font-headline-sm text-headline-sm text-primary">
-            Categoria → sottocategoria → località → modalità
-          </h3>
-          <p className="mt-2 text-on-surface-variant">
-            La ricerca userà categorie, province e filtri reali già gestiti dall’area
-            cliente.
-          </p>
-        </div>
-
         <form className="grid grid-cols-1 lg:grid-cols-12 gap-4" onSubmit={submitSearch}>
           <label className="lg:col-span-3 space-y-2">
             <span className="font-label-md text-label-md text-on-surface-variant">

@@ -151,7 +151,7 @@ function ActionButton({
     <button
       type="button"
       className={[
-        "rounded-full px-4 py-2 font-button text-sm transition disabled:cursor-not-allowed disabled:opacity-60",
+        "min-h-10 rounded-full px-4 py-2 font-button text-sm transition disabled:cursor-not-allowed disabled:opacity-60",
         danger
           ? "bg-error-container text-error hover:bg-error/10"
           : "bg-primary-fixed text-primary hover:bg-primary-fixed-dim",
@@ -166,7 +166,7 @@ function ActionButton({
 
 function MenuPanel({ children }: { children: ReactNode }) {
   return (
-    <div className="absolute left-0 top-full z-30 mt-2 min-w-[220px] rounded-2xl border border-outline-variant/30 bg-white p-2 shadow-[0_14px_36px_rgba(8,43,95,0.18)]">
+    <div className="absolute left-0 top-full z-30 mt-2 min-w-[min(220px,calc(100vw-2rem))] rounded-2xl border border-outline-variant/30 bg-white p-2 shadow-[0_14px_36px_rgba(8,43,95,0.18)]">
       {children}
     </div>
   );

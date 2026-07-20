@@ -145,10 +145,40 @@
   --spacing-xl: 80px;
 }
 
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html {
+  width: 100%;
+  min-width: 0;
+  overflow-x: clip;
+  text-size-adjust: 100%;
+  -webkit-text-size-adjust: 100%;
+}
+
 body {
+  min-width: 0;
+  overflow-x: clip;
   background: var(--color-background);
   color: var(--color-on-background);
   font-family: var(--font-manrope);
+}
+
+:where(img, video, canvas, iframe) {
+  max-width: 100%;
+  height: auto;
+}
+
+:where(p, h1, h2, h3, h4, h5, h6, span, a, button, li, td, th) {
+  overflow-wrap: anywhere;
+}
+
+:where(input, textarea, select) {
+  min-width: 0;
+  font-size: max(16px, 1rem);
 }
 
 :where(

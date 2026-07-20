@@ -4,7 +4,7 @@ import { Container } from "./container";
 export function Footer() {
   return (
     <footer className="bg-primary text-on-primary">
-      <Container className="py-12 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-10">
+      <Container className="grid grid-cols-1 gap-8 py-8 sm:grid-cols-2 sm:py-12 lg:grid-cols-4 lg:gap-10">
         <div className="space-y-4">
           <div className="font-headline-sm text-headline-sm text-on-primary">
             Il tecnico di fiducia
@@ -95,7 +95,7 @@ export function Footer() {
       </Container>
 
       <div className="border-t border-white/10">
-        <Container className="py-6 flex flex-col sm:flex-row items-center justify-between gap-4">
+        <Container className="flex flex-col items-center justify-between gap-4 py-6 text-center sm:flex-row sm:text-left">
           <div className="text-surface-container-highest/70 text-sm">
             © {new Date().getFullYear()} Il Tecnico di Fiducia. Tutti i diritti riservati.
           </div>

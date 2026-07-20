@@ -380,7 +380,7 @@ export default function ProfessionalProfileClient({
   const contactEmail = profile.public_email || profile.email;
   const isEmbeddedInAreaShell =
     embeddedInProfessionalShell || embeddedInCustomerShell || embeddedInAdminShell;
-  const shellOffset = isEmbeddedInAreaShell ? "" : "min-h-screen bg-background";
+  const shellOffset = isEmbeddedInAreaShell ? "" : "min-h-dvh bg-background";
 
   const services = profile.services_offered.length
     ? profile.services_offered
@@ -927,7 +927,7 @@ export default function ProfessionalProfileClient({
                     ? "/admin"
                     : "/professionista"
               }
-              className="font-headline-sm text-[22px] text-primary"
+              className="min-w-0 font-headline-sm text-[18px] text-primary sm:text-[22px]"
             >
               Il tecnico di fiducia
             </Link>
@@ -939,7 +939,7 @@ export default function ProfessionalProfileClient({
                     ? "/admin"
                     : "/professionista"
               }
-              className="rounded-full border border-primary px-5 py-2 font-button text-primary"
+              className="min-h-11 shrink-0 rounded-full border border-primary px-4 py-2 text-center font-button text-primary sm:px-5"
             >
               Torna all’area
             </Link>
@@ -954,8 +954,8 @@ export default function ProfessionalProfileClient({
           </div>
         ) : null}
 
-        <section className="overflow-hidden rounded-[32px] border border-outline-variant/30 bg-surface-container-lowest shadow-[0_4px_20px_rgba(8,43,95,0.08)]">
-          <div className="relative h-[260px] bg-primary sm:h-[320px]">
+        <section className="overflow-hidden rounded-[24px] border border-outline-variant/30 bg-surface-container-lowest shadow-[0_4px_20px_rgba(8,43,95,0.08)] sm:rounded-[32px]">
+          <div className="relative h-[210px] bg-primary sm:h-[320px]">
             {profile.cover_url ? (
               <Image
                 src={profile.cover_url}
@@ -988,7 +988,7 @@ export default function ProfessionalProfileClient({
           <div className="relative px-5 pb-6 sm:px-8">
             <div className="flex flex-col gap-5 md:flex-row md:items-start md:justify-between">
               <div className="flex flex-col gap-4 md:flex-row md:items-start">
-                <div className="relative -mt-16 h-36 w-36 rounded-full border-4 border-surface-container-lowest bg-primary shadow-xl sm:h-40 sm:w-40 md:-mt-20">
+                <div className="relative -mt-14 h-28 w-28 shrink-0 rounded-full border-4 border-surface-container-lowest bg-primary shadow-xl sm:-mt-16 sm:h-40 sm:w-40 md:-mt-20">
                   {profile.avatar_url ? (
                     <Image
                       src={profile.avatar_url}
@@ -998,7 +998,7 @@ export default function ProfessionalProfileClient({
                       className="rounded-full object-cover"
                     />
                   ) : (
-                    <div className="flex h-full w-full items-center justify-center rounded-full text-4xl font-bold text-white">
+                    <div className="flex h-full w-full items-center justify-center rounded-full text-3xl font-bold text-white sm:text-4xl">
                       {initials(profile)}
                     </div>
                   )}
@@ -1018,11 +1018,11 @@ export default function ProfessionalProfileClient({
                   ) : null}
                 </div>
 
-                <div className="pt-1 md:pt-6">
-                  <h1 className="font-headline-md text-[34px] leading-tight text-primary sm:text-[42px]">
+                <div className="min-w-0 pt-1 md:pt-6">
+                  <h1 className="font-headline-md text-[28px] leading-tight text-primary sm:text-[42px]">
                     {fullName(profile)}
                   </h1>
-                  <p className="mt-1 text-lg font-semibold text-on-surface-variant">
+                  <p className="mt-1 text-base font-semibold text-on-surface-variant sm:text-lg">
                     {profile.headline || "Professione non ancora indicata"}
                   </p>
                   <div className="mt-2 flex flex-wrap gap-3 text-sm text-on-surface-variant">
@@ -1045,7 +1045,7 @@ export default function ProfessionalProfileClient({
                 {viewer.role === "customer" && !isOwner ? (
                   <button
                     type="button"
-                    className="rounded-full bg-[#FF8500] px-7 py-3 font-button text-button text-white shadow-lg transition hover:bg-[#FF9A2B]"
+                    className="min-h-11 rounded-full bg-[#FF8500] px-7 py-3 font-button text-button text-white shadow-lg transition hover:bg-[#FF9A2B]"
                     onClick={() => setContactOpen(true)}
                   >
                     Contatta professionista
@@ -1054,7 +1054,7 @@ export default function ProfessionalProfileClient({
                 {viewer.role === "professional" && !isOwner ? (
                   <button
                     type="button"
-                    className="rounded-full bg-[#FF8500] px-7 py-3 font-button text-button text-white shadow-lg transition hover:bg-[#FF9A2B]"
+                    className="min-h-11 rounded-full bg-[#FF8500] px-7 py-3 font-button text-button text-white shadow-lg transition hover:bg-[#FF9A2B]"
                     onClick={() => void followOrUnfollow()}
                   >
                     {profileAccess.is_following ? "Non seguire più" : "Segui"}
@@ -1322,9 +1322,9 @@ export default function ProfessionalProfileClient({
       </main>
 
       {cropState ? (
-        <div className="fixed inset-0 z-[110] flex items-center justify-center p-4">
+        <div className="fixed inset-0 z-[110] flex items-center justify-center p-3 sm:p-4">
           <div className="absolute inset-0 bg-inverse-surface/50 backdrop-blur-sm" />
-          <div className="relative w-full max-w-[720px] rounded-[28px] bg-surface-container-lowest p-5 shadow-2xl">
+          <div className="relative max-h-[calc(100dvh-1.5rem)] w-full max-w-[720px] overflow-y-auto rounded-[24px] bg-surface-container-lowest p-4 shadow-2xl sm:rounded-[28px] sm:p-5">
             <h2 className="font-headline-sm text-[24px] text-primary">Sistema immagine</h2>
             <div className="mt-4 overflow-hidden rounded-2xl bg-surface-container-low">
               {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -1372,10 +1372,10 @@ export default function ProfessionalProfileClient({
                 }
               />
             </div>
-            <div className="mt-6 flex justify-end gap-3">
+            <div className="mt-6 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
               <button
                 type="button"
-                className="rounded-full px-5 py-3 font-button text-primary hover:bg-primary-fixed"
+                className="min-h-11 rounded-full px-5 py-3 font-button text-primary hover:bg-primary-fixed"
                 disabled={uploadingImage}
                 onClick={() => {
                   URL.revokeObjectURL(cropState.previewUrl);
@@ -1386,7 +1386,7 @@ export default function ProfessionalProfileClient({
               </button>
               <button
                 type="button"
-                className="rounded-full bg-[#FF8500] px-6 py-3 font-button text-white hover:bg-[#FF9A2B]"
+                className="min-h-11 rounded-full bg-[#FF8500] px-6 py-3 font-button text-white hover:bg-[#FF9A2B]"
                 disabled={uploadingImage}
                 onClick={() => void uploadCroppedImage()}
               >
@@ -1664,9 +1664,9 @@ function EditModal({
   }
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+    <div className="fixed inset-0 z-[100] flex items-center justify-center p-3 sm:p-4">
       <div className="absolute inset-0 bg-inverse-surface/50 backdrop-blur-sm" />
-      <div className="relative max-h-[90vh] w-full max-w-[720px] overflow-y-auto rounded-[28px] bg-surface-container-lowest p-5 shadow-2xl sm:p-6">
+      <div className="relative max-h-[calc(100dvh-1.5rem)] w-full max-w-[720px] overflow-y-auto rounded-[24px] bg-surface-container-lowest p-4 shadow-2xl sm:rounded-[28px] sm:p-6">
         <h2 className="font-headline-sm text-[24px] text-primary">{titleBySection[section]}</h2>
         <div className="mt-5 space-y-4">
           {section === "intro" ? (
@@ -1727,17 +1727,17 @@ function EditModal({
             {error}
           </div>
         ) : null}
-        <div className="mt-6 flex justify-end gap-3">
+        <div className="mt-6 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
           <button
             type="button"
-            className="rounded-full px-5 py-3 font-button text-primary hover:bg-primary-fixed"
+            className="min-h-11 rounded-full px-5 py-3 font-button text-primary hover:bg-primary-fixed"
             onClick={onCancel}
           >
             Annulla
           </button>
           <button
             type="button"
-            className="rounded-full bg-[#FF8500] px-6 py-3 font-button text-white hover:bg-[#FF9A2B] disabled:opacity-60"
+            className="min-h-11 rounded-full bg-[#FF8500] px-6 py-3 font-button text-white hover:bg-[#FF9A2B] disabled:opacity-60"
             disabled={saving}
             onClick={onSave}
           >
@@ -2455,9 +2455,9 @@ function ContactModal({
   onSubmit: () => void;
 }) {
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+    <div className="fixed inset-0 z-[100] flex items-center justify-center p-3 sm:p-4">
       <div className="absolute inset-0 bg-inverse-surface/45 backdrop-blur-sm" onClick={onClose} />
-      <div className="relative max-h-[92vh] w-full max-w-[680px] overflow-y-auto rounded-[28px] bg-surface-container-lowest shadow-2xl">
+      <div className="relative flex max-h-[calc(100dvh-1.5rem)] w-full max-w-[680px] flex-col overflow-hidden rounded-[24px] bg-surface-container-lowest shadow-2xl sm:rounded-[28px]">
         <div className="border-b border-outline-variant/30 p-5 sm:p-6">
           <h2 className="font-headline-sm text-[24px] text-primary">
             {done ? "Richiesta inviata" : `Invia una richiesta a ${fullName(profile)}`}
@@ -2468,7 +2468,7 @@ function ContactModal({
               : "Compila il modulo per aprire una conversazione in attesa."}
           </p>
         </div>
-        <div className="space-y-4 p-5 sm:p-6">
+        <div className="min-h-0 flex-1 space-y-4 overflow-y-auto p-5 sm:p-6">
           {done ? (
             <div className="rounded-2xl border border-outline-variant/30 bg-surface-container-low p-5 text-center text-on-surface">
               <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-primary-fixed text-primary">
@@ -2483,7 +2483,7 @@ function ContactModal({
               </p>
               <button
                 type="button"
-                className="mt-5 rounded-full bg-primary px-8 py-3 font-button text-white transition-colors hover:bg-secondary"
+                className="mt-5 min-h-11 rounded-full bg-primary px-8 py-3 font-button text-white transition-colors hover:bg-secondary"
                 onClick={onClose}
               >
                 Chiudi
@@ -2528,14 +2528,14 @@ function ContactModal({
             <div className="flex flex-col gap-3 sm:flex-row sm:justify-end">
               <button
                 type="button"
-                className="rounded-full px-5 py-3 font-button text-primary hover:bg-primary-fixed"
+                className="min-h-11 rounded-full px-5 py-3 font-button text-primary hover:bg-primary-fixed"
                 onClick={onClose}
               >
                 Annulla
               </button>
               <button
                 type="button"
-                className="rounded-full bg-[#FF8500] px-6 py-3 font-button text-white hover:bg-[#FF9A2B] disabled:opacity-60"
+                className="min-h-11 rounded-full bg-[#FF8500] px-6 py-3 font-button text-white hover:bg-[#FF9A2B] disabled:opacity-60"
                 disabled={sending}
                 onClick={onSubmit}
               >

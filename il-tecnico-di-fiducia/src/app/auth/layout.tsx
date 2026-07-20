@@ -5,7 +5,7 @@ import { HeaderBackButton } from "@/components/navigation/header-back-button";
 
 export default function AuthLayout({ children }: { children: React.ReactNode }) {
   return (
-    <div className="min-h-screen w-full grid grid-cols-1 lg:grid-cols-[minmax(0,45%)_minmax(0,55%)]">
+    <div className="grid min-h-dvh w-full grid-cols-1 lg:grid-cols-[minmax(0,45%)_minmax(0,55%)]">
       <aside className="relative hidden lg:flex min-w-0 flex-col justify-between px-12 py-14 overflow-hidden bg-primary">
         <div className="absolute inset-0 z-0">
           <Image
@@ -59,7 +59,7 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
         </div>
       </aside>
 
-      <section className="min-w-0 bg-surface-container-low px-4 sm:px-6 lg:px-12 py-10 sm:py-12 flex flex-col justify-center">
+      <section className="flex min-w-0 flex-col justify-center bg-surface-container-low px-4 py-8 sm:px-6 sm:py-12 lg:px-12">
         <div className="mx-auto w-full max-w-[672px]">
           <div className="mb-6 flex items-center gap-3 sm:mb-8 lg:hidden">
             <HeaderBackButton fallbackHref="/" hiddenPathnames={["/auth/login"]} />
@@ -67,7 +67,7 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
               <div className="w-12 h-12 bg-primary rounded-full flex items-center justify-center">
                 <span className="text-on-primary text-[28px] font-bold">✓</span>
               </div>
-              <span className="font-headline-md text-headline-md text-primary">
+              <span className="font-headline-sm text-[22px] text-primary sm:font-headline-md sm:text-headline-md">
                 Il tecnico di fiducia
               </span>
             </Link>

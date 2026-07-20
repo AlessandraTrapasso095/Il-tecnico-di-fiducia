@@ -18,8 +18,8 @@ export default function ProfessionalMessagesError({
   }, [error]);
 
   return (
-    <div className="flex min-h-[calc(100vh-160px)] w-full min-w-0 flex-1 items-center justify-center bg-surface-container-low px-6 py-10">
-      <div className="mx-auto w-full max-w-2xl rounded-[28px] border border-outline-variant/40 bg-surface-container-lowest p-8 text-center shadow-xl">
+    <div className="flex min-h-[calc(100dvh-160px)] w-full min-w-0 flex-1 items-center justify-center bg-surface-container-low px-4 py-8 sm:px-6 sm:py-10">
+      <div className="mx-auto w-full max-w-2xl rounded-[24px] border border-outline-variant/40 bg-surface-container-lowest p-5 text-center shadow-xl sm:rounded-[28px] sm:p-8">
         <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-error-container text-on-error-container">
           <span className="material-symbols-outlined" aria-hidden>
             forum
@@ -36,14 +36,14 @@ export default function ProfessionalMessagesError({
         <div className="mt-6 flex flex-col justify-center gap-3 sm:flex-row">
           <button
             type="button"
-            className="rounded-full bg-[#FF8500] px-6 py-3 font-button text-white shadow-lg shadow-[#FF8500]/20 transition hover:bg-[#FF9A2B]"
+          className="min-h-11 rounded-full bg-[#FF8500] px-6 py-3 font-button text-white shadow-lg shadow-[#FF8500]/20 transition hover:bg-[#FF9A2B]"
             onClick={() => unstable_retry()}
           >
             Riprova
           </button>
           <a
             href="/professionista/messaggi"
-            className="rounded-full border border-primary px-6 py-3 font-button text-primary transition hover:bg-primary-fixed"
+            className="min-h-11 rounded-full border border-primary px-6 py-3 font-button text-primary transition hover:bg-primary-fixed"
           >
             Apri messaggi
           </a>

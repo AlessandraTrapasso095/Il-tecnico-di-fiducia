@@ -191,8 +191,8 @@ function ConfirmModal({
   if (!action) return null;
 
   return (
-    <div className="fixed inset-0 z-[90] flex items-center justify-center bg-inverse-surface/55 p-4 backdrop-blur-sm">
-      <div className="w-full max-w-lg rounded-[28px] bg-surface-container-lowest p-6 shadow-2xl">
+    <div className="fixed inset-0 z-[90] flex items-center justify-center bg-inverse-surface/55 p-3 backdrop-blur-sm sm:p-4">
+      <div className="max-h-[calc(100dvh-1.5rem)] w-full max-w-lg overflow-y-auto rounded-[24px] bg-surface-container-lowest p-4 shadow-2xl sm:rounded-[28px] sm:p-6">
         <div className="flex items-start justify-between gap-4">
           <div>
             <h3 className="font-headline-sm text-[26px] text-primary">{action.title}</h3>
@@ -210,7 +210,7 @@ function ConfirmModal({
         <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:justify-end">
           <button
             type="button"
-            className="rounded-full border-2 border-primary px-5 py-3 font-button text-primary transition hover:bg-primary-fixed"
+            className="min-h-11 rounded-full border-2 border-primary px-5 py-3 font-button text-primary transition hover:bg-primary-fixed"
             onClick={onClose}
             disabled={busy}
           >
@@ -218,7 +218,7 @@ function ConfirmModal({
           </button>
           <button
             type="button"
-            className="rounded-full bg-error px-5 py-3 font-button text-white transition hover:opacity-90 disabled:opacity-60"
+            className="min-h-11 rounded-full bg-error px-5 py-3 font-button text-white transition hover:opacity-90 disabled:opacity-60"
             onClick={() => void action.onConfirm()}
             disabled={busy}
           >
@@ -261,8 +261,8 @@ function UserDetailsModal({
     subscriptionStatus === "stripe_active" || subscriptionStatus === "admin_forced_active";
 
   return (
-    <div className="fixed inset-0 z-[80] flex items-center justify-center bg-inverse-surface/45 p-4 backdrop-blur-sm">
-      <div className="max-h-[88vh] w-full max-w-3xl overflow-y-auto rounded-[30px] bg-surface-container-lowest p-6 shadow-2xl">
+    <div className="fixed inset-0 z-[80] flex items-center justify-center bg-inverse-surface/45 p-3 backdrop-blur-sm sm:p-4">
+      <div className="max-h-[calc(100dvh-1.5rem)] w-full max-w-3xl overflow-y-auto rounded-[24px] bg-surface-container-lowest p-4 shadow-2xl sm:rounded-[30px] sm:p-6">
         <div className="flex items-start justify-between gap-4">
           <div className="flex min-w-0 items-center gap-4">
             <Avatar user={user} />
@@ -747,7 +747,7 @@ export default function AdminSupportClient() {
         <div className="rounded-2xl bg-error-container p-4 text-on-error-container">{error}</div>
       ) : null}
 
-      <div className="grid min-h-[680px] overflow-hidden rounded-[28px] border border-outline-variant/30 bg-surface-container-lowest shadow-[0_4px_20px_rgba(8,43,95,0.08)] lg:grid-cols-[420px_1fr]">
+      <div className="grid min-h-[620px] overflow-hidden rounded-[24px] border border-outline-variant/30 bg-surface-container-lowest shadow-[0_4px_20px_rgba(8,43,95,0.08)] sm:rounded-[28px] lg:min-h-[680px] lg:grid-cols-[420px_minmax(0,1fr)]">
         <section className="border-b border-outline-variant/30 lg:border-b-0 lg:border-r">
           <div className="border-b border-outline-variant/30 p-4">
             <h2 className="font-headline-sm text-[24px] text-primary">Ticket</h2>
@@ -755,7 +755,7 @@ export default function AdminSupportClient() {
               {loading ? "Caricamento…" : `${tickets.length} risultati`}
             </p>
           </div>
-          <div className="max-h-[680px] overflow-y-auto">
+          <div className="max-h-[min(680px,calc(100dvh-12rem))] overflow-y-auto">
             {tickets.length === 0 ? (
               <div className="p-6 text-center text-on-surface-variant">
                 Nessun ticket reale con questo filtro.
@@ -807,7 +807,7 @@ export default function AdminSupportClient() {
           </div>
         </section>
 
-        <section className="p-5">
+        <section className="min-w-0 p-4 sm:p-5">
           {selected ? (
             <div className="space-y-5">
               <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
@@ -815,7 +815,7 @@ export default function AdminSupportClient() {
                   <p className="font-label-md text-sm uppercase tracking-[0.14em] text-[#FF8500]">
                     Dettaglio ticket
                   </p>
-                  <h2 className="mt-1 font-headline-sm text-[30px] text-primary">
+                    <h2 className="mt-1 font-headline-sm text-[24px] text-primary sm:text-[30px]">
                     {selected.subject}
                   </h2>
                   <div className="mt-3 flex items-center gap-3 text-sm text-on-surface-variant">
@@ -845,7 +845,7 @@ export default function AdminSupportClient() {
 
               <div className="rounded-[24px] bg-surface-container-low p-5 leading-7 text-on-surface">
                 <p className="mb-2 font-label-md text-primary">Richiesta iniziale</p>
-                <p>{selected.body}</p>
+                <p className="break-words [overflow-wrap:anywhere]">{selected.body}</p>
               </div>
 
               <div className="rounded-[24px] border border-outline-variant/30 bg-surface-bright p-4">
@@ -875,7 +875,7 @@ export default function AdminSupportClient() {
                         >
                           <div
                             className={[
-                              "max-w-[78%] rounded-2xl p-4 shadow-sm",
+                              "max-w-[88%] rounded-2xl p-4 shadow-sm sm:max-w-[78%]",
                               isAuthor
                                 ? "rounded-tl-sm border border-outline-variant/30 bg-white text-on-surface"
                                 : "rounded-tr-sm bg-primary text-white",
@@ -884,7 +884,9 @@ export default function AdminSupportClient() {
                             <p className="mb-2 text-xs font-semibold uppercase tracking-[0.12em] opacity-70">
                               {isAuthor ? fullName(selected.author) : "Admin"}
                             </p>
-                            <p className="leading-6">{supportMessage.body}</p>
+                            <p className="break-words leading-6 [overflow-wrap:anywhere]">
+                              {supportMessage.body}
+                            </p>
                             <p className="mt-2 text-xs opacity-60">
                               {formatDate(supportMessage.created_at)}
                             </p>
@@ -915,7 +917,7 @@ export default function AdminSupportClient() {
                 <div className="mt-4 flex flex-wrap gap-3">
                   <button
                     type="button"
-                    className="rounded-full bg-primary px-5 py-3 font-button text-white transition hover:bg-primary-container disabled:opacity-60"
+                    className="min-h-11 rounded-full bg-primary px-5 py-3 font-button text-white transition hover:bg-primary-container disabled:opacity-60"
                     disabled={busy || selected.status === "closed" || !replyBody.trim()}
                     onClick={() => void sendReply("waiting")}
                   >
@@ -923,7 +925,7 @@ export default function AdminSupportClient() {
                   </button>
                   <button
                     type="button"
-                    className="rounded-full bg-[#FF8500] px-5 py-3 font-button text-white transition hover:bg-[#FF9A2B] disabled:opacity-60"
+                    className="min-h-11 rounded-full bg-[#FF8500] px-5 py-3 font-button text-white transition hover:bg-[#FF9A2B] disabled:opacity-60"
                     disabled={busy || selected.status === "closed" || !replyBody.trim()}
                     onClick={() => void sendReply("closed")}
                   >
@@ -931,7 +933,7 @@ export default function AdminSupportClient() {
                   </button>
                   <button
                     type="button"
-                    className="rounded-full border-2 border-primary px-5 py-3 font-button text-primary transition hover:bg-primary-fixed disabled:opacity-60"
+                    className="min-h-11 rounded-full border-2 border-primary px-5 py-3 font-button text-primary transition hover:bg-primary-fixed disabled:opacity-60"
                     disabled={busy || selected.status === "closed"}
                     onClick={() => void resolveTicket()}
                   >

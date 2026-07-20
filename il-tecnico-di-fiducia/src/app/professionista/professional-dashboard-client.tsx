@@ -417,7 +417,7 @@ export default function ProfessionalDashboardClient({
   }
 
   return (
-    <div className="mx-auto max-w-[1040px] px-4 py-6 sm:px-6 lg:px-8">
+    <div className="mx-auto max-w-[1040px] px-3 py-5 sm:px-6 sm:py-6 lg:px-8">
       <section
         className={`mb-6 rounded-[28px] border p-5 shadow-[0_4px_20px_rgba(8,43,95,0.08)] sm:p-6 ${subscriptionCopy.className}`}
       >
@@ -449,7 +449,7 @@ export default function ProfessionalDashboardClient({
             </div>
             <Link
               href={SUBSCRIPTION_SETTINGS_PATH}
-              className="rounded-full bg-[#FF8500] px-6 py-3 text-center font-button text-button text-white shadow-md transition hover:bg-[#FF9A2B]"
+              className="min-h-11 rounded-full bg-[#FF8500] px-6 py-3 text-center font-button text-button text-white shadow-md transition hover:bg-[#FF9A2B]"
             >
               {subscriptionCopy.buttonLabel}
             </Link>
@@ -477,9 +477,9 @@ export default function ProfessionalDashboardClient({
           onSubmit={createPost}
           className="rounded-[28px] border border-outline-variant/30 bg-surface-container-lowest p-5 shadow-[0_4px_20px_rgba(8,43,95,0.08)] sm:p-6"
         >
-          <div className="flex gap-4">
+          <div className="flex gap-3 sm:gap-4">
             <Avatar person={composerProfile} size="sm" />
-            <div className="flex-1">
+            <div className="min-w-0 flex-1">
               <label className="sr-only" htmlFor="post-body">
                 Crea un post
               </label>
@@ -544,7 +544,7 @@ export default function ProfessionalDashboardClient({
               <button
                 type="submit"
                 disabled={posting}
-                className="rounded-full bg-[#FF8500] px-7 py-3 font-button text-button text-white shadow-md transition hover:bg-[#FF9A2B] disabled:opacity-60"
+              className="min-h-11 rounded-full bg-[#FF8500] px-7 py-3 font-button text-button text-white shadow-md transition hover:bg-[#FF9A2B] disabled:opacity-60"
               >
                 {posting ? "Pubblicazione…" : "Pubblica"}
               </button>
@@ -623,17 +623,17 @@ export default function ProfessionalDashboardClient({
                       </Link>
 
                       {isAuthor ? (
-                        <div className="flex shrink-0 gap-2">
+                        <div className="flex shrink-0 flex-wrap justify-end gap-2">
                           <button
                             type="button"
-                            className="rounded-full px-3 py-2 text-sm font-bold text-primary hover:bg-primary-fixed"
+                            className="min-h-10 rounded-full px-3 py-2 text-sm font-bold text-primary hover:bg-primary-fixed"
                             onClick={() => setEditingPost(post)}
                           >
                             Modifica
                           </button>
                           <button
                             type="button"
-                            className="rounded-full px-3 py-2 text-sm font-bold text-error hover:bg-error-container/40"
+                            className="min-h-10 rounded-full px-3 py-2 text-sm font-bold text-error hover:bg-error-container/40"
                             disabled={busyPostId === post.id}
                             onClick={() => setDeleteTargetPost(post)}
                           >
@@ -643,7 +643,7 @@ export default function ProfessionalDashboardClient({
                       ) : null}
                     </div>
 
-                    <p className="whitespace-pre-wrap font-body-md text-body-md text-on-surface">
+                    <p className="whitespace-pre-wrap break-words font-body-md text-body-md text-on-surface [overflow-wrap:anywhere]">
                       {post.body}
                     </p>
 

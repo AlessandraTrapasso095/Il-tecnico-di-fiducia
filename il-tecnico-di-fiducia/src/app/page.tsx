@@ -6,10 +6,10 @@ import Image from "next/image";
 
 export default function Home() {
   return (
-    <div className="flex flex-col min-h-screen">
+    <div className="flex min-h-dvh flex-col">
       <TopNav />
 
-      <main className="pt-[100px]">
+      <main className="pt-20 sm:pt-[100px]">
         {/* Hero */}
         <section className="relative min-h-[calc(100svh-100px)] flex items-center overflow-hidden">
           <Image

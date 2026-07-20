@@ -22,9 +22,20 @@ export function TopNav() {
     return () => window.removeEventListener("keydown", onKeyDown);
   }, []);
 
+  useEffect(() => {
+    if (!open) return undefined;
+
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+
+    return () => {
+      document.body.style.overflow = previousOverflow;
+    };
+  }, [open]);
+
   return (
-    <header className="fixed top-0 left-0 right-0 z-50 h-[100px] bg-surface-container-lowest/80 backdrop-blur-md shadow-sm">
-      <div className="h-full w-full max-w-[1280px] mx-auto px-4 sm:px-6 lg:px-8 flex items-center justify-between gap-4">
+    <header className="fixed left-0 right-0 top-0 z-50 h-20 bg-surface-container-lowest/80 shadow-sm backdrop-blur-md sm:h-[100px]">
+      <div className="mx-auto flex h-full w-full max-w-[1280px] items-center justify-between gap-3 px-3 sm:px-6 lg:px-8">
         <Link
           href="/"
           className="group flex min-w-0 items-center gap-2 sm:gap-2.5 rounded-full pr-2 transition-transform hover:scale-[0.99]"
@@ -35,20 +46,20 @@ export function TopNav() {
             alt="Il Tecnico di Fiducia"
             width={128}
             height={128}
-            className="h-14 w-14 shrink-0 object-contain sm:h-[68px] sm:w-[68px]"
+            className="h-11 w-11 shrink-0 object-contain sm:h-[68px] sm:w-[68px]"
             priority
           />
           <span className="flex min-w-0 flex-col leading-none">
-            <span className="font-headline-sm text-[18px] font-bold text-primary sm:text-[23px]">
+            <span className="font-headline-sm text-[16px] font-bold text-primary sm:text-[23px]">
               Il tecnico
             </span>
-            <span className="font-label-md text-[12px] font-extrabold uppercase tracking-[0.12em] text-on-tertiary-container sm:text-[14px]">
+            <span className="font-label-md text-[10px] font-extrabold uppercase tracking-[0.1em] text-on-tertiary-container sm:text-[14px]">
               di fiducia
             </span>
           </span>
         </Link>
 
-        <nav className="hidden md:flex items-center gap-8">
+        <nav className="hidden items-center gap-8 lg:flex">
           {navLinks.map((l) => (
             <a
               key={l.id}
@@ -60,7 +71,7 @@ export function TopNav() {
           ))}
         </nav>
 
-        <div className="hidden md:flex items-center gap-3">
+        <div className="hidden items-center gap-3 lg:flex">
           <Link
             href="/auth/login"
             className="font-button text-button text-primary px-4 py-2 rounded-full hover:bg-surface-container-high transition-colors"
@@ -77,7 +88,7 @@ export function TopNav() {
 
         <button
           type="button"
-          className="md:hidden w-11 h-11 rounded-full border border-outline-variant/40 text-primary hover:bg-surface-container-high transition-colors"
+          className="h-11 w-11 rounded-full border border-outline-variant/40 text-primary transition-colors hover:bg-surface-container-high lg:hidden"
           aria-label={open ? "Chiudi menu" : "Apri menu"}
           onClick={() => setOpen((v) => !v)}
         >
@@ -86,13 +97,13 @@ export function TopNav() {
       </div>
 
       {open ? (
-        <div className="md:hidden fixed inset-0 top-[100px] z-50">
+        <div className="fixed inset-x-0 bottom-0 top-20 z-50 sm:top-[100px] lg:hidden">
           <div
             className="absolute inset-0 bg-inverse-surface/40 backdrop-blur-sm"
             onClick={() => setOpen(false)}
           />
-          <div className="absolute top-0 left-0 right-0 bg-surface-container-lowest border-t border-outline-variant/30 shadow-lg">
-            <div className="max-w-[1280px] mx-auto px-4 sm:px-6 py-4 flex flex-col gap-2">
+          <div className="absolute left-0 right-0 top-0 max-h-full overflow-y-auto border-t border-outline-variant/30 bg-surface-container-lowest shadow-lg">
+            <div className="mx-auto flex max-w-[1280px] flex-col gap-2 px-4 py-4 pb-[max(1rem,env(safe-area-inset-bottom))] sm:px-6">
               {navLinks.map((l) => (
                 <a
                   key={`mobile-${l.id}`}

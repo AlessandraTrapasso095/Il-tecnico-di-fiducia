@@ -53,9 +53,9 @@ export default function AdminLoginClient() {
   }
 
   return (
-    <main className="min-h-screen bg-background px-4 py-8 text-on-surface">
-      <div className="mx-auto flex min-h-[calc(100vh-4rem)] w-full max-w-[1180px] items-center justify-center">
-        <div className="grid w-full overflow-hidden rounded-[32px] border border-outline-variant/30 bg-surface-container-lowest shadow-[0_18px_60px_rgba(8,43,95,0.14)] lg:grid-cols-[0.95fr_1.05fr]">
+    <main className="min-h-dvh bg-background px-3 py-6 text-on-surface sm:px-4 sm:py-8">
+      <div className="mx-auto flex min-h-[calc(100dvh-3rem)] w-full max-w-[1180px] items-center justify-center">
+        <div className="grid w-full overflow-hidden rounded-[24px] border border-outline-variant/30 bg-surface-container-lowest shadow-[0_18px_60px_rgba(8,43,95,0.14)] sm:rounded-[32px] lg:grid-cols-[0.95fr_1.05fr]">
           <section className="relative hidden overflow-hidden bg-primary p-10 text-white lg:block">
             <div className="absolute inset-0 bg-[radial-gradient(circle_at_25%_25%,rgba(255,133,0,0.22),transparent_28%),linear-gradient(135deg,#002654,#0b3c78)]" />
             <div className="relative z-10 flex min-h-[620px] flex-col justify-between">
@@ -92,7 +92,7 @@ export default function AdminLoginClient() {
             </div>
           </section>
 
-          <section className="flex items-center justify-center px-5 py-10 sm:px-10">
+          <section className="flex items-center justify-center px-4 py-8 sm:px-10 sm:py-10">
             <div className="w-full max-w-[460px]">
               <div className="mb-8 lg:hidden">
                 <Link href="/" className="font-headline-sm text-[24px] text-primary">
@@ -104,7 +104,7 @@ export default function AdminLoginClient() {
                 <p className="mb-3 font-label-md text-sm uppercase tracking-[0.16em] text-[#FF8500]">
                   Admin login
                 </p>
-                <h2 className="font-headline-md text-[34px] leading-tight text-primary">
+                <h2 className="font-headline-md text-[28px] leading-tight text-primary sm:text-[34px]">
                   Accedi come amministratore
                 </h2>
                 <p className="mt-2 text-on-surface-variant">

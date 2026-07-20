@@ -525,7 +525,7 @@ function PendingFilesTray({
   if (files.length === 0) return null;
 
   return (
-    <div className="max-h-[118px] overflow-hidden rounded-2xl border border-outline-variant/30 bg-surface-container-low p-2 shadow-sm">
+    <div className="max-h-[112px] overflow-hidden rounded-2xl border border-outline-variant/30 bg-surface-container-low p-2 shadow-sm">
       <div className="mb-2 flex items-center justify-between gap-3">
         <div className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-widest text-primary">
           <span className="material-symbols-outlined text-[15px]" aria-hidden>
@@ -568,14 +568,14 @@ function MediaViewer({
   }, [onClose]);
 
   return (
-    <div className="fixed inset-0 z-[120] flex items-center justify-center p-4">
+    <div className="fixed inset-0 z-[120] flex items-center justify-center p-3 sm:p-4">
       <button
         type="button"
         className="absolute inset-0 bg-inverse-surface/80 backdrop-blur-sm"
         onClick={onClose}
         aria-label="Chiudi anteprima"
       />
-      <div className="relative z-10 max-h-[92vh] w-full max-w-[1040px] overflow-hidden rounded-[24px] bg-inverse-surface shadow-2xl">
+      <div className="relative z-10 max-h-[calc(100dvh-1.5rem)] w-full max-w-[1040px] overflow-hidden rounded-[24px] bg-inverse-surface shadow-2xl">
         <button
           type="button"
           className="absolute right-4 top-4 z-20 flex h-11 w-11 items-center justify-center rounded-full bg-white/90 text-primary shadow-lg"
@@ -591,14 +591,14 @@ function MediaViewer({
           <img
             src={attachment.signed_url}
             alt={name}
-            className="max-h-[92vh] w-full object-contain"
+            className="max-h-[calc(100dvh-1.5rem)] w-full object-contain"
           />
         ) : (
           <video
             src={attachment.signed_url}
             controls
             autoPlay
-            className="max-h-[92vh] w-full bg-black object-contain"
+            className="max-h-[calc(100dvh-1.5rem)] w-full bg-black object-contain"
           />
         )}
       </div>
@@ -626,7 +626,7 @@ function QuoteTimelineCard({
       <button
         type="button"
         className={[
-          "max-w-[78%] rounded-2xl border p-4 text-left shadow-sm transition hover:-translate-y-0.5 hover:shadow-md",
+          "max-w-[88%] rounded-2xl border p-4 text-left shadow-sm transition hover:-translate-y-0.5 hover:shadow-md sm:max-w-[78%]",
           mine
             ? "rounded-tr-none border-primary/20 bg-primary text-white"
             : "rounded-tl-none border-outline-variant/30 bg-surface-container-lowest text-on-surface",
@@ -706,14 +706,14 @@ function QuoteSendModal({
   const clientLocation = client?.province_name || client?.province_code || "Provincia non indicata";
 
   return (
-    <div className="fixed inset-0 z-[120] flex items-center justify-center p-4">
+    <div className="fixed inset-0 z-[120] flex items-center justify-center p-3 sm:p-4">
       <button
         type="button"
         className="absolute inset-0 bg-inverse-surface/55 backdrop-blur-sm"
         onClick={onCancel}
         aria-label="Chiudi modale preventivo"
       />
-      <div className="relative max-h-[92vh] w-full max-w-[720px] overflow-y-auto rounded-[28px] border border-white/30 bg-surface-container-lowest p-6 shadow-2xl">
+      <div className="relative max-h-[calc(100dvh-1.5rem)] w-full max-w-[720px] overflow-y-auto rounded-[24px] border border-white/30 bg-surface-container-lowest p-4 shadow-2xl sm:rounded-[28px] sm:p-6">
         <button
           type="button"
           className="absolute right-4 top-4 flex h-10 w-10 items-center justify-center rounded-full text-on-surface-variant transition hover:bg-surface-container-low"
@@ -851,7 +851,7 @@ function QuoteSendModal({
         <div className="mt-6 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
           <button
             type="button"
-            className="rounded-full px-5 py-3 font-button text-primary transition hover:bg-primary-fixed disabled:opacity-60"
+            className="min-h-11 rounded-full px-5 py-3 font-button text-primary transition hover:bg-primary-fixed disabled:opacity-60"
             disabled={busy}
             onClick={onCancel}
           >
@@ -859,7 +859,7 @@ function QuoteSendModal({
           </button>
           <button
             type="button"
-            className="rounded-full bg-[#FF8500] px-6 py-3 font-button text-white shadow-lg shadow-[#FF8500]/20 transition hover:bg-[#FF9A2B] disabled:opacity-60"
+            className="min-h-11 rounded-full bg-[#FF8500] px-6 py-3 font-button text-white shadow-lg shadow-[#FF8500]/20 transition hover:bg-[#FF9A2B] disabled:opacity-60 sm:w-auto"
             disabled={busy}
             onClick={onSubmit}
           >
@@ -893,14 +893,14 @@ function QuoteDetailModal({
   const professionalTitle = professional?.headline || "Professione non indicata";
 
   return (
-    <div className="fixed inset-0 z-[120] flex items-center justify-center p-4">
+    <div className="fixed inset-0 z-[120] flex items-center justify-center p-3 sm:p-4">
       <button
         type="button"
         className="absolute inset-0 bg-inverse-surface/55 backdrop-blur-sm"
         onClick={onClose}
         aria-label="Chiudi dettaglio preventivo"
       />
-      <div className="relative w-full max-w-[620px] rounded-[28px] border border-white/30 bg-surface-container-lowest p-6 shadow-2xl">
+      <div className="relative max-h-[calc(100dvh-1.5rem)] w-full max-w-[620px] overflow-y-auto rounded-[24px] border border-white/30 bg-surface-container-lowest p-4 shadow-2xl sm:rounded-[28px] sm:p-6">
         <button
           type="button"
           className="absolute right-4 top-4 flex h-10 w-10 items-center justify-center rounded-full text-on-surface-variant transition hover:bg-surface-container-low"
@@ -961,7 +961,7 @@ function QuoteDetailModal({
           <div className="mt-6 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
             <button
               type="button"
-              className="rounded-full bg-error px-6 py-3 font-button text-white transition hover:opacity-90 disabled:opacity-60"
+              className="min-h-11 rounded-full bg-error px-6 py-3 font-button text-white transition hover:opacity-90 disabled:opacity-60 sm:w-auto"
               disabled={busy}
               onClick={() => onDecision("rejected")}
             >
@@ -969,7 +969,7 @@ function QuoteDetailModal({
             </button>
             <button
               type="button"
-              className="rounded-full bg-[#FF8500] px-6 py-3 font-button text-white shadow-lg shadow-[#FF8500]/20 transition hover:bg-[#FF9A2B] disabled:opacity-60"
+              className="min-h-11 rounded-full bg-[#FF8500] px-6 py-3 font-button text-white shadow-lg shadow-[#FF8500]/20 transition hover:bg-[#FF9A2B] disabled:opacity-60 sm:w-auto"
               disabled={busy}
               onClick={() => onDecision("accepted")}
             >
@@ -1012,14 +1012,14 @@ function ReviewModal({
   onSubmit: () => void;
 }) {
   return (
-    <div className="fixed inset-0 z-[120] flex items-center justify-center p-4">
+    <div className="fixed inset-0 z-[120] flex items-center justify-center p-3 sm:p-4">
       <button
         type="button"
         className="absolute inset-0 bg-inverse-surface/55 backdrop-blur-sm"
         onClick={onCancel}
         aria-label="Chiudi modale recensione"
       />
-      <div className="relative max-h-[92vh] w-full max-w-[620px] overflow-y-auto rounded-[28px] border border-white/30 bg-surface-container-lowest p-6 shadow-2xl">
+      <div className="relative max-h-[calc(100dvh-1.5rem)] w-full max-w-[620px] overflow-y-auto rounded-[24px] border border-white/30 bg-surface-container-lowest p-4 shadow-2xl sm:rounded-[28px] sm:p-6">
         <button
           type="button"
           className="absolute right-4 top-4 flex h-10 w-10 items-center justify-center rounded-full text-on-surface-variant transition hover:bg-surface-container-low"
@@ -1039,7 +1039,7 @@ function ReviewModal({
                   key={star}
                   type="button"
                   className={[
-                    "material-symbols-outlined text-[32px] transition",
+                    "material-symbols-outlined flex h-11 w-11 items-center justify-center rounded-full text-[32px] transition hover:bg-surface-container-low",
                     star <= rating ? "text-[#FF8500]" : "text-outline",
                   ].join(" ")}
                   onClick={() => onRatingChange(star)}
@@ -1083,7 +1083,7 @@ function ReviewModal({
           </label>
 
           <div>
-            <label className="inline-flex cursor-pointer items-center gap-2 rounded-full border border-outline-variant/40 px-4 py-2 text-primary transition hover:bg-surface-container-low">
+            <label className="inline-flex min-h-11 cursor-pointer items-center gap-2 rounded-full border border-outline-variant/40 px-4 py-2 text-primary transition hover:bg-surface-container-low">
               <span className="material-symbols-outlined" aria-hidden>
                 add_photo_alternate
               </span>
@@ -1112,7 +1112,7 @@ function ReviewModal({
         <div className="mt-6 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
           <button
             type="button"
-            className="rounded-full px-5 py-3 font-button text-primary transition hover:bg-primary-fixed disabled:opacity-60"
+            className="min-h-11 rounded-full px-5 py-3 font-button text-primary transition hover:bg-primary-fixed disabled:opacity-60"
             disabled={busy}
             onClick={onCancel}
           >
@@ -1120,7 +1120,7 @@ function ReviewModal({
           </button>
           <button
             type="button"
-            className="rounded-full bg-[#FF8500] px-6 py-3 font-button text-white shadow-lg shadow-[#FF8500]/20 transition hover:bg-[#FF9A2B] disabled:opacity-60"
+            className="min-h-11 rounded-full bg-[#FF8500] px-6 py-3 font-button text-white shadow-lg shadow-[#FF8500]/20 transition hover:bg-[#FF9A2B] disabled:opacity-60 sm:w-auto"
             disabled={busy}
             onClick={onSubmit}
           >
@@ -2186,13 +2186,13 @@ export default function MessagesClient({
     <main
       className={[
         embedded ? "h-full min-h-0" : "h-[100dvh] min-h-0",
-        "flex flex-col overflow-hidden bg-background md:flex-row",
+        "flex flex-col overflow-hidden bg-background lg:flex-row",
       ].join(" ")}
     >
       <section
         className={[
           showListOnMobile ? "flex" : "hidden",
-          "md:flex w-full md:max-w-[360px] md:border-r border-outline-variant bg-surface-container-lowest flex-col flex-1 md:flex-none shrink-0",
+          "w-full flex-1 shrink-0 flex-col border-outline-variant bg-surface-container-lowest lg:flex lg:max-w-[360px] lg:flex-none lg:border-r",
         ].join(" ")}
       >
         <div className="p-4 border-b border-outline-variant/30 bg-surface-container-lowest">
@@ -2311,7 +2311,7 @@ export default function MessagesClient({
       <section
         className={[
           showChatOnMobile ? "flex" : "hidden",
-          "md:flex flex-1 flex-col bg-surface-bright min-h-0",
+          "min-h-0 flex-1 flex-col bg-surface-bright lg:flex",
         ].join(" ")}
       >
         {!activeId ? (
@@ -2337,7 +2337,7 @@ export default function MessagesClient({
                 <div className="min-w-0 flex items-start gap-2">
                   <button
                     type="button"
-                    className="md:hidden mt-0.5 px-3 py-2 rounded-full border border-outline-variant/40 hover:bg-surface-container-low transition-colors text-primary"
+                    className="mt-0.5 rounded-full border border-outline-variant/40 px-3 py-2 text-primary transition-colors hover:bg-surface-container-low lg:hidden"
                     onClick={() => setMobilePanel("list")}
                     title="Indietro"
                   >
@@ -2494,7 +2494,7 @@ export default function MessagesClient({
               ) : null}
             </header>
 
-            <div className="flex-1 min-h-0 overflow-y-auto px-4 py-6 space-y-4">
+            <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-3 py-4 sm:px-4 sm:py-6">
               {messagesError ? (
                 <div className="p-3 text-sm text-on-error-container bg-error-container rounded-xl border border-error/20">
                   {messagesError}
@@ -2519,7 +2519,7 @@ export default function MessagesClient({
                       key={`request-${item.request.id}`}
                       className={["flex", mine ? "justify-end" : "justify-start"].join(" ")}
                     >
-                      <div className="max-w-[70%]">
+                      <div className="min-w-0 max-w-[88%] sm:max-w-[78%] lg:max-w-[70%]">
                         <div
                           className={[
                             "px-4 py-3 rounded-2xl shadow-sm border",
@@ -2536,7 +2536,7 @@ export default function MessagesClient({
                           >
                             Richiesta iniziale
                           </div>
-                          <p className="text-body-md leading-relaxed whitespace-pre-wrap break-words">
+                          <p className="whitespace-pre-wrap break-words text-body-md leading-relaxed [overflow-wrap:anywhere]">
                             {item.request.message || item.request.subject}
                           </p>
                           {item.attachments.map((attachment) => (
@@ -2584,7 +2584,7 @@ export default function MessagesClient({
                     key={`message-${m.id}`}
                     className={["flex", mine ? "justify-end" : "justify-start"].join(" ")}
                   >
-                    <div className="max-w-[70%]">
+                    <div className="min-w-0 max-w-[88%] sm:max-w-[78%] lg:max-w-[70%]">
                       <div
                         className={[
                           "px-4 py-3 rounded-2xl shadow-sm border",
@@ -2594,7 +2594,7 @@ export default function MessagesClient({
                         ].join(" ")}
                       >
                         {m.body ? (
-                          <p className="text-body-md leading-relaxed whitespace-pre-wrap break-words">
+                          <p className="whitespace-pre-wrap break-words text-body-md leading-relaxed [overflow-wrap:anywhere]">
                             {m.body}
                           </p>
                         ) : null}
@@ -2628,7 +2628,7 @@ export default function MessagesClient({
               <div ref={messagesEndRef} />
             </div>
 
-            <footer className="shrink-0 border-t border-outline-variant/30 bg-surface-container-lowest p-4">
+            <footer className="shrink-0 border-t border-outline-variant/30 bg-surface-container-lowest p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:p-4">
               {sendError ? (
                 <div className="mb-3 p-3 text-sm text-on-error-container bg-error-container rounded-xl border border-error/20">
                   {sendError}
@@ -2649,7 +2649,7 @@ export default function MessagesClient({
               ) : null}
 
               <form
-                className="flex items-end gap-3"
+                className="flex items-end gap-2 sm:gap-3"
                 onSubmit={(e) => {
                   e.preventDefault();
                   void sendMessage();
@@ -2657,7 +2657,7 @@ export default function MessagesClient({
               >
                 <label
                   className={[
-                    "flex h-12 w-12 shrink-0 cursor-pointer items-center justify-center rounded-full border border-outline-variant/40 text-primary transition-colors",
+                    "flex h-11 w-11 shrink-0 cursor-pointer items-center justify-center rounded-full border border-outline-variant/40 text-primary transition-colors sm:h-12 sm:w-12",
                     chatEnabled
                       ? "hover:bg-surface-container-low"
                       : "cursor-not-allowed opacity-50",
@@ -2681,7 +2681,7 @@ export default function MessagesClient({
                 </label>
                 <textarea
                   ref={messageInputRef}
-                  className="flex-1 px-4 py-3 bg-surface-container-low border border-outline-variant rounded-2xl focus:ring-2 focus:ring-primary focus:border-primary outline-none text-body-md resize-none min-h-[48px] max-h-[140px] transition-all"
+                  className="min-h-[48px] min-w-0 flex-1 resize-none rounded-2xl border border-outline-variant bg-surface-container-low px-3 py-3 text-body-md outline-none transition-all focus:border-primary focus:ring-2 focus:ring-primary sm:px-4"
                   placeholder={
                     chatEnabled
                       ? "Scrivi un messaggio…"
@@ -2696,7 +2696,7 @@ export default function MessagesClient({
                   type="submit"
                   disabled={!canSendMessage}
                   className={[
-                    "w-12 h-12 rounded-full flex items-center justify-center text-white shadow-md transition-all",
+                    "flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-white shadow-md transition-all sm:h-12 sm:w-12",
                     !canSendMessage
                       ? "bg-outline-variant cursor-not-allowed"
                       : "bg-[#FF8500] hover:bg-[#FF9A2B] active:scale-[0.98]",
@@ -2709,12 +2709,12 @@ export default function MessagesClient({
             </footer>
 
             {confirmDeleteOpen ? (
-              <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+              <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4">
                 <div
                   className="absolute inset-0 bg-inverse-surface/40 backdrop-blur-sm"
                   onClick={() => setConfirmDeleteOpen(false)}
                 />
-                <div className="relative w-full max-w-[448px] bg-surface-container-lowest rounded-2xl border border-outline-variant/30 shadow-[0_12px_40px_rgba(8,43,95,0.18)] p-6">
+                <div className="relative max-h-[calc(100dvh-1.5rem)] w-full max-w-[448px] overflow-y-auto rounded-2xl border border-outline-variant/30 bg-surface-container-lowest p-4 shadow-[0_12px_40px_rgba(8,43,95,0.18)] sm:p-6">
                   <div className="font-headline-sm text-primary mb-2">
                     Cancellare la chat?
                   </div>
@@ -2729,7 +2729,7 @@ export default function MessagesClient({
                     </div>
                   ) : null}
 
-                  <div className="flex gap-2 justify-end">
+                  <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
                     <button
                       type="button"
                       className="px-4 py-2 rounded-full border-2 border-primary text-primary font-button hover:bg-primary-fixed transition-colors"

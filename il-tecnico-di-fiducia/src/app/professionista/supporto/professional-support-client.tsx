@@ -244,8 +244,8 @@ export default function ProfessionalSupportClient() {
   }
 
   return (
-    <div className="mx-auto grid max-w-[1280px] gap-6 px-4 py-8 sm:px-6 xl:grid-cols-[360px_minmax(0,1fr)] xl:px-8">
-      <section className="rounded-[28px] border border-outline-variant/30 bg-surface-container-lowest p-6 shadow-[0_4px_20px_rgba(8,43,95,0.08)]">
+    <div className="mx-auto grid max-w-[1280px] gap-6 px-3 py-5 sm:px-6 sm:py-8 xl:grid-cols-[360px_minmax(0,1fr)] xl:px-8">
+      <section className="rounded-[24px] border border-outline-variant/30 bg-surface-container-lowest p-5 shadow-[0_4px_20px_rgba(8,43,95,0.08)] sm:rounded-[28px] sm:p-6">
         <div className="font-label-md text-[12px] uppercase tracking-[0.16em] text-on-tertiary-container">
           Supporto
         </div>
@@ -287,14 +287,14 @@ export default function ProfessionalSupportClient() {
           <button
             type="submit"
             disabled={submitting}
-            className="w-full rounded-full bg-[#FF8500] px-6 py-3 font-button text-button text-white shadow-md transition hover:bg-[#FF9A2B] disabled:opacity-60"
+            className="min-h-11 w-full rounded-full bg-[#FF8500] px-6 py-3 font-button text-button text-white shadow-md transition hover:bg-[#FF9A2B] disabled:opacity-60"
           >
             {submitting ? "Invio in corso…" : "Invia ticket"}
           </button>
         </form>
       </section>
 
-      <section className="grid min-h-[760px] overflow-hidden rounded-[28px] border border-outline-variant/30 bg-surface-container-lowest shadow-[0_4px_20px_rgba(8,43,95,0.08)] lg:grid-cols-[360px_minmax(0,1fr)]">
+      <section className="grid min-h-[620px] overflow-hidden rounded-[24px] border border-outline-variant/30 bg-surface-container-lowest shadow-[0_4px_20px_rgba(8,43,95,0.08)] sm:rounded-[28px] lg:min-h-[720px] lg:grid-cols-[360px_minmax(0,1fr)]">
         <aside className="border-b border-outline-variant/30 bg-surface-container-lowest lg:border-b-0 lg:border-r">
           <div className="border-b border-outline-variant/30 p-5">
             <div className="flex items-center justify-between gap-3">
@@ -312,7 +312,7 @@ export default function ProfessionalSupportClient() {
             </div>
           </div>
 
-          <div className="max-h-[680px] space-y-2 overflow-y-auto p-3">
+          <div className="max-h-[min(680px,calc(100dvh-12rem))] space-y-2 overflow-y-auto p-3">
             {!loading && tickets.length === 0 ? (
               <div className="rounded-[24px] border-2 border-dashed border-outline-variant p-6 text-center">
                 <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-primary-fixed text-primary">
@@ -373,7 +373,7 @@ export default function ProfessionalSupportClient() {
           </div>
         </aside>
 
-        <div className="flex min-h-[760px] flex-col bg-surface-bright">
+        <div className="flex min-h-[620px] min-w-0 flex-col bg-surface-bright lg:min-h-[720px]">
           {selectedTicket ? (
             <>
               <header className="border-b border-outline-variant/30 bg-surface-container-lowest/90 p-5 backdrop-blur">
@@ -413,11 +413,11 @@ export default function ProfessionalSupportClient() {
                 ) : null}
 
                 <div className="flex justify-end">
-                  <div className="max-w-[82%] rounded-2xl rounded-tr-sm bg-primary p-4 text-white shadow-sm">
+                  <div className="max-w-[88%] rounded-2xl rounded-tr-sm bg-primary p-4 text-white shadow-sm sm:max-w-[82%]">
                     <p className="mb-2 text-xs font-semibold uppercase tracking-[0.12em] opacity-70">
                       Tu · richiesta iniziale
                     </p>
-                    <p className="leading-7">{selectedTicket.body}</p>
+                    <p className="break-words leading-7 [overflow-wrap:anywhere]">{selectedTicket.body}</p>
                     <p className="mt-2 text-xs opacity-60">
                       {formatDate(selectedTicket.created_at)}
                     </p>
@@ -443,7 +443,7 @@ export default function ProfessionalSupportClient() {
                       >
                         <div
                           className={[
-                            "max-w-[82%] rounded-2xl p-4 shadow-sm",
+                            "max-w-[88%] rounded-2xl p-4 shadow-sm sm:max-w-[82%]",
                             isAdmin
                               ? "rounded-tl-sm border border-outline-variant/30 bg-white text-on-surface"
                               : "rounded-tr-sm bg-primary text-white",
@@ -452,7 +452,7 @@ export default function ProfessionalSupportClient() {
                           <p className="mb-2 text-xs font-semibold uppercase tracking-[0.12em] opacity-70">
                             {isAdmin ? "Assistenza admin" : "Tu"}
                           </p>
-                          <p className="leading-7">{supportMessage.body}</p>
+                          <p className="break-words leading-7 [overflow-wrap:anywhere]">{supportMessage.body}</p>
                           <p className="mt-2 text-xs opacity-60">
                             {formatDate(supportMessage.created_at)}
                           </p>
@@ -462,7 +462,7 @@ export default function ProfessionalSupportClient() {
                   })}
               </div>
 
-              <footer className="border-t border-outline-variant/30 bg-surface-container-lowest p-5">
+              <footer className="border-t border-outline-variant/30 bg-surface-container-lowest p-4 pb-[max(1rem,env(safe-area-inset-bottom))] sm:p-5">
                 {selectedTicket.status === "closed" ? (
                   <div className="rounded-2xl bg-surface-container-low p-4 text-center text-on-surface-variant">
                     Questo ticket è stato risolto. Apri una nuova richiesta se hai bisogno di
@@ -485,7 +485,7 @@ export default function ProfessionalSupportClient() {
                     <div className="flex justify-end">
                       <button
                         type="button"
-                        className="rounded-full bg-[#FF8500] px-6 py-3 font-button text-white shadow-md transition hover:bg-[#FF9A2B] disabled:opacity-60"
+                        className="min-h-11 rounded-full bg-[#FF8500] px-6 py-3 font-button text-white shadow-md transition hover:bg-[#FF9A2B] disabled:opacity-60"
                         onClick={() => void sendReply()}
                         disabled={replying || !replyBody.trim()}
                       >

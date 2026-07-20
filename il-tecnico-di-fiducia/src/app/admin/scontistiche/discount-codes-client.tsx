@@ -160,7 +160,7 @@ export default function DiscountCodesClient() {
     <div className="grid gap-6 xl:grid-cols-[420px_minmax(0,1fr)]">
       <form
         onSubmit={createDiscount}
-        className="rounded-[28px] border border-outline-variant/30 bg-surface-container-lowest p-5 shadow-[0_4px_20px_rgba(8,43,95,0.08)] sm:p-6"
+        className="rounded-[24px] border border-outline-variant/30 bg-surface-container-lowest p-5 shadow-[0_4px_20px_rgba(8,43,95,0.08)] sm:rounded-[28px] sm:p-6"
       >
         <div className="mb-5">
           <p className="font-label-md text-sm uppercase tracking-[0.16em] text-[#FF8500]">
@@ -322,13 +322,13 @@ export default function DiscountCodesClient() {
         <button
           type="submit"
           disabled={submitting}
-          className="mt-6 w-full rounded-full bg-[#FF8500] px-6 py-3 font-button text-button text-white shadow-md transition hover:bg-[#FF9A2B] disabled:cursor-not-allowed disabled:opacity-60"
+          className="mt-6 min-h-11 w-full rounded-full bg-[#FF8500] px-6 py-3 font-button text-button text-white shadow-md transition hover:bg-[#FF9A2B] disabled:cursor-not-allowed disabled:opacity-60"
         >
           {submitting ? "Creazione…" : "Crea codice sconto"}
         </button>
       </form>
 
-      <section className="rounded-[28px] border border-outline-variant/30 bg-surface-container-lowest p-5 shadow-[0_4px_20px_rgba(8,43,95,0.08)] sm:p-6">
+      <section className="rounded-[24px] border border-outline-variant/30 bg-surface-container-lowest p-5 shadow-[0_4px_20px_rgba(8,43,95,0.08)] sm:rounded-[28px] sm:p-6">
         <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <p className="font-label-md text-sm uppercase tracking-[0.16em] text-[#FF8500]">
@@ -341,7 +341,7 @@ export default function DiscountCodesClient() {
           <button
             type="button"
             onClick={() => void loadDiscounts()}
-            className="rounded-full border border-primary px-5 py-2 font-button text-primary transition hover:bg-primary hover:text-white"
+            className="min-h-10 rounded-full border border-primary px-5 py-2 font-button text-primary transition hover:bg-primary hover:text-white"
           >
             Ricarica
           </button>
@@ -406,7 +406,7 @@ export default function DiscountCodesClient() {
                     disabled={busyId === discount.id}
                     onClick={() => void toggleDiscount(discount)}
                     className={[
-                      "rounded-full px-5 py-2 font-button transition disabled:cursor-not-allowed disabled:opacity-60",
+                      "min-h-10 rounded-full px-5 py-2 font-button transition disabled:cursor-not-allowed disabled:opacity-60",
                       discount.is_active
                         ? "bg-error-container text-error hover:bg-error/10"
                         : "bg-primary text-white hover:bg-primary-container",

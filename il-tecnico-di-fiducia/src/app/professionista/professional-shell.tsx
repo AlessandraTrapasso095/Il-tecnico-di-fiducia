@@ -252,10 +252,10 @@ function LogoWordmark() {
         alt="Il Tecnico di Fiducia"
         width={80}
         height={80}
-        className="h-12 w-12 object-contain sm:h-14 sm:w-14"
+        className="h-11 w-11 shrink-0 object-contain sm:h-14 sm:w-14"
         priority
       />
-      <span className="flex flex-col leading-none">
+      <span className="hidden flex-col leading-none sm:flex">
         <span className="font-headline-sm text-[19px] font-bold text-primary sm:text-[22px]">
           Il tecnico
         </span>
@@ -578,7 +578,7 @@ export default function ProfessionalShell({ profile, children }: ProfessionalShe
   );
 
   return (
-    <div className="min-h-screen bg-background text-on-background">
+    <div className="min-h-dvh bg-background text-on-background">
       <AuthenticatedPresence
         userId={profile.id}
         role="professional"
@@ -589,8 +589,8 @@ export default function ProfessionalShell({ profile, children }: ProfessionalShe
         }
       >
       <header className="fixed left-0 right-0 top-0 z-50 h-20 border-b border-outline-variant/30 bg-surface-container-lowest/90 backdrop-blur-md">
-        <div className="mx-auto flex h-full max-w-[1440px] items-center justify-between gap-4 px-4 sm:px-6 lg:px-8">
-          <div className="flex items-center gap-3">
+        <div className="mx-auto flex h-full max-w-[1440px] items-center justify-between gap-2 px-3 sm:gap-4 sm:px-6 lg:px-8">
+          <div className="flex min-w-0 items-center gap-1.5 sm:gap-3">
             <button
               type="button"
               className="rounded-full p-2 text-primary hover:bg-surface-container-high lg:hidden"
@@ -606,7 +606,7 @@ export default function ProfessionalShell({ profile, children }: ProfessionalShe
             <LogoWordmark />
           </div>
 
-          <div className="flex items-center gap-2 sm:gap-3">
+          <div className="flex shrink-0 items-center gap-1 sm:gap-3">
             <div ref={searchRef} className="relative">
               <button
                 type="button"
@@ -620,7 +620,7 @@ export default function ProfessionalShell({ profile, children }: ProfessionalShe
                 <span className="material-symbols-outlined">search</span>
               </button>
               {searchOpen ? (
-                <div className="absolute right-0 top-[56px] w-[min(440px,calc(100vw-32px))] rounded-[24px] border border-outline-variant/40 bg-surface-container-lowest p-4 shadow-2xl">
+                <div className="absolute right-0 top-[56px] w-[min(440px,calc(100vw-24px))] rounded-[24px] border border-outline-variant/40 bg-surface-container-lowest p-4 shadow-2xl">
                   <label className="font-label-md text-primary" htmlFor="professional-search">
                     Cerca altri professionisti
                   </label>
@@ -717,7 +717,7 @@ export default function ProfessionalShell({ profile, children }: ProfessionalShe
                 ) : null}
               </button>
               {notificationsOpen ? (
-                <div className="absolute right-0 top-[56px] w-[min(380px,calc(100vw-32px))] rounded-[24px] border border-outline-variant/40 bg-surface-container-lowest p-4 shadow-2xl">
+                <div className="absolute right-0 top-[56px] w-[min(380px,calc(100vw-24px))] rounded-[24px] border border-outline-variant/40 bg-surface-container-lowest p-4 shadow-2xl">
                   <div className="mb-3 flex items-center justify-between">
                     <div className="font-headline-sm text-[20px] text-primary">Notifiche</div>
                     <button
@@ -786,7 +786,7 @@ export default function ProfessionalShell({ profile, children }: ProfessionalShe
 
       {sidebarOpen ? (
         <div className="fixed inset-0 z-[60] bg-inverse-surface/45 backdrop-blur-sm lg:hidden">
-          <div className="h-full w-[min(320px,86vw)] bg-surface-container-low p-5 shadow-2xl">
+          <div className="h-full w-[min(320px,86vw)] overflow-y-auto bg-surface-container-low p-5 pb-[max(1.25rem,env(safe-area-inset-bottom))] shadow-2xl">
             <div className="mb-6 flex items-center justify-between">
               <LogoWordmark />
               <button
@@ -814,7 +814,7 @@ export default function ProfessionalShell({ profile, children }: ProfessionalShe
           {sidebar}
         </aside>
 
-        <main className="min-h-[calc(100dvh-80px)] min-w-0 flex-1">{children}</main>
+        <main className="min-h-[calc(100dvh-80px)] min-w-0 flex-1 overflow-x-clip">{children}</main>
       </div>
       <Footer />
       </AuthenticatedPresence>

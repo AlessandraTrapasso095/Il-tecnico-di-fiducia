@@ -40,35 +40,35 @@ export function CustomerAreaShell({ children }: CustomerAreaShellProps) {
   const isSearchActive = isCustomerHome && !isMessagesActive;
 
   return (
-    <div className="min-h-screen bg-surface text-on-surface">
-      <header className="fixed top-0 z-50 h-[92px] w-full bg-surface-container-lowest/88 shadow-sm backdrop-blur-md">
-        <div className="mx-auto flex h-full w-full max-w-[1280px] items-center justify-between gap-3 px-4 sm:px-6">
-          <div className="flex min-w-0 items-center gap-2">
+    <div className="min-h-dvh bg-surface text-on-surface">
+      <header className="fixed top-0 z-50 h-20 w-full bg-surface-container-lowest/88 shadow-sm backdrop-blur-md sm:h-[92px]">
+        <div className="mx-auto flex h-full w-full max-w-[1280px] items-center justify-between gap-2 px-3 sm:gap-3 sm:px-6">
+          <div className="flex min-w-0 flex-1 items-center gap-1.5 sm:gap-2">
             <HeaderBackButton
               fallbackHref="/customer"
               hiddenPathnames={["/customer", "/cliente"]}
             />
-            <Link href="/customer" className="flex min-w-0 items-center gap-2.5">
+            <Link href="/customer" className="flex min-w-0 items-center gap-2 sm:gap-2.5">
               <Image
                 src="/img/logo-mark.png"
                 alt="Il Tecnico di Fiducia"
                 width={54}
                 height={54}
-                className="h-[46px] w-[46px] shrink-0 object-contain sm:h-[54px] sm:w-[54px]"
+                className="h-10 w-10 shrink-0 object-contain sm:h-[54px] sm:w-[54px]"
                 priority
               />
-              <span className="leading-none">
-                <span className="block font-headline-sm text-[18px] font-bold text-[#FF8500] sm:text-[21px]">
+              <span className="min-w-0 leading-none">
+                <span className="block font-headline-sm text-[15px] font-bold text-[#FF8500] sm:text-[21px]">
                   Il tecnico
                 </span>
-                <span className="block font-headline-sm text-[18px] font-bold text-primary sm:text-[21px]">
+                <span className="block font-headline-sm text-[15px] font-bold text-primary sm:text-[21px]">
                   di fiducia
                 </span>
               </span>
             </Link>
           </div>
 
-          <nav className="hidden items-center gap-8 md:flex">
+          <nav className="hidden items-center gap-8 lg:flex">
             <Link
               href="/customer"
               className={customerNavTextClass(isSearchActive)}
@@ -83,7 +83,7 @@ export function CustomerAreaShell({ children }: CustomerAreaShellProps) {
             </Link>
           </nav>
 
-          <div className="flex items-center gap-2">
+          <div className="flex shrink-0 items-center gap-1 sm:gap-2">
             <Link
               href="/customer"
               className={customerIconClass(false)}
@@ -116,7 +116,7 @@ export function CustomerAreaShell({ children }: CustomerAreaShellProps) {
         </div>
       </header>
 
-      <main className="pt-[92px]">{children}</main>
+      <main className="pt-20 sm:pt-[92px]">{children}</main>
 
       <Footer />
     </div>

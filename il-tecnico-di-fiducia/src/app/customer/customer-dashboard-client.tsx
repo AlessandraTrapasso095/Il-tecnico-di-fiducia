@@ -919,42 +919,42 @@ export default function CustomerDashboardClient({
     "https://images.pexels.com/photos/3184465/pexels-photo-3184465.jpeg?auto=compress&cs=tinysrgb&w=1800&h=900&fit=crop";
 
   return (
-    <div className="flex min-h-screen flex-col bg-surface text-on-surface">
+    <div className="flex min-h-dvh flex-col bg-surface text-on-surface">
       <AuthenticatedPresence
         userId={profile.id}
         role="customer"
         activeConversationId={view === "messages" ? activeConversationId : null}
       >
-      <header className="fixed top-0 z-50 h-[92px] w-full bg-surface-container-lowest/88 shadow-sm backdrop-blur-md">
-        <div className="mx-auto flex h-full w-full max-w-[1280px] items-center justify-between gap-3 px-4 sm:px-6">
-          <div className="flex min-w-0 items-center gap-2">
+      <header className="fixed top-0 z-50 h-20 w-full bg-surface-container-lowest/88 shadow-sm backdrop-blur-md sm:h-[92px]">
+        <div className="mx-auto flex h-full w-full max-w-[1280px] items-center justify-between gap-2 px-3 sm:gap-3 sm:px-6">
+          <div className="flex min-w-0 flex-1 items-center gap-1.5 sm:gap-2">
             <HeaderBackButton
               fallbackHref="/customer"
               hiddenPathnames={["/customer", "/cliente"]}
               forceVisible={view !== "explore"}
               onBack={openExplore}
             />
-            <Link href="/customer" className="flex min-w-0 items-center gap-2.5">
+            <Link href="/customer" className="flex min-w-0 items-center gap-2 sm:gap-2.5">
               <Image
                 src="/img/logo-mark.png"
                 alt="Il Tecnico di Fiducia"
                 width={54}
                 height={54}
-                className="h-[46px] w-[46px] shrink-0 object-contain sm:h-[54px] sm:w-[54px]"
+                className="h-10 w-10 shrink-0 object-contain sm:h-[54px] sm:w-[54px]"
                 priority
               />
-              <span className="leading-none">
-                <span className="block font-headline-sm text-[18px] font-bold text-[#FF8500] sm:text-[21px]">
+              <span className="min-w-0 leading-none">
+                <span className="block font-headline-sm text-[15px] font-bold text-[#FF8500] sm:text-[21px]">
                   Il tecnico
                 </span>
-                <span className="block font-headline-sm text-[18px] font-bold text-primary sm:text-[21px]">
+                <span className="block font-headline-sm text-[15px] font-bold text-primary sm:text-[21px]">
                   di fiducia
                 </span>
               </span>
             </Link>
           </div>
 
-          <nav className="hidden items-center gap-8 md:flex">
+          <nav className="hidden items-center gap-8 lg:flex">
             <button
               type="button"
               className={customerNavTextClass(isSearchNavActive)}
@@ -971,7 +971,7 @@ export default function CustomerDashboardClient({
             </button>
           </nav>
 
-          <div className="flex items-center gap-2">
+          <div className="flex shrink-0 items-center gap-1 sm:gap-2">
             <div ref={favoritesRef} className="relative">
               <button
                 type="button"
@@ -1012,7 +1012,7 @@ export default function CustomerDashboardClient({
                       </p>
                     </div>
                   ) : (
-                    <div className="max-h-[420px] overflow-y-auto p-2">
+                  <div className="max-h-[min(420px,calc(100dvh-9rem))] overflow-y-auto p-2">
                       {savedProfessionals.map((professional) => (
                         <Link
                           key={professional.id}
@@ -1124,7 +1124,7 @@ export default function CustomerDashboardClient({
                       </p>
                     </div>
                   ) : (
-                    <div className="max-h-[420px] overflow-y-auto p-2">
+                    <div className="max-h-[min(420px,calc(100dvh-9rem))] overflow-y-auto p-2">
                       {notifications.map((notification) => {
                         const actor = notification.actor ?? {
                           first_name: "Il Tecnico",
@@ -1200,13 +1200,13 @@ export default function CustomerDashboardClient({
       <main
         className={
           view === "messages"
-            ? "flex h-[100dvh] min-h-0 flex-col overflow-hidden pt-[92px]"
-            : "pt-[92px]"
+            ? "flex h-[100dvh] min-h-0 flex-col overflow-hidden pt-20 sm:pt-[92px]"
+            : "pt-20 sm:pt-[92px]"
         }
       >
         {view === "messages" ? (
-          <section id="messaggi-cliente" className="flex min-h-0 flex-1 overflow-hidden px-4 py-4 sm:px-6">
-            <div className="mx-auto flex h-full min-h-0 flex-1 max-w-[1280px] flex-col overflow-hidden rounded-[28px] border border-outline-variant/30 bg-surface-container-lowest shadow-[0_4px_20px_rgba(8,43,95,0.08)]">
+          <section id="messaggi-cliente" className="flex min-h-0 flex-1 overflow-hidden px-2 py-2 sm:px-6 sm:py-4">
+            <div className="mx-auto flex h-full min-h-0 flex-1 max-w-[1280px] flex-col overflow-hidden rounded-[20px] border border-outline-variant/30 bg-surface-container-lowest shadow-[0_4px_20px_rgba(8,43,95,0.08)] sm:rounded-[28px]">
               <div className="flex flex-col gap-3 border-b border-outline-variant/30 p-4 sm:flex-row sm:items-center sm:justify-between">
                 <div>
                   <div className="font-headline-sm text-headline-sm text-primary">
@@ -1218,7 +1218,7 @@ export default function CustomerDashboardClient({
                 </div>
                 <button
                   type="button"
-                  className="rounded-full border-2 border-primary px-5 py-2 font-button text-button text-primary transition-colors hover:bg-primary hover:text-white"
+                  className="min-h-11 rounded-full border-2 border-primary px-5 py-2 font-button text-button text-primary transition-colors hover:bg-primary hover:text-white"
                   onClick={openExplore}
                 >
                   Torna a Cerca
@@ -1296,7 +1296,7 @@ export default function CustomerDashboardClient({
                     </div>
 
                     {filterOpen ? (
-                      <div className="fixed inset-x-4 bottom-4 z-[90] max-h-[78vh] overflow-y-auto rounded-[24px] border border-outline-variant/30 bg-surface-container-lowest p-5 text-left shadow-[0_18px_50px_rgba(8,43,95,0.18)] sm:absolute sm:bottom-auto sm:left-auto sm:right-0 sm:top-[calc(100%+12px)] sm:w-[520px] sm:max-h-[calc(100vh-180px)]">
+                      <div className="fixed inset-x-3 bottom-3 z-[90] max-h-[calc(100dvh-1.5rem)] overflow-y-auto rounded-[24px] border border-outline-variant/30 bg-surface-container-lowest p-4 text-left shadow-[0_18px_50px_rgba(8,43,95,0.18)] sm:absolute sm:bottom-auto sm:left-auto sm:right-0 sm:top-[calc(100%+12px)] sm:w-[520px] sm:max-h-[calc(100dvh-180px)] sm:p-5">
                         <div className="mb-4 flex items-center justify-between gap-3">
                           <div>
                             <div className="font-headline-sm text-primary">
@@ -1674,12 +1674,12 @@ export default function CustomerDashboardClient({
       <Footer />
 
       {contactModal.open ? (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-3 sm:p-4">
           <div
             className="absolute inset-0 bg-inverse-surface/40 backdrop-blur-sm"
             onClick={() => setContactModal({ open: false, professional: null })}
           />
-          <div className="relative w-full max-w-[640px] overflow-hidden rounded-[24px] border border-white/20 bg-surface-container-lowest shadow-[0_12px_50px_rgba(0,0,0,0.20)]">
+          <div className="relative flex max-h-[calc(100dvh-1.5rem)] w-full max-w-[640px] flex-col overflow-hidden rounded-[24px] border border-white/20 bg-surface-container-lowest shadow-[0_12px_50px_rgba(0,0,0,0.20)]">
             <div className="flex items-start justify-between gap-4 border-b border-outline-variant/30 bg-surface-container-lowest/90 p-5 backdrop-blur-md sm:p-6">
               <div className="min-w-0">
                 <div className="mb-1 font-headline-sm text-primary">
@@ -1705,7 +1705,7 @@ export default function CustomerDashboardClient({
               </button>
             </div>
 
-            <div className="space-y-4 p-5 sm:p-6">
+            <div className="min-h-0 flex-1 space-y-4 overflow-y-auto p-5 sm:p-6">
               {contactDone ? (
                 <div className="rounded-2xl border border-outline-variant/30 bg-surface-container-low p-5 text-center">
                   <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-primary-fixed text-primary">

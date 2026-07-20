@@ -51,7 +51,7 @@ export function ConfirmActionModal({
   }, [busy, onCancel]);
 
   return (
-    <div className="fixed inset-0 z-[120] flex items-center justify-center p-4">
+    <div className="fixed inset-0 z-[120] flex items-center justify-center p-3 sm:p-4">
       <button
         type="button"
         className="absolute inset-0 bg-inverse-surface/55 backdrop-blur-sm"
@@ -59,7 +59,7 @@ export function ConfirmActionModal({
         disabled={busy}
         onClick={onCancel}
       />
-      <div className="relative w-full max-w-[480px] rounded-[28px] border border-white/30 bg-surface-container-lowest p-6 shadow-2xl">
+      <div className="relative max-h-[calc(100dvh-1.5rem)] w-full max-w-[480px] overflow-y-auto rounded-[24px] border border-white/30 bg-surface-container-lowest p-4 shadow-2xl sm:rounded-[28px] sm:p-6">
         <button
           type="button"
           className="absolute right-4 top-4 flex h-10 w-10 items-center justify-center rounded-full text-on-surface-variant transition hover:bg-surface-container-low"
@@ -85,7 +85,7 @@ export function ConfirmActionModal({
         <div className="mt-6 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
           <button
             type="button"
-            className="rounded-full px-5 py-3 font-button text-primary transition hover:bg-primary-fixed disabled:opacity-60"
+            className="min-h-11 rounded-full px-5 py-3 font-button text-primary transition hover:bg-primary-fixed disabled:opacity-60"
             disabled={busy}
             onClick={onCancel}
           >
@@ -93,7 +93,7 @@ export function ConfirmActionModal({
           </button>
           <button
             type="button"
-            className="rounded-full bg-error px-6 py-3 font-button text-white shadow-lg shadow-error/20 transition hover:opacity-90 disabled:opacity-60"
+            className="min-h-11 rounded-full bg-error px-6 py-3 font-button text-white shadow-lg shadow-error/20 transition hover:opacity-90 disabled:opacity-60"
             disabled={busy || confirmDisabled}
             onClick={onConfirm}
           >
@@ -141,7 +141,7 @@ export function PostMediaViewer({
       >
         <span className="material-symbols-outlined">close</span>
       </button>
-      <div className="relative z-10 flex max-h-[92vh] w-full max-w-[1180px] items-center justify-center">
+      <div className="relative z-10 flex max-h-[calc(100dvh-1.5rem)] w-full max-w-[1180px] items-center justify-center">
         {attachment.media_type === "image" ? (
           <Image
             src={attachment.public_url}
@@ -149,14 +149,14 @@ export function PostMediaViewer({
             width={1440}
             height={960}
             unoptimized
-            className="max-h-[92vh] w-auto max-w-full rounded-[24px] object-contain shadow-2xl"
+            className="max-h-[calc(100dvh-1.5rem)] w-auto max-w-full rounded-[20px] object-contain shadow-2xl sm:rounded-[24px]"
           />
         ) : (
           <video
             src={attachment.public_url}
             controls
             autoPlay
-            className="max-h-[92vh] w-full max-w-[1180px] rounded-[24px] bg-black shadow-2xl"
+            className="max-h-[calc(100dvh-1.5rem)] w-full max-w-[1180px] rounded-[20px] bg-black shadow-2xl sm:rounded-[24px]"
           />
         )}
       </div>
@@ -268,7 +268,7 @@ export function PostEditModal({
   );
 
   return (
-    <div className="fixed inset-0 z-[120] flex items-center justify-center p-4">
+    <div className="fixed inset-0 z-[120] flex items-center justify-center p-3 sm:p-4">
       <button
         type="button"
         className="absolute inset-0 bg-inverse-surface/55 backdrop-blur-sm"
@@ -276,7 +276,7 @@ export function PostEditModal({
         disabled={busy}
         onClick={onCancel}
       />
-      <div className="relative max-h-[92vh] w-full max-w-[780px] overflow-y-auto rounded-[28px] bg-surface-container-lowest p-5 shadow-2xl sm:p-6">
+      <div className="relative max-h-[calc(100dvh-1.5rem)] w-full max-w-[780px] overflow-y-auto rounded-[24px] bg-surface-container-lowest p-4 shadow-2xl sm:rounded-[28px] sm:p-6">
         <button
           type="button"
           className="absolute right-4 top-4 flex h-10 w-10 items-center justify-center rounded-full text-on-surface-variant transition hover:bg-surface-container-low"
@@ -379,7 +379,7 @@ export function PostEditModal({
           <section>
             <div className="mb-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <h3 className="font-label-md text-primary">Nuovi allegati</h3>
-              <label className="inline-flex cursor-pointer items-center justify-center gap-2 rounded-full border border-primary px-4 py-2 text-sm font-bold text-primary transition hover:bg-primary-fixed">
+              <label className="inline-flex min-h-11 cursor-pointer items-center justify-center gap-2 rounded-full border border-primary px-4 py-2 text-sm font-bold text-primary transition hover:bg-primary-fixed">
                 <span className="material-symbols-outlined text-[20px]">add_photo_alternate</span>
                 Aggiungi foto/video
                 <input
@@ -433,7 +433,7 @@ export function PostEditModal({
         <div className="mt-6 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
           <button
             type="button"
-            className="rounded-full px-5 py-3 font-button text-primary hover:bg-primary-fixed disabled:opacity-60"
+            className="min-h-11 rounded-full px-5 py-3 font-button text-primary hover:bg-primary-fixed disabled:opacity-60"
             disabled={busy}
             onClick={onCancel}
           >
@@ -441,7 +441,7 @@ export function PostEditModal({
           </button>
           <button
             type="button"
-            className="rounded-full bg-[#FF8500] px-6 py-3 font-button text-white shadow-lg shadow-[#FF8500]/20 hover:bg-[#FF9A2B] disabled:opacity-60"
+            className="min-h-11 rounded-full bg-[#FF8500] px-6 py-3 font-button text-white shadow-lg shadow-[#FF8500]/20 hover:bg-[#FF9A2B] disabled:opacity-60"
             disabled={busy}
             onClick={() => void submit()}
           >

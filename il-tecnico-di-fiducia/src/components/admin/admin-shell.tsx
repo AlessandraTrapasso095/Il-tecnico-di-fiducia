@@ -33,7 +33,7 @@ export function AdminShell({ children, title, subtitle, adminName }: AdminShellP
   const pathname = usePathname();
 
   return (
-    <div className="min-h-screen bg-background text-on-surface">
+    <div className="min-h-dvh bg-background text-on-surface">
       <header className="sticky top-0 z-40 border-b border-outline-variant/30 bg-surface-container-lowest/85 backdrop-blur-xl lg:ml-72">
         <div className="flex min-h-20 flex-col gap-3 px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-6 lg:px-8">
           <div className="flex items-start gap-3">
@@ -46,7 +46,7 @@ export function AdminShell({ children, title, subtitle, adminName }: AdminShellP
               <p className="font-label-md text-sm uppercase tracking-[0.16em] text-[#FF8500]">
                 Admin Panel
               </p>
-              <h1 className="font-headline-md text-[30px] leading-tight text-primary">
+              <h1 className="font-headline-md text-2xl leading-tight text-primary sm:text-[30px]">
                 {title}
               </h1>
               {subtitle ? (
@@ -54,11 +54,11 @@ export function AdminShell({ children, title, subtitle, adminName }: AdminShellP
               ) : null}
             </div>
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex flex-wrap items-center gap-2 sm:gap-3">
             <div className="hidden rounded-full border border-outline-variant/40 bg-surface-container-low px-4 py-2 text-sm text-on-surface-variant sm:block">
               {adminName || "Admin"}
             </div>
-            <SignOutButton className="inline-flex items-center gap-2 rounded-full border border-error/30 px-4 py-2 font-button text-error transition hover:bg-error-container">
+            <SignOutButton className="inline-flex min-h-11 items-center gap-2 rounded-full border border-error/30 px-4 py-2 font-button text-error transition hover:bg-error-container">
               <span className="material-symbols-outlined text-[20px]">logout</span>
               Esci
             </SignOutButton>
@@ -66,7 +66,7 @@ export function AdminShell({ children, title, subtitle, adminName }: AdminShellP
         </div>
       </header>
 
-      <aside className="fixed left-0 top-0 z-50 hidden h-screen w-72 border-r border-outline-variant/30 bg-surface-container-low p-5 lg:flex lg:flex-col">
+      <aside className="fixed left-0 top-0 z-50 hidden h-dvh w-72 border-r border-outline-variant/30 bg-surface-container-low p-5 lg:flex lg:flex-col">
         <div className="mb-8 flex items-center gap-2 px-2">
           <HeaderBackButton fallbackHref="/admin" hiddenPathnames={["/admin"]} />
           <Link href="/admin" className="flex min-w-0 items-center gap-3">
@@ -108,7 +108,7 @@ export function AdminShell({ children, title, subtitle, adminName }: AdminShellP
         </div>
       </aside>
 
-      <nav className="fixed bottom-0 left-0 right-0 z-50 grid grid-cols-7 border-t border-outline-variant/30 bg-surface-container-lowest/90 px-2 py-2 backdrop-blur-xl lg:hidden">
+      <nav className="fixed bottom-0 left-0 right-0 z-50 flex gap-1 overflow-x-auto border-t border-outline-variant/30 bg-surface-container-lowest/90 px-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] pt-2 backdrop-blur-xl lg:hidden">
         {NAV_ITEMS.map((item) => {
           const active = isActive(pathname, item.href);
           return (
@@ -116,7 +116,7 @@ export function AdminShell({ children, title, subtitle, adminName }: AdminShellP
               key={item.href}
               href={item.href}
               className={[
-                "flex flex-col items-center gap-1 rounded-2xl px-2 py-2 text-[10px]",
+                "flex min-w-[76px] flex-1 flex-col items-center gap-1 rounded-2xl px-2 py-2 text-[10px]",
                 active ? "text-primary" : "text-on-surface-variant",
               ].join(" ")}
             >
@@ -127,7 +127,7 @@ export function AdminShell({ children, title, subtitle, adminName }: AdminShellP
         })}
       </nav>
 
-      <main className="px-4 py-6 pb-28 sm:px-6 lg:ml-72 lg:px-8 lg:pb-10">
+      <main className="px-4 py-5 pb-[calc(6.5rem+env(safe-area-inset-bottom))] sm:px-6 lg:ml-72 lg:px-8 lg:py-6 lg:pb-10">
         {children}
       </main>
     </div>
