@@ -12,6 +12,7 @@ import {
 } from "react";
 import type { RealtimeChannel } from "@supabase/supabase-js";
 
+import { logRealtimeDev } from "@/lib/realtime-dev-logger";
 import { createClient } from "@/lib/supabase/client";
 
 type AuthenticatedPresenceProps = {
@@ -23,13 +24,12 @@ type AuthenticatedPresenceProps = {
 
 type PresencePayload = {
   user_id: string;
-  role: string;
   active_conversation_id: string | null;
-  online_at: string;
+  last_seen: string;
 };
 
 const HEARTBEAT_INTERVAL_MS = 60_000;
-const GLOBAL_PRESENCE_CHANNEL = "presence:authenticated-users";
+const GLOBAL_PRESENCE_CHANNEL = "authenticated-users";
 const EMPTY_ONLINE_USER_IDS = new Set<string>();
 
 type AuthenticatedPresenceContextValue = {
@@ -67,28 +67,34 @@ export function AuthenticatedPresence({
   const payload = useCallback((): PresencePayload => {
     return {
       user_id: userId,
-      role,
       active_conversation_id: activeConversationRef.current,
-      online_at: new Date().toISOString(),
+      last_seen: new Date().toISOString(),
     };
-  }, [role, userId]);
+  }, [userId]);
 
   const trackPresence = useCallback(() => {
     const channel = channelRef.current;
     if (!channel || !subscribedRef.current) return;
+    logRealtimeDev("presence.track", {
+      scope: "presence",
+      channelName: GLOBAL_PRESENCE_CHANNEL,
+      activeConversationId: activeConversationRef.current,
+    });
     void channel.track(payload());
   }, [payload]);
 
-  const touchActivity = useCallback(() => {
+  const touchActivity = useCallback((reason = "manual") => {
+    logRealtimeDev("heartbeat.sent", {
+      scope: "presence",
+      reason,
+    });
     void fetch("/api/activity", {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({
-        active_conversation_id: activeConversationRef.current,
-      }),
+      body: JSON.stringify({}),
       credentials: "same-origin",
     }).catch(() => {
-      // Best-effort fallback for server-side last_seen checks.
+      // Best-effort server projection for non-realtime email decisions.
     });
   }, []);
 
@@ -119,9 +125,8 @@ export function AuthenticatedPresence({
       if (activeConversationRef.current === nextConversationId) return;
       activeConversationRef.current = nextConversationId;
       trackPresence();
-      touchActivity();
     },
-    [touchActivity, trackPresence],
+    [trackPresence],
   );
 
   useEffect(() => {
@@ -134,6 +139,10 @@ export function AuthenticatedPresence({
     let channel: RealtimeChannel | null = null;
 
     try {
+      logRealtimeDev("channel.created", {
+        scope: "presence",
+        channelName: GLOBAL_PRESENCE_CHANNEL,
+      });
       channel = supabase.channel(GLOBAL_PRESENCE_CHANNEL, {
         config: { presence: { key: userId } },
       });
@@ -141,19 +150,39 @@ export function AuthenticatedPresence({
 
       channel
         .on("presence", { event: "sync" }, () => {
+          logRealtimeDev("presence.event", {
+            scope: "presence",
+            eventType: "sync",
+            channelName: GLOBAL_PRESENCE_CHANNEL,
+          });
           if (channel) syncPresenceState(channel);
         })
         .on("presence", { event: "join" }, () => {
+          logRealtimeDev("presence.event", {
+            scope: "presence",
+            eventType: "join",
+            channelName: GLOBAL_PRESENCE_CHANNEL,
+          });
           if (channel) syncPresenceState(channel);
         })
         .on("presence", { event: "leave" }, () => {
+          logRealtimeDev("presence.event", {
+            scope: "presence",
+            eventType: "leave",
+            channelName: GLOBAL_PRESENCE_CHANNEL,
+          });
           if (channel) syncPresenceState(channel);
         })
         .subscribe((status) => {
+          logRealtimeDev("subscription.presence", {
+            scope: "presence",
+            status,
+            channelName: GLOBAL_PRESENCE_CHANNEL,
+          });
           if (status === "SUBSCRIBED") {
             subscribedRef.current = true;
             trackPresence();
-            touchActivity();
+            touchActivity("subscribed");
             if (channel) syncPresenceState(channel);
           } else if (status === "CHANNEL_ERROR" || status === "TIMED_OUT" || status === "CLOSED") {
             subscribedRef.current = false;
@@ -167,13 +196,13 @@ export function AuthenticatedPresence({
     }
 
     heartbeatRef.current = window.setInterval(() => {
-      touchActivity();
+      trackPresence();
+      touchActivity("interval");
     }, HEARTBEAT_INTERVAL_MS);
 
     function handleVisibleAgain() {
       if (document.visibilityState === "visible") {
         trackPresence();
-        touchActivity();
       }
     }
 
@@ -195,6 +224,10 @@ export function AuthenticatedPresence({
       document.removeEventListener("visibilitychange", handleVisibleAgain);
       if (!channel) return;
       void channel.untrack();
+      logRealtimeDev("channel.removed", {
+        scope: "presence",
+        channelName: GLOBAL_PRESENCE_CHANNEL,
+      });
       supabase.removeChannel(channel);
       if (channelRef.current === channel) {
         channelRef.current = null;

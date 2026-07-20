@@ -7,6 +7,7 @@ import type { RealtimePostgresChangesPayload } from "@supabase/realtime-js";
 
 import { useAuthenticatedPresence } from "@/components/realtime/authenticated-presence";
 import { ApiError, fetchJson } from "@/lib/api/fetch-json";
+import { logRealtimeDev } from "@/lib/realtime-dev-logger";
 import type {
   ConversationDetailResponse,
   ConversationQuoteContext,
@@ -173,16 +174,142 @@ type ViewableAttachment = {
   file_name?: string | null;
   file_type: "image" | "video" | "document";
   mime_type?: string | null;
+  file_size?: number | null;
 };
 
 function attachmentName(attachment: ViewableAttachment) {
   return attachment.file_name || (attachment.path ? fileNameFromPath(attachment.path) : "allegato");
 }
 
+function isImageFileLike(mimeType: string | null | undefined, fileName: string | null | undefined) {
+  return (
+    mimeType?.toLowerCase().startsWith("image/") ||
+    /\.(png|jpe?g|webp|gif|heic|heif)$/i.test(fileName ?? "")
+  );
+}
+
+function isVideoFileLike(mimeType: string | null | undefined, fileName: string | null | undefined) {
+  return (
+    mimeType?.toLowerCase().startsWith("video/") ||
+    /\.(mp4|mov|webm|m4v)$/i.test(fileName ?? "")
+  );
+}
+
 function fileKindFromFile(file: File): "image" | "video" | "document" {
-  if (file.type.startsWith("image/")) return "image";
-  if (file.type.startsWith("video/")) return "video";
+  if (isImageFileLike(file.type, file.name)) return "image";
+  if (isVideoFileLike(file.type, file.name)) return "video";
   return "document";
+}
+
+type FileVisualKind = "image" | "video" | "pdf" | "word" | "excel" | "zip" | "file";
+
+function fileExtension(fileName: string | null | undefined) {
+  const name = fileName?.toLowerCase().trim() ?? "";
+  const index = name.lastIndexOf(".");
+  return index === -1 ? "" : name.slice(index + 1);
+}
+
+function fileVisualKind({
+  fileType,
+  mimeType,
+  fileName,
+}: {
+  fileType?: "image" | "video" | "document";
+  mimeType?: string | null;
+  fileName?: string | null;
+}): FileVisualKind {
+  const mime = mimeType?.toLowerCase() ?? "";
+  const extension = fileExtension(fileName);
+
+  if (fileType === "image" || isImageFileLike(mime, fileName)) return "image";
+  if (fileType === "video" || isVideoFileLike(mime, fileName)) return "video";
+  if (mime === "application/pdf" || extension === "pdf") return "pdf";
+  if (
+    mime === "application/msword" ||
+    mime === "application/vnd.openxmlformats-officedocument.wordprocessingml.document" ||
+    extension === "doc" ||
+    extension === "docx"
+  ) {
+    return "word";
+  }
+  if (
+    mime === "application/vnd.ms-excel" ||
+    mime === "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" ||
+    extension === "xls" ||
+    extension === "xlsx"
+  ) {
+    return "excel";
+  }
+  if (
+    mime === "application/zip" ||
+    mime === "application/x-zip-compressed" ||
+    extension === "zip"
+  ) {
+    return "zip";
+  }
+  return "file";
+}
+
+function fileVisualKindFromFile(file: File) {
+  return fileVisualKind({
+    fileType: fileKindFromFile(file),
+    mimeType: file.type,
+    fileName: file.name,
+  });
+}
+
+function formatFileSize(size: number | null | undefined) {
+  if (!size || !Number.isFinite(size) || size <= 0) return "";
+  if (size < 1024) return `${size} B`;
+  if (size < 1024 * 1024) return `${Math.round(size / 1024)} KB`;
+  return `${(size / (1024 * 1024)).toFixed(size >= 10 * 1024 * 1024 ? 0 : 1)} MB`;
+}
+
+function fileVisualMeta(kind: FileVisualKind) {
+  switch (kind) {
+    case "pdf":
+      return {
+        icon: "picture_as_pdf",
+        label: "PDF",
+        className: "bg-error-container text-error",
+      };
+    case "word":
+      return {
+        icon: "article",
+        label: "DOC",
+        className: "bg-primary-fixed text-primary",
+      };
+    case "excel":
+      return {
+        icon: "table_chart",
+        label: "XLS",
+        className: "bg-emerald-100 text-emerald-700",
+      };
+    case "zip":
+      return {
+        icon: "folder_zip",
+        label: "ZIP",
+        className: "bg-tertiary-fixed text-on-tertiary-fixed-variant",
+      };
+    default:
+      return {
+        icon: "insert_drive_file",
+        label: "FILE",
+        className: "bg-surface-container-high text-primary",
+      };
+  }
+}
+
+function logAttachmentDebug(message: string, payload?: unknown) {
+  if (process.env.NODE_ENV === "development") {
+    console.log(`[attachments] ${message}`, payload ?? "");
+  }
+}
+
+function logAttachmentPreviewDebug(payload: unknown) {
+  if (process.env.NODE_ENV === "development") {
+    console.log("[attachment preview]", payload);
+  }
 }
 
 const UUID_PATTERN =
@@ -222,8 +349,14 @@ function AttachmentPreview({
   onOpen: (attachment: ViewableAttachment) => void;
 }) {
   const name = attachmentName(attachment);
+  const kind = fileVisualKind({
+    fileType: attachment.file_type,
+    mimeType: attachment.mime_type,
+    fileName: name,
+  });
+  const fileSize = formatFileSize(attachment.file_size);
 
-  if (attachment.file_type === "image") {
+  if (kind === "image") {
     return (
       <button
         type="button"
@@ -240,46 +373,59 @@ function AttachmentPreview({
     );
   }
 
-  if (attachment.file_type === "video") {
+  if (kind === "video") {
     return (
-      <div
+      <button
+        type="button"
         className={[
-          "mt-3 max-w-[min(300px,72vw)] overflow-hidden rounded-xl border bg-surface-container-lowest",
+          "group relative mt-3 block max-w-[min(300px,72vw)] overflow-hidden rounded-xl border bg-inverse-surface text-left",
           mine ? "border-white/20" : "border-outline-variant/30",
         ].join(" ")}
+        onClick={() => onOpen(attachment)}
       >
         <video
           src={attachment.signed_url}
-          controls
-          className="h-auto max-h-[320px] w-full max-w-[min(300px,72vw)] bg-inverse-surface object-contain"
+          muted
+          preload="metadata"
+          className="h-auto max-h-[320px] w-full max-w-[min(300px,72vw)] object-cover opacity-90 transition group-hover:scale-[1.02]"
         />
-        <button
-          type="button"
-          className="w-full px-3 py-2 text-left text-xs font-bold text-primary hover:bg-surface-container-low"
-          onClick={() => onOpen(attachment)}
-        >
-          Apri video
-        </button>
-      </div>
+        <span className="absolute inset-0 flex items-center justify-center bg-black/15">
+          <span className="material-symbols-outlined flex h-12 w-12 items-center justify-center rounded-full bg-white/90 text-[#FF8500] shadow-lg" aria-hidden>
+            play_arrow
+          </span>
+        </span>
+      </button>
     );
   }
+
+  const meta = fileVisualMeta(kind);
 
   return (
     <a
       href={attachment.signed_url}
       target="_blank"
       rel="noreferrer"
+      download={name}
       className={[
-        "mt-3 flex items-center gap-3 rounded-2xl border px-3 py-3 text-sm transition-colors",
+        "mt-3 flex max-w-[min(320px,78vw)] items-center gap-3 rounded-2xl border px-3 py-3 text-sm transition-colors",
         mine
           ? "border-white/20 bg-white/10 text-white hover:bg-white/20"
           : "border-outline-variant/30 bg-surface-container-lowest text-primary hover:bg-surface-container-low",
       ].join(" ")}
     >
-      <span className="material-symbols-outlined" aria-hidden>
-        description
+      <span
+        className={["flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl", meta.className].join(" ")}
+        aria-hidden
+      >
+        <span className="material-symbols-outlined">{meta.icon}</span>
       </span>
-      <span className="min-w-0 flex-1 truncate">{name}</span>
+      <span className="min-w-0 flex-1">
+        <span className="block truncate font-bold">{name}</span>
+        <span className={["block text-[11px]", mine ? "text-white/70" : "text-on-surface-variant"].join(" ")}>
+          {meta.label}
+          {fileSize ? ` • ${fileSize}` : ""}
+        </span>
+      </span>
       <span className="material-symbols-outlined text-[18px]" aria-hidden>
         open_in_new
       </span>
@@ -294,42 +440,112 @@ function PendingFilePreview({
   file: File;
   onRemove: () => void;
 }) {
-  const kind = fileKindFromFile(file);
+  const kind = fileVisualKindFromFile(file);
   const url = useMemo(
-    () => (kind === "document" ? null : URL.createObjectURL(file)),
+    () => (kind === "image" || kind === "video" ? URL.createObjectURL(file) : null),
     [file, kind],
   );
+  const meta = fileVisualMeta(kind);
+  const fileSize = formatFileSize(file.size);
+  const isMedia = kind === "image" || kind === "video";
 
   useEffect(() => {
     if (!url) return undefined;
     return () => URL.revokeObjectURL(url);
   }, [url]);
 
+  useEffect(() => {
+    logAttachmentPreviewDebug({
+      name: file.name,
+      type: file.type,
+      kind,
+      previewUrl: url,
+    });
+  }, [file.name, file.type, kind, url]);
+
   return (
-    <div className="relative overflow-hidden rounded-2xl border border-outline-variant/30 bg-surface-container-lowest">
+    <div
+      className={[
+        "relative shrink-0 overflow-hidden rounded-xl border border-outline-variant/30 bg-surface-container-lowest shadow-sm",
+        isMedia ? "h-20 w-20" : "h-20 w-[210px]",
+      ].join(" ")}
+    >
       <button
         type="button"
-        className="absolute right-2 top-2 z-10 flex h-7 w-7 items-center justify-center rounded-full bg-inverse-surface/80 text-white"
+        className="absolute right-1 top-1 z-10 flex h-5 w-5 items-center justify-center rounded-full bg-inverse-surface/85 text-white shadow-md transition hover:scale-105"
         onClick={onRemove}
         aria-label={`Rimuovi ${file.name}`}
       >
-        <span className="material-symbols-outlined text-[16px]" aria-hidden>
+        <span className="material-symbols-outlined text-[13px]" aria-hidden>
           close
         </span>
       </button>
       {kind === "image" && url ? (
         // eslint-disable-next-line @next/next/no-img-element
-        <img src={url} alt={file.name} className="h-28 w-full object-cover" />
+        <img src={url} alt="" className="h-full w-full object-cover" />
       ) : kind === "video" && url ? (
-        <video src={url} className="h-28 w-full bg-inverse-surface object-contain" />
-      ) : (
-        <div className="flex h-28 flex-col items-center justify-center gap-2 px-3 text-center text-primary">
-          <span className="material-symbols-outlined" aria-hidden>
-            description
+        <div className="relative h-full bg-inverse-surface">
+          <video src={url} muted preload="metadata" className="h-full w-full object-cover opacity-90" />
+          <span className="absolute inset-0 flex items-center justify-center bg-black/10">
+            <span className="material-symbols-outlined flex h-8 w-8 items-center justify-center rounded-full bg-white/90 text-[22px] text-[#FF8500] shadow-lg" aria-hidden>
+              play_arrow
+            </span>
           </span>
-          <span className="max-w-full truncate text-xs font-bold">{file.name}</span>
+        </div>
+      ) : (
+        <div className="flex h-full items-center gap-2 px-2 pr-7 text-primary">
+          <span
+            className={["flex h-10 w-10 shrink-0 items-center justify-center rounded-xl", meta.className].join(" ")}
+            aria-hidden
+          >
+            <span className="material-symbols-outlined text-[22px]">{meta.icon}</span>
+          </span>
+          <span className="min-w-0 flex-1">
+            <span className="block truncate text-xs font-bold text-primary">{file.name}</span>
+            <span className="block text-[11px] text-on-surface-variant">
+              {meta.label}
+              {fileSize ? ` • ${fileSize}` : ""}
+            </span>
+          </span>
         </div>
       )}
+    </div>
+  );
+}
+
+function PendingFilesTray({
+  files,
+  onRemoveFile,
+  title = "Allegati pronti",
+}: {
+  files: File[];
+  onRemoveFile: (index: number) => void;
+  title?: string;
+}) {
+  if (files.length === 0) return null;
+
+  return (
+    <div className="max-h-[118px] overflow-hidden rounded-2xl border border-outline-variant/30 bg-surface-container-low p-2 shadow-sm">
+      <div className="mb-2 flex items-center justify-between gap-3">
+        <div className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-widest text-primary">
+          <span className="material-symbols-outlined text-[15px]" aria-hidden>
+            attach_file
+          </span>
+          {title}
+        </div>
+        <span className="rounded-full bg-surface-container-high px-2 py-0.5 text-[10px] font-bold text-on-surface-variant">
+          {files.length}
+        </span>
+      </div>
+      <div className="flex gap-2 overflow-x-auto overflow-y-hidden pb-1">
+        {files.map((file, index) => (
+          <PendingFilePreview
+            key={`${file.name}-${file.lastModified}-${index}`}
+            file={file}
+            onRemove={() => onRemoveFile(index)}
+          />
+        ))}
+      </div>
     </div>
   );
 }
@@ -848,6 +1064,12 @@ function ReviewModal({
             />
           </label>
 
+          <PendingFilesTray
+            files={files}
+            title="Allegati recensione"
+            onRemoveFile={onRemoveFile}
+          />
+
           <label className="block">
             <span className="mb-2 block text-sm font-bold text-primary">
               Testo recensione <span className="font-normal text-on-surface-variant">(opzionale)</span>
@@ -871,6 +1093,7 @@ function ReviewModal({
                 className="sr-only"
                 multiple
                 accept="image/png,image/jpeg,image/webp,video/mp4,video/quicktime"
+                onClick={() => logAttachmentDebug("input click", { target: "review" })}
                 onChange={(event) => {
                   onFilesChange(event.target.files);
                   event.target.value = "";
@@ -878,18 +1101,6 @@ function ReviewModal({
               />
             </label>
           </div>
-
-          {files.length > 0 ? (
-            <div className="grid gap-2 sm:grid-cols-3">
-              {files.map((file, index) => (
-                <PendingFilePreview
-                  key={`${file.name}-${file.lastModified}-${index}`}
-                  file={file}
-                  onRemove={() => onRemoveFile(index)}
-                />
-              ))}
-            </div>
-          ) : null}
 
           {error ? (
             <div className="rounded-2xl bg-error-container p-3 text-sm text-on-error-container">
@@ -1002,18 +1213,42 @@ export default function MessagesClient({
   const typingStopTimer = useRef<number | null>(null);
   const hasBroadcastTypingOn = useRef(false);
 
+  const messageInputRef = useRef<HTMLTextAreaElement | null>(null);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
   const convChannelRef = useRef<RealtimeChannel | null>(null);
   const convChannelConversationIdRef = useRef<string | null>(null);
-  const presenceChannelRef = useRef<RealtimeChannel | null>(null);
-  const presenceChannelConversationIdRef = useRef<string | null>(null);
-  const convListChannelRef = useRef<RealtimeChannel | null>(null);
-  const messageReloadTimersRef = useRef<Map<string, number>>(new Map());
+  const typingChannelRef = useRef<RealtimeChannel | null>(null);
+  const typingChannelConversationIdRef = useRef<string | null>(null);
   const loadMessagesRequestRef = useRef(0);
   const markReadInFlightRef = useRef<Set<string>>(new Set());
   const activeIdRef = useRef<string | null>(activeId);
   const messagesRef = useRef<MessageRow[]>(messages);
   const conversationsRef = useRef<ConversationRow[]>(conversations);
+
+  useEffect(() => {
+    logAttachmentDebug("state", {
+      target: "chat",
+      count: pendingFiles.length,
+      files: pendingFiles.map((file) => ({
+        name: file.name,
+        type: file.type,
+        size: file.size,
+      })),
+    });
+  }, [pendingFiles]);
+
+  useEffect(() => {
+    logAttachmentDebug("state", {
+      target: "review",
+      count: reviewFiles.length,
+      files: reviewFiles.map((file) => ({
+        name: file.name,
+        type: file.type,
+        size: file.size,
+      })),
+    });
+  }, [reviewFiles]);
 
   const filteredConversations = conversations.filter((c) => {
     const q = search.trim().toLowerCase();
@@ -1050,42 +1285,31 @@ export default function MessagesClient({
     });
   }
 
-  function scheduleMessagesReload(conversationId: string, delayMs = 150) {
-    const current = messageReloadTimersRef.current.get(conversationId);
-    if (current) {
-      window.clearTimeout(current);
-    }
-
-    const timer = window.setTimeout(() => {
-      messageReloadTimersRef.current.delete(conversationId);
-      if (activeIdRef.current !== conversationId) return;
-      void loadMessages(conversationId, { background: true }).catch((error) => {
-        console.error("[messages] Failed to reload messages", {
-          error,
-          conversationId,
-          userId: meId,
-        });
-      });
-    }, delayMs);
-
-    messageReloadTimersRef.current.set(conversationId, timer);
-  }
-
   function clearConversationRealtime() {
-    const activePresenceConversationId = presenceChannelConversationIdRef.current;
-    if (activePresenceConversationId) {
-      void clearActiveConversationPresence(activePresenceConversationId);
-    }
     stopTypingTimers();
     if (convChannelRef.current) {
+      logRealtimeDev("channel.removed", {
+        scope: "messages",
+        channelName: convChannelConversationIdRef.current
+          ? `db:messages:${convChannelConversationIdRef.current}`
+          : "db:messages:unknown",
+        reason: "clear-conversation",
+      });
       supabase.removeChannel(convChannelRef.current);
       convChannelRef.current = null;
       convChannelConversationIdRef.current = null;
     }
-    if (presenceChannelRef.current) {
-      supabase.removeChannel(presenceChannelRef.current);
-      presenceChannelRef.current = null;
-      presenceChannelConversationIdRef.current = null;
+    if (typingChannelRef.current) {
+      logRealtimeDev("channel.removed", {
+        scope: "typing",
+        channelName: typingChannelConversationIdRef.current
+          ? `typing:${typingChannelConversationIdRef.current}`
+          : "typing:unknown",
+        reason: "clear-conversation",
+      });
+      supabase.removeChannel(typingChannelRef.current);
+      typingChannelRef.current = null;
+      typingChannelConversationIdRef.current = null;
     }
     setRemoteTyping(false);
   }
@@ -1280,10 +1504,7 @@ export default function MessagesClient({
       }
 
       setReviewedRequestIds((current) => new Set(current).add(requestId));
-      setReviewRating(5);
-      setReviewTitle("");
-      setReviewBody("");
-      setReviewFiles([]);
+      resetReviewForm();
       setReviewModalOpen(false);
     } catch (e) {
       setReviewError(e instanceof Error ? e.message : "Errore imprevisto.");
@@ -1318,14 +1539,6 @@ export default function MessagesClient({
       // Read receipts are best-effort and should never block the chat UI.
     } finally {
       markReadInFlightRef.current.delete(id);
-    }
-  }
-
-  async function clearActiveConversationPresence(id: string) {
-    try {
-      await fetchJson<{ ok: true }>(`/api/conversations/${id}/presence`, { method: "DELETE" });
-    } catch {
-      // Active-chat presence is best-effort.
     }
   }
 
@@ -1399,9 +1612,31 @@ export default function MessagesClient({
     }
   }
 
+  function resetComposer() {
+    setDraft("");
+    setPendingFiles([]);
+    hasBroadcastTypingOn.current = false;
+
+    if (fileInputRef.current) {
+      fileInputRef.current.value = "";
+    }
+
+    requestAnimationFrame(() => {
+      messageInputRef.current?.focus();
+    });
+  }
+
+  function resetReviewForm() {
+    setReviewRating(5);
+    setReviewTitle("");
+    setReviewBody("");
+    setReviewFiles([]);
+  }
+
   async function sendMessage() {
     const body = draft.trim();
-    if (!activeId || (!body && pendingFiles.length === 0)) return;
+    const filesToSend = pendingFiles;
+    if (!activeId || (!body && filesToSend.length === 0)) return;
     if (!chatEnabled) return;
 
     const conversationId = activeId;
@@ -1409,14 +1644,32 @@ export default function MessagesClient({
       typeof crypto !== "undefined" && "randomUUID" in crypto
         ? `local-${crypto.randomUUID()}`
         : `local-${Date.now()}`;
+    const now = new Date().toISOString();
+    const localAttachmentUrls = filesToSend.map((file) => URL.createObjectURL(file));
     const localMessage: MessageRow = {
       id: localId,
       conversation_id: conversationId,
       sender_id: meId ?? "",
       body: body || null,
-      created_at: new Date().toISOString(),
+      created_at: now,
       read_at: null,
-      attachments: [],
+      attachments: filesToSend.map((file, index) => {
+        const kind = fileKindFromFile(file);
+        return {
+          id: `${localId}-attachment-${index}`,
+          message_id: localId,
+          conversation_id: conversationId,
+          bucket_id: "local",
+          file_path: file.name,
+          file_type: kind,
+          mime_type: file.type || null,
+          file_name: file.name,
+          file_size: file.size,
+          signed_url: localAttachmentUrls[index],
+          expires_at: now,
+          created_at: now,
+        };
+      }),
     };
 
     setSendError(null);
@@ -1427,7 +1680,7 @@ export default function MessagesClient({
     try {
       const formData = new FormData();
       formData.append("body", body);
-      pendingFiles.forEach((file) => formData.append("files", file));
+      filesToSend.forEach((file) => formData.append("files", file));
 
       const response = await fetch(`/api/conversations/${conversationId}/messages`, {
         method: "POST",
@@ -1443,9 +1696,7 @@ export default function MessagesClient({
       }
       const res = { message: payload.message };
 
-      setDraft("");
-      setPendingFiles([]);
-      hasBroadcastTypingOn.current = false;
+      resetComposer();
 
       setMessagesSynced((prev) => {
         const withoutLocal = prev.filter((message) => message.id !== localId);
@@ -1469,6 +1720,7 @@ export default function MessagesClient({
       setMessagesSynced((prev) => prev.filter((message) => message.id !== localId));
       setSendError(e instanceof Error ? e.message : "Errore imprevisto.");
     } finally {
+      localAttachmentUrls.forEach((url) => URL.revokeObjectURL(url));
       setSending(false);
     }
   }
@@ -1504,7 +1756,7 @@ export default function MessagesClient({
   }
 
   function sendTyping(isTyping: boolean) {
-    const ch = presenceChannelRef.current;
+    const ch = typingChannelRef.current;
     if (!ch || !meId || !activeId) return;
 
     ch.send({
@@ -1518,7 +1770,7 @@ export default function MessagesClient({
     setDraft(next);
 
     if (!activeId || !meId) return;
-    if (!presenceChannelRef.current) return;
+    if (!typingChannelRef.current) return;
 
     const shouldType = next.trim().length > 0;
 
@@ -1549,13 +1801,23 @@ export default function MessagesClient({
       convChannelRef.current &&
       convChannelConversationIdRef.current !== conversationId
     ) {
+      logRealtimeDev("channel.removed", {
+        scope: "messages",
+        channelName: `db:messages:${convChannelConversationIdRef.current}`,
+        reason: "conversation-change",
+      });
       supabase.removeChannel(convChannelRef.current);
       convChannelRef.current = null;
       convChannelConversationIdRef.current = null;
     }
     if (!convChannelRef.current) {
+      const messageChannelName = `db:messages:${conversationId}`;
+      logRealtimeDev("channel.created", {
+        scope: "messages",
+        channelName: messageChannelName,
+      });
       const msgChannel = supabase
-        .channel(`db:messages:${conversationId}`)
+        .channel(messageChannelName)
         .on(
           "postgres_changes",
           {
@@ -1565,11 +1827,15 @@ export default function MessagesClient({
             filter: `conversation_id=eq.${conversationId}`,
           },
           (payload: RealtimePostgresChangesPayload<MessageRow>) => {
+            logRealtimeDev("postgres.messages", {
+              scope: "messages",
+              eventType: "INSERT",
+              channelName: messageChannelName,
+            });
             const row = payload.new;
             if (!row || typeof row !== "object" || !("id" in row)) return;
             const message = row as MessageRow;
             setMessagesSynced((current) => mergeMessage(current, message));
-            scheduleMessagesReload(conversationId, 250);
             if (message.sender_id !== meId) {
               void markConversationRead(conversationId, [message]);
             }
@@ -1585,24 +1851,17 @@ export default function MessagesClient({
         .on(
           "postgres_changes",
           {
-            event: "*",
-            schema: "public",
-            table: "message_attachments",
-            filter: `conversation_id=eq.${conversationId}`,
-          },
-          () => {
-            scheduleMessagesReload(conversationId, 150);
-          },
-        )
-        .on(
-          "postgres_changes",
-          {
             event: "UPDATE",
             schema: "public",
             table: "messages",
             filter: `conversation_id=eq.${conversationId}`,
           },
           (payload: RealtimePostgresChangesPayload<MessageRow>) => {
+            logRealtimeDev("postgres.messages", {
+              scope: "messages",
+              eventType: "UPDATE",
+              channelName: messageChannelName,
+            });
             const row = payload.new;
             if (!row || typeof row !== "object" || !("id" in row)) return;
             const message = row as MessageRow;
@@ -1624,58 +1883,76 @@ export default function MessagesClient({
             filter: `conversation_id=eq.${conversationId}`,
           },
           (payload: RealtimePostgresChangesPayload<MessageRow>) => {
+            logRealtimeDev("postgres.messages", {
+              scope: "messages",
+              eventType: "DELETE",
+              channelName: messageChannelName,
+            });
             const row = payload.old as Partial<MessageRow> | null;
             if (!row?.id) return;
             setMessagesSynced((prev) => prev.filter((message) => message.id !== row.id));
           },
         )
-        .on(
-          "postgres_changes",
-          {
-            event: "*",
-            schema: "public",
-            table: "quotes",
-            filter: `conversation_id=eq.${conversationId}`,
-          },
-          () => {
-            void loadQuotes(conversationId);
-          },
-        )
-        .subscribe();
+        .subscribe((status) => {
+          logRealtimeDev("subscription.messages", {
+            scope: "messages",
+            status,
+            channelName: messageChannelName,
+          });
+        });
 
       convChannelRef.current = msgChannel;
       convChannelConversationIdRef.current = conversationId;
     }
 
     if (
-      presenceChannelRef.current &&
-      presenceChannelConversationIdRef.current !== conversationId
+      typingChannelRef.current &&
+      typingChannelConversationIdRef.current !== conversationId
     ) {
-      const previousPresenceConversationId = presenceChannelConversationIdRef.current;
-      if (previousPresenceConversationId) {
-        void clearActiveConversationPresence(previousPresenceConversationId);
-      }
-      supabase.removeChannel(presenceChannelRef.current);
-      presenceChannelRef.current = null;
-      presenceChannelConversationIdRef.current = null;
+      const previousTypingConversationId = typingChannelConversationIdRef.current;
+      logRealtimeDev("channel.removed", {
+        scope: "typing",
+        channelName: previousTypingConversationId
+          ? `typing:${previousTypingConversationId}`
+          : "typing:unknown",
+        reason: "conversation-change",
+      });
+      supabase.removeChannel(typingChannelRef.current);
+      typingChannelRef.current = null;
+      typingChannelConversationIdRef.current = null;
     }
     stopTypingTimers();
     setRemoteTyping(false);
 
-    if (!presenceChannelRef.current) {
-      const presenceChannel = supabase
-        .channel(`conversation:${conversationId}`, {
+    if (!typingChannelRef.current) {
+      const typingChannelName = `typing:${conversationId}`;
+      logRealtimeDev("channel.created", {
+        scope: "typing",
+        channelName: typingChannelName,
+      });
+      const typingChannel = supabase
+        .channel(typingChannelName, {
           config: { private: true },
         })
         .on("broadcast", { event: "typing" }, ({ payload }) => {
+          logRealtimeDev("broadcast.typing", {
+            scope: "typing",
+            channelName: typingChannelName,
+          });
           const p = payload as TypingPayload | undefined;
           if (!p || p.user_id !== otherUserId) return;
           setRemoteTyping(Boolean(p.is_typing));
         })
-        .subscribe();
+        .subscribe((status) => {
+          logRealtimeDev("subscription.typing", {
+            scope: "typing",
+            status,
+            channelName: typingChannelName,
+          });
+        });
 
-      presenceChannelRef.current = presenceChannel;
-      presenceChannelConversationIdRef.current = conversationId;
+      typingChannelRef.current = typingChannel;
+      typingChannelConversationIdRef.current = conversationId;
     }
   }
 
@@ -1786,96 +2063,33 @@ export default function MessagesClient({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [meId, role]);
 
-  // Realtime: keep conversation list fresh (status changes + last message preview + new conversations)
-  useEffect(() => {
-    if (!meId || !role || role === "admin") return;
-
-    if (convListChannelRef.current) {
-      supabase.removeChannel(convListChannelRef.current);
-      convListChannelRef.current = null;
-    }
-
-    const filter =
-      role === "customer"
-        ? `customer_id=eq.${meId}`
-        : `professional_id=eq.${meId}`;
-
-    const channel = supabase
-      .channel(`db:conversations:${meId}`)
-      .on(
-        "postgres_changes",
-        { event: "UPDATE", schema: "public", table: "conversations", filter },
-        (payload: RealtimePostgresChangesPayload<ConversationRow>) => {
-          const row = payload.new;
-          if (!row || typeof row !== "object" || !("id" in row)) return;
-          const conversation = row as ConversationRow;
-          applyConversationPatch({
-            id: conversation.id,
-            status: conversation.status,
-            last_message_at: conversation.last_message_at,
-            last_message_body: conversation.last_message_body,
-            last_message_sender_id: conversation.last_message_sender_id,
-            updated_at: conversation.updated_at,
-          });
-
-          const currentActiveId = activeIdRef.current;
-          if (currentActiveId && conversation.id === currentActiveId) {
-            setActiveDetail((prev) =>
-              prev
-                ? {
-                    ...prev,
-                    conversation: { ...prev.conversation, ...conversation },
-                  }
-                : prev,
-            );
-          }
-        },
-      )
-      .on(
-        "postgres_changes",
-        { event: "INSERT", schema: "public", table: "conversations", filter },
-        (payload: RealtimePostgresChangesPayload<ConversationRow>) => {
-          const row = payload.new;
-          if (!row || typeof row !== "object" || !("id" in row)) return;
-          const conversation = row as ConversationRow;
-          void hydrateConversation(conversation.id);
-        },
-      )
-      .subscribe();
-
-    convListChannelRef.current = channel;
-
-    return () => {
-      if (convListChannelRef.current) {
-        supabase.removeChannel(convListChannelRef.current);
-        convListChannelRef.current = null;
-      }
-    };
-  }, [meId, role, supabase]);
-
   // Cleanup active chat channels on unmount.
   useEffect(() => {
-    const reloadTimers = messageReloadTimersRef.current;
-
     return () => {
-      const activePresenceConversationId = presenceChannelConversationIdRef.current;
-      if (activePresenceConversationId) {
-        void clearActiveConversationPresence(activePresenceConversationId);
-      }
-      for (const timer of reloadTimers.values()) {
-        window.clearTimeout(timer);
-      }
-      reloadTimers.clear();
       stopTypingTimers();
       if (convChannelRef.current) {
+        logRealtimeDev("channel.removed", {
+          scope: "messages",
+          channelName: convChannelConversationIdRef.current
+            ? `db:messages:${convChannelConversationIdRef.current}`
+            : "db:messages:unknown",
+          reason: "unmount",
+        });
         supabase.removeChannel(convChannelRef.current);
         convChannelRef.current = null;
         convChannelConversationIdRef.current = null;
       }
-      if (presenceChannelRef.current) {
-        supabase.removeChannel(presenceChannelRef.current);
-        presenceChannelRef.current = null;
-        presenceChannelConversationIdRef.current = null;
+      if (typingChannelRef.current) {
+        logRealtimeDev("channel.removed", {
+          scope: "typing",
+          channelName: typingChannelConversationIdRef.current
+            ? `typing:${typingChannelConversationIdRef.current}`
+            : "typing:unknown",
+          reason: "unmount",
+        });
+        supabase.removeChannel(typingChannelRef.current);
+        typingChannelRef.current = null;
+        typingChannelConversationIdRef.current = null;
       }
     };
   }, [supabase]);
@@ -1936,13 +2150,33 @@ export default function MessagesClient({
   );
 
   function addPendingFiles(files: FileList | null) {
-    if (!files || files.length === 0) return;
-    setPendingFiles((current) => [...current, ...Array.from(files)].slice(0, 10));
+    const selectedFiles = Array.from(files ?? []);
+    logAttachmentDebug("selected", {
+      target: "chat",
+      count: selectedFiles.length,
+      files: selectedFiles.map((file) => ({
+        name: file.name,
+        type: file.type,
+        size: file.size,
+      })),
+    });
+    if (selectedFiles.length === 0) return;
+    setPendingFiles((current) => [...current, ...selectedFiles].slice(0, 10));
   }
 
   function addReviewFiles(files: FileList | null) {
-    if (!files || files.length === 0) return;
-    setReviewFiles((current) => [...current, ...Array.from(files)].slice(0, 6));
+    const selectedFiles = Array.from(files ?? []);
+    logAttachmentDebug("selected", {
+      target: "review",
+      count: selectedFiles.length,
+      files: selectedFiles.map((file) => ({
+        name: file.name,
+        type: file.type,
+        size: file.size,
+      })),
+    });
+    if (selectedFiles.length === 0) return;
+    setReviewFiles((current) => [...current, ...selectedFiles].slice(0, 6));
   }
 
   const showListOnMobile = mobilePanel === "list";
@@ -2402,18 +2636,15 @@ export default function MessagesClient({
               ) : null}
 
               {pendingFiles.length > 0 ? (
-                <div className="mb-3 grid gap-2 sm:grid-cols-3">
-                  {pendingFiles.map((file, index) => (
-                    <PendingFilePreview
-                      key={`${file.name}-${file.lastModified}-${index}`}
-                      file={file}
-                      onRemove={() =>
-                        setPendingFiles((current) =>
-                          current.filter((_, itemIndex) => itemIndex !== index),
-                        )
-                      }
-                    />
-                  ))}
+                <div className="mb-3">
+                  <PendingFilesTray
+                    files={pendingFiles}
+                    onRemoveFile={(index) =>
+                      setPendingFiles((current) =>
+                        current.filter((_, itemIndex) => itemIndex !== index),
+                      )
+                    }
+                  />
                 </div>
               ) : null}
 
@@ -2435,11 +2666,13 @@ export default function MessagesClient({
                 >
                   <span className="material-symbols-outlined">attach_file</span>
                   <input
+                    ref={fileInputRef}
                     type="file"
                     className="sr-only"
                     multiple
                     disabled={!chatEnabled || sending}
-                    accept="image/png,image/jpeg,image/webp,video/mp4,video/quicktime,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,.doc,.docx"
+                    accept="image/png,image/jpeg,image/webp,video/mp4,video/quicktime,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/zip,application/x-zip-compressed,.doc,.docx,.xls,.xlsx,.zip"
+                    onClick={() => logAttachmentDebug("input click", { target: "chat" })}
                     onChange={(event) => {
                       addPendingFiles(event.target.files);
                       event.target.value = "";
@@ -2447,6 +2680,7 @@ export default function MessagesClient({
                   />
                 </label>
                 <textarea
+                  ref={messageInputRef}
                   className="flex-1 px-4 py-3 bg-surface-container-low border border-outline-variant rounded-2xl focus:ring-2 focus:ring-primary focus:border-primary outline-none text-body-md resize-none min-h-[48px] max-h-[140px] transition-all"
                   placeholder={
                     chatEnabled

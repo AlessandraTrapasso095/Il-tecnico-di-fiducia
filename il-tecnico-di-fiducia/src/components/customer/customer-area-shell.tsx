@@ -1,5 +1,8 @@
+"use client";
+
 import Image from "next/image";
 import Link from "next/link";
+import { usePathname, useSearchParams } from "next/navigation";
 import type { ReactNode } from "react";
 
 import { SignOutButton } from "@/components/auth/sign-out-button";
@@ -10,7 +13,32 @@ type CustomerAreaShellProps = {
   children: ReactNode;
 };
 
+function customerNavTextClass(active: boolean) {
+  return [
+    "font-label-md text-label-md font-bold transition-colors",
+    active
+      ? "text-[#FF8500] underline decoration-[#FF8500] decoration-2 underline-offset-8"
+      : "text-on-surface-variant hover:text-on-tertiary-container",
+  ].join(" ");
+}
+
+function customerIconClass(active: boolean) {
+  return [
+    "rounded-full p-2 transition-all hover:bg-surface-container-high",
+    active ? "bg-[#FF8500]/10 text-[#FF8500]" : "text-primary",
+  ].join(" ");
+}
+
 export function CustomerAreaShell({ children }: CustomerAreaShellProps) {
+  const pathname = usePathname() ?? "";
+  const searchParams = useSearchParams();
+  const isCustomerHome = pathname === "/customer" || pathname === "/cliente";
+  const isMessagesActive =
+    (isCustomerHome && searchParams.get("section") === "messages") ||
+    pathname === "/messages" ||
+    pathname.startsWith("/messages/");
+  const isSearchActive = isCustomerHome && !isMessagesActive;
+
   return (
     <div className="min-h-screen bg-surface text-on-surface">
       <header className="fixed top-0 z-50 h-[92px] w-full bg-surface-container-lowest/88 shadow-sm backdrop-blur-md">
@@ -43,13 +71,13 @@ export function CustomerAreaShell({ children }: CustomerAreaShellProps) {
           <nav className="hidden items-center gap-8 md:flex">
             <Link
               href="/customer"
-              className="font-label-md text-label-md font-bold text-on-tertiary-container underline decoration-2 underline-offset-8"
+              className={customerNavTextClass(isSearchActive)}
             >
               Cerca
             </Link>
             <Link
               href="/customer#richieste"
-              className="font-label-md text-label-md text-on-surface-variant transition-colors hover:text-on-tertiary-container"
+              className={customerNavTextClass(false)}
             >
               Richieste
             </Link>
@@ -58,7 +86,7 @@ export function CustomerAreaShell({ children }: CustomerAreaShellProps) {
           <div className="flex items-center gap-2">
             <Link
               href="/customer"
-              className="rounded-full p-2 text-primary transition-all hover:bg-surface-container-high"
+              className={customerIconClass(false)}
               title="Preferiti"
               aria-label="Apri preferiti"
             >
@@ -68,7 +96,7 @@ export function CustomerAreaShell({ children }: CustomerAreaShellProps) {
             </Link>
             <Link
               href="/customer?section=messages"
-              className="rounded-full p-2 text-primary transition-all hover:bg-surface-container-high"
+              className={customerIconClass(isMessagesActive)}
               title="Messaggi"
               aria-label="Apri messaggi"
             >

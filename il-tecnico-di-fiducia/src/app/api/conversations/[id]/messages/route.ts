@@ -44,11 +44,18 @@ const ALLOWED_ATTACHMENT_TYPES = new Set([
   "application/pdf",
   "application/msword",
   "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  "application/vnd.ms-excel",
+  "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+  "application/zip",
+  "application/x-zip-compressed",
 ]);
 
-const WORD_DOCUMENT_TYPES = new Set([
-  "application/msword",
-  "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+const EXTENSION_DOCUMENT_TYPES = new Map([
+  [".doc", "application/msword"],
+  [".docx", "application/vnd.openxmlformats-officedocument.wordprocessingml.document"],
+  [".xls", "application/vnd.ms-excel"],
+  [".xlsx", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"],
+  [".zip", "application/zip"],
 ]);
 
 function fileKind(mimeType: string): "image" | "video" | "document" {
@@ -133,14 +140,17 @@ async function detectMime(file: File) {
   let contentType: string | null = await sniffImageMime(file);
   if (!contentType) contentType = await sniffIsoBmffVideoMime(file);
   if (!contentType && (await isPdfFile(file))) contentType = "application/pdf";
-  if (!contentType && WORD_DOCUMENT_TYPES.has(file.type)) {
+  if (!contentType) {
     const lowerName = file.name.toLowerCase();
+    const extensionEntry = Array.from(EXTENSION_DOCUMENT_TYPES.entries()).find(
+      ([extension]) => lowerName.endsWith(extension),
+    );
+    const extensionMimeType = extensionEntry?.[1] ?? null;
     if (
-      (file.type === "application/msword" && lowerName.endsWith(".doc")) ||
-      (file.type === "application/vnd.openxmlformats-officedocument.wordprocessingml.document" &&
-        lowerName.endsWith(".docx"))
+      extensionMimeType &&
+      (!file.type || file.type === extensionMimeType || ALLOWED_ATTACHMENT_TYPES.has(file.type))
     ) {
-      contentType = file.type;
+      contentType = file.type && ALLOWED_ATTACHMENT_TYPES.has(file.type) ? file.type : extensionMimeType;
     }
   }
   return contentType ?? file.type ?? null;
@@ -247,16 +257,9 @@ async function notifyMessageRecipient({
   if (!recipientId || recipientId === senderId) return;
 
   const [
-    { data: active, error: activeError },
     { data: activity, error: activityError },
     { data: people, error: peopleError },
   ] = await Promise.all([
-    service
-      .from("conversation_active_presence")
-      .select("active_at")
-      .eq("conversation_id", conversationId)
-      .eq("user_id", recipientId)
-      .maybeSingle(),
     service
       .from("user_activity")
       .select("last_seen_at")
@@ -268,13 +271,6 @@ async function notifyMessageRecipient({
       .in("id", [senderId, recipientId]),
   ]);
 
-  if (activeError) {
-    console.error("[messages] Failed to load active conversation presence", {
-      conversationId,
-      recipientId,
-      error: errorDetails(activeError),
-    });
-  }
   if (activityError) {
     console.error("[messages] Failed to load recipient activity", {
       conversationId,
@@ -291,16 +287,10 @@ async function notifyMessageRecipient({
     });
   }
 
-  const activeWindowMs = 45 * 1000;
   const onlineWindowMs = 60 * 1000;
-  const activeAt = active?.active_at ?? null;
   const lastSeenAt = activity?.last_seen_at ?? null;
-  const recipientActiveInChat =
-    activeAt !== null && Date.now() - new Date(activeAt).getTime() <= activeWindowMs;
   const recipientOnline =
     lastSeenAt !== null && Date.now() - new Date(lastSeenAt).getTime() <= onlineWindowMs;
-
-  if (recipientActiveInChat) return;
 
   const { data: existingNotification, error: existingNotificationError } = await service
     .from("notifications")
@@ -619,7 +609,7 @@ export async function POST(
     const mimeType = await detectMime(file);
     if (!mimeType || !ALLOWED_ATTACHMENT_TYPES.has(mimeType)) {
       return NextResponse.json(
-        { error: "Unsupported file type (allowed: JPG/PNG/WebP/MP4/MOV/PDF/DOC/DOCX)" },
+        { error: "Unsupported file type (allowed: JPG/PNG/WebP/MP4/MOV/PDF/DOC/DOCX/XLS/XLSX/ZIP)" },
         { status: 400 },
       );
     }

@@ -17,6 +17,7 @@ import { HeaderBackButton } from "@/components/navigation/header-back-button";
 import { AuthenticatedPresence } from "@/components/realtime/authenticated-presence";
 import { Footer } from "@/components/site/footer";
 import { fetchJson } from "@/lib/api/fetch-json";
+import { logRealtimeDev } from "@/lib/realtime-dev-logger";
 import { createClient } from "@/lib/supabase/client";
 import type { ConversationRow, MeResponse } from "@/lib/types/chat";
 import {
@@ -329,6 +330,22 @@ function customerNotificationFallbackHref(notification: NotificationRealtimeRow)
   return "/customer";
 }
 
+function customerNavTextClass(active: boolean) {
+  return [
+    "font-label-md text-label-md font-bold transition-colors",
+    active
+      ? "text-[#FF8500] underline decoration-[#FF8500] decoration-2 underline-offset-8"
+      : "text-on-surface-variant hover:text-on-tertiary-container",
+  ].join(" ");
+}
+
+function customerIconButtonClass(active: boolean) {
+  return [
+    "rounded-full p-2 transition-all hover:bg-surface-container-high",
+    active ? "bg-[#FF8500]/10 text-[#FF8500]" : "text-primary",
+  ].join(" ");
+}
+
 export default function CustomerDashboardClient({
   profile,
   initialFilters,
@@ -425,6 +442,11 @@ export default function CustomerDashboardClient({
     const query = searchParams.toString();
     return query ? `${pathname}?${query}` : pathname;
   }, [pathname, searchParams]);
+  const sectionParam = searchParams.get("section");
+  const conversationParam = searchParams.get("conversation") || null;
+  const isMessagesUrl = sectionParam === "messages" || Boolean(conversationParam);
+  const isMessagesNavActive = view === "messages" || isMessagesUrl;
+  const isSearchNavActive = !isMessagesNavActive;
 
   async function loadFilters() {
     try {
@@ -525,6 +547,21 @@ export default function CustomerDashboardClient({
     }
   }
 
+  function openExplore() {
+    setView("explore");
+    setActiveConversationId(null);
+
+    const nextParams = new URLSearchParams(searchParams.toString());
+    nextParams.delete("section");
+    nextParams.delete("conversation");
+    const nextQuery = nextParams.toString();
+    const nextUrl = nextQuery ? `${pathname}?${nextQuery}` : pathname;
+
+    if (nextUrl !== currentRelativeUrl) {
+      router.replace(nextUrl, { scroll: false });
+    }
+  }
+
   function openMessages(conversationId?: string | null) {
     const nextConversationId = conversationId ?? null;
     const shouldReloadMessages =
@@ -543,7 +580,7 @@ export default function CustomerDashboardClient({
   }
 
   function goToRequests() {
-    setView("explore");
+    openExplore();
     window.requestAnimationFrame(() => {
       document
         .getElementById("richieste")
@@ -643,8 +680,14 @@ export default function CustomerDashboardClient({
   useEffect(() => {
     if (!profile.id) return;
 
+    const channelName = `db:notifications:${profile.id}`;
+    logRealtimeDev("channel.created", {
+      scope: "notifications",
+      channelName,
+      owner: "customer",
+    });
     const channel = supabase
-      .channel(`db:notifications:${profile.id}`)
+      .channel(channelName)
       .on(
         "postgres_changes",
         {
@@ -654,6 +697,11 @@ export default function CustomerDashboardClient({
           filter: `recipient_id=eq.${profile.id}`,
         },
         (payload) => {
+          logRealtimeDev("postgres.notifications", {
+            scope: "notifications",
+            eventType: payload.eventType,
+            owner: "customer",
+          });
           if (payload.eventType === "INSERT" || payload.eventType === "UPDATE") {
             mergeRealtimeNotification(payload.new as NotificationRealtimeRow);
           }
@@ -665,9 +713,21 @@ export default function CustomerDashboardClient({
           }
         },
       )
-      .subscribe();
+      .subscribe((status) => {
+        logRealtimeDev("subscription.notifications", {
+          scope: "notifications",
+          status,
+          channelName,
+          owner: "customer",
+        });
+      });
 
     return () => {
+      logRealtimeDev("channel.removed", {
+        scope: "notifications",
+        channelName,
+        owner: "customer",
+      });
       supabase.removeChannel(channel);
     };
   }, [mergeRealtimeNotification, profile.id, supabase]);
@@ -872,7 +932,7 @@ export default function CustomerDashboardClient({
               fallbackHref="/customer"
               hiddenPathnames={["/customer", "/cliente"]}
               forceVisible={view !== "explore"}
-              onBack={() => setView("explore")}
+              onBack={openExplore}
             />
             <Link href="/customer" className="flex min-w-0 items-center gap-2.5">
               <Image
@@ -897,14 +957,14 @@ export default function CustomerDashboardClient({
           <nav className="hidden items-center gap-8 md:flex">
             <button
               type="button"
-              className="font-label-md text-label-md font-bold text-on-tertiary-container underline decoration-2 underline-offset-8"
-              onClick={() => setView("explore")}
+              className={customerNavTextClass(isSearchNavActive)}
+              onClick={openExplore}
             >
               Cerca
             </button>
             <button
               type="button"
-              className="font-label-md text-label-md text-on-surface-variant transition-colors hover:text-on-tertiary-container"
+              className={customerNavTextClass(false)}
               onClick={goToRequests}
             >
               Richieste
@@ -915,7 +975,7 @@ export default function CustomerDashboardClient({
             <div ref={favoritesRef} className="relative">
               <button
                 type="button"
-                className="rounded-full p-2 text-primary transition-all hover:bg-surface-container-high"
+                className={customerIconButtonClass(false)}
                 title="Preferiti"
                 aria-label="Apri preferiti"
                 aria-expanded={favoritesOpen}
@@ -1009,7 +1069,10 @@ export default function CustomerDashboardClient({
             <div ref={notificationsRef} className="relative">
               <button
                 type="button"
-                className="relative rounded-full p-2 text-primary transition-all hover:bg-surface-container-high"
+                className={[
+                  "relative",
+                  customerIconButtonClass(false),
+                ].join(" ")}
                 title="Notifiche"
                 aria-label="Apri notifiche"
                 aria-expanded={notificationsOpen}
@@ -1114,7 +1177,7 @@ export default function CustomerDashboardClient({
 
             <button
               type="button"
-              className="rounded-full p-2 text-primary transition-all hover:bg-surface-container-high"
+              className={customerIconButtonClass(isMessagesNavActive)}
               title="Messaggi"
               onClick={() => openMessages()}
             >
@@ -1156,7 +1219,7 @@ export default function CustomerDashboardClient({
                 <button
                   type="button"
                   className="rounded-full border-2 border-primary px-5 py-2 font-button text-button text-primary transition-colors hover:bg-primary hover:text-white"
-                  onClick={() => setView("explore")}
+                  onClick={openExplore}
                 >
                   Torna a Cerca
                 </button>

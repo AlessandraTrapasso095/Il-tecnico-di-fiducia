@@ -11,6 +11,7 @@ import { HeaderBackButton } from "@/components/navigation/header-back-button";
 import { AuthenticatedPresence } from "@/components/realtime/authenticated-presence";
 import { Footer } from "@/components/site/footer";
 import { fetchJson } from "@/lib/api/fetch-json";
+import { logRealtimeDev } from "@/lib/realtime-dev-logger";
 import { createClient } from "@/lib/supabase/client";
 
 type ProfessionalShellProfile = {
@@ -83,6 +84,37 @@ const NAV_ITEMS = [
   { href: "/professionista/abbonamento", label: "Abbonamento", icon: "workspace_premium" },
   { href: "/professionista/supporto", label: "Supporto", icon: "help" },
 ] as const;
+
+function isProfessionalNavActive(pathname: string, href: string) {
+  if (href === "/professionista") {
+    return pathname === href;
+  }
+
+  if (href === "/professionista/abbonamento") {
+    return (
+      pathname === href ||
+      pathname.startsWith(`${href}/`) ||
+      pathname === "/professionista/impostazioni/abbonamento" ||
+      pathname.startsWith("/professionista/impostazioni/abbonamento/")
+    );
+  }
+
+  if (href === "/professionista/impostazioni") {
+    return (
+      (pathname === href || pathname.startsWith(`${href}/`)) &&
+      !pathname.startsWith("/professionista/impostazioni/abbonamento")
+    );
+  }
+
+  return pathname === href || pathname.startsWith(`${href}/`);
+}
+
+function professionalHeaderIconClass(active: boolean) {
+  return [
+    "rounded-full transition hover:scale-95",
+    active ? "ring-2 ring-[#FF8500] ring-offset-2 ring-offset-surface-container-lowest" : "",
+  ].join(" ");
+}
 
 function fullName(person: { first_name: string; last_name: string } | null | undefined) {
   if (!person) return "Utente";
@@ -356,8 +388,14 @@ export default function ProfessionalShell({ profile, children }: ProfessionalShe
   useEffect(() => {
     if (!profile.id) return;
 
+    const channelName = `db:notifications:${profile.id}`;
+    logRealtimeDev("channel.created", {
+      scope: "notifications",
+      channelName,
+      owner: "professional",
+    });
     const channel = supabase
-      .channel(`db:notifications:${profile.id}`)
+      .channel(channelName)
       .on(
         "postgres_changes",
         {
@@ -367,6 +405,11 @@ export default function ProfessionalShell({ profile, children }: ProfessionalShe
           filter: `recipient_id=eq.${profile.id}`,
         },
         (payload) => {
+          logRealtimeDev("postgres.notifications", {
+            scope: "notifications",
+            eventType: payload.eventType,
+            owner: "professional",
+          });
           if (payload.eventType === "INSERT" || payload.eventType === "UPDATE") {
             mergeRealtimeNotification(payload.new as NotificationRealtimeRow);
           }
@@ -378,9 +421,21 @@ export default function ProfessionalShell({ profile, children }: ProfessionalShe
           }
         },
       )
-      .subscribe();
+      .subscribe((status) => {
+        logRealtimeDev("subscription.notifications", {
+          scope: "notifications",
+          status,
+          channelName,
+          owner: "professional",
+        });
+      });
 
     return () => {
+      logRealtimeDev("channel.removed", {
+        scope: "notifications",
+        channelName,
+        owner: "professional",
+      });
       supabase.removeChannel(channel);
     };
   }, [mergeRealtimeNotification, profile.id, supabase]);
@@ -498,10 +553,7 @@ export default function ProfessionalShell({ profile, children }: ProfessionalShe
   const sidebar = (
     <nav className="flex flex-col gap-2">
       {NAV_ITEMS.map((item) => {
-        const active =
-          item.href === "/professionista"
-            ? pathname === item.href
-            : pathname?.startsWith(item.href);
+        const active = isProfessionalNavActive(pathname, item.href);
         return (
           <Link
             key={item.href}
@@ -720,7 +772,9 @@ export default function ProfessionalShell({ profile, children }: ProfessionalShe
             </div>
             <Link
               href="/professionista/profilo"
-              className="rounded-full transition hover:scale-95"
+              className={professionalHeaderIconClass(
+                isProfessionalNavActive(pathname, "/professionista/profilo"),
+              )}
               aria-label="Vai al profilo professionista"
             >
               <Avatar person={shellProfile} />
