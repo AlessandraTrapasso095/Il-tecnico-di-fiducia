@@ -5,6 +5,7 @@ import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
 import type { ReactNode } from "react";
 
+import { InactivityTimeoutProvider } from "@/components/auth/inactivity-timeout-provider";
 import { SignOutButton } from "@/components/auth/sign-out-button";
 import { HeaderBackButton } from "@/components/navigation/header-back-button";
 import { Footer } from "@/components/site/footer";
@@ -37,9 +38,11 @@ export function CustomerAreaShell({ children }: CustomerAreaShellProps) {
     (isCustomerHome && searchParams.get("section") === "messages") ||
     pathname === "/messages" ||
     pathname.startsWith("/messages/");
+  const isSettingsActive = pathname === "/customer/impostazioni";
   const isSearchActive = isCustomerHome && !isMessagesActive;
 
   return (
+    <InactivityTimeoutProvider role="customer">
     <div className="min-h-dvh bg-surface text-on-surface">
       <header className="fixed top-0 z-50 h-20 w-full bg-surface-container-lowest/88 shadow-sm backdrop-blur-md sm:h-[92px]">
         <div className="mx-auto flex h-full w-full max-w-[1280px] items-center justify-between gap-2 px-3 sm:gap-3 sm:px-6">
@@ -114,6 +117,16 @@ export function CustomerAreaShell({ children }: CustomerAreaShellProps) {
                 chat
               </span>
             </Link>
+            <Link
+              href="/customer/impostazioni"
+              className={customerIconClass(isSettingsActive)}
+              title="Impostazioni"
+              aria-label="Apri impostazioni account"
+            >
+              <span className="material-symbols-outlined" aria-hidden>
+                settings
+              </span>
+            </Link>
             <SignOutButton
               className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-error transition-all hover:bg-error-container/30 sm:h-11 sm:w-11"
               aria-label="Logout"
@@ -130,5 +143,6 @@ export function CustomerAreaShell({ children }: CustomerAreaShellProps) {
 
       <Footer />
     </div>
+    </InactivityTimeoutProvider>
   );
 }

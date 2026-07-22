@@ -18,7 +18,11 @@ function normalizeEmail(raw: string) {
   return raw.trim().toLowerCase();
 }
 
-export default function AdminLoginClient() {
+export default function AdminLoginClient({
+  infoMessage = null,
+}: {
+  infoMessage?: string | null;
+}) {
   const router = useRouter();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -113,6 +117,12 @@ export default function AdminLoginClient() {
               </div>
 
               <form className="space-y-5" onSubmit={onSubmit}>
+                {infoMessage ? (
+                  <div className="rounded-2xl border border-tertiary/20 bg-tertiary-fixed px-4 py-3 text-sm text-on-tertiary-fixed-variant">
+                    {infoMessage}
+                  </div>
+                ) : null}
+
                 <label className="block font-label-md text-on-surface-variant">
                   Email admin
                   <input

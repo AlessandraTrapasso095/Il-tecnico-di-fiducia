@@ -28,6 +28,7 @@ export default async function AdminSettingsPage() {
           first_name: profile.first_name,
           last_name: profile.last_name,
           email: profile.email,
+          phone: profile.phone,
         }}
         preferences={{
           new_requests: preferences?.new_requests ?? true,

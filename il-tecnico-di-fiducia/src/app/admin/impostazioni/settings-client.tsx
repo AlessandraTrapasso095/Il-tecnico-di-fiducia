@@ -18,6 +18,7 @@ type AdminSettingsClientProps = {
     first_name: string;
     last_name: string;
     email: string;
+    phone: string | null;
   };
   preferences: NotificationPreferences;
 };
@@ -30,13 +31,19 @@ export default function AdminSettingsClient({
   const [firstName, setFirstName] = useState(profile.first_name);
   const [lastName, setLastName] = useState(profile.last_name);
   const [email, setEmail] = useState(profile.email);
+  const [phone, setPhone] = useState(profile.phone ?? "");
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
   const [notificationPrefs, setNotificationPrefs] =
     useState<NotificationPreferences>(preferences);
   const [loading, setLoading] = useState(false);
+  const [passwordLoading, setPasswordLoading] = useState(false);
   const [deleteLoading, setDeleteLoading] = useState(false);
   const [deleteModalOpen, setDeleteModalOpen] = useState(false);
+  const [deleteConfirm, setDeleteConfirm] = useState("");
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const canDelete = deleteConfirm.trim().toUpperCase() === "ELIMINA";
 
   async function saveProfile(event: React.FormEvent) {
     event.preventDefault();
@@ -52,6 +59,7 @@ export default function AdminSettingsClient({
             first_name: firstName,
             last_name: lastName,
             email,
+            phone,
           }),
         },
       );
@@ -84,20 +92,29 @@ export default function AdminSettingsClient({
     }
   }
 
-  async function sendPasswordReset() {
-    setLoading(true);
+  async function savePassword(event: React.FormEvent) {
+    event.preventDefault();
+    setPasswordLoading(true);
     setMessage(null);
     setError(null);
     try {
-      await fetchJson("/api/auth/request-password-reset", {
+      if (newPassword.length < 8) {
+        throw new Error("La password deve contenere almeno 8 caratteri.");
+      }
+      if (newPassword !== confirmPassword) {
+        throw new Error("Le password non coincidono.");
+      }
+      await fetchJson("/api/auth/update-password", {
         method: "POST",
-        body: JSON.stringify({ email: profile.email }),
+        body: JSON.stringify({ new_password: newPassword }),
       });
-      setMessage("Ti abbiamo inviato un’email per cambiare la password.");
+      setNewPassword("");
+      setConfirmPassword("");
+      setMessage("Password aggiornata correttamente.");
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Invio email non riuscito.");
+      setError(err instanceof Error ? err.message : "Cambio password non riuscito.");
     } finally {
-      setLoading(false);
+      setPasswordLoading(false);
     }
   }
 
@@ -106,7 +123,10 @@ export default function AdminSettingsClient({
     setMessage(null);
     setError(null);
     try {
-      await fetchJson("/api/account", { method: "DELETE" });
+      await fetchJson("/api/account", {
+        method: "DELETE",
+        body: JSON.stringify({ confirm: "ELIMINA" }),
+      });
       setDeleteModalOpen(false);
       router.push("/");
       router.refresh();
@@ -130,10 +150,11 @@ export default function AdminSettingsClient({
         <h2 className="font-headline-sm text-[26px] text-primary">Dati profilo admin</h2>
         <form className="mt-5 space-y-4" onSubmit={saveProfile}>
           <div className="grid gap-4 sm:grid-cols-2">
-            <TextField label="Nome" value={firstName} onChange={setFirstName} />
-            <TextField label="Cognome" value={lastName} onChange={setLastName} />
+            <TextField label="Nome" value={firstName} onChange={setFirstName} required />
+            <TextField label="Cognome" value={lastName} onChange={setLastName} required />
+            <TextField label="Telefono" value={phone} onChange={setPhone} type="tel" />
           </div>
-          <TextField label="Email" value={email} onChange={setEmail} type="email" />
+          <TextField label="Email" value={email} onChange={setEmail} type="email" required />
           <div className="flex flex-wrap gap-3">
             <button
               type="submit"
@@ -142,15 +163,39 @@ export default function AdminSettingsClient({
             >
               {loading ? "Salvataggio…" : "Salva dati"}
             </button>
-            <button
-              type="button"
-              className="rounded-full border border-primary px-5 py-3 font-button text-primary transition hover:bg-primary-fixed"
-              disabled={loading}
-              onClick={() => void sendPasswordReset()}
-            >
-              Cambia password via email
-            </button>
           </div>
+        </form>
+      </section>
+
+      <section className="rounded-[24px] border border-outline-variant/30 bg-surface-container-lowest p-5 shadow-[0_4px_20px_rgba(8,43,95,0.08)]">
+        <h2 className="font-headline-sm text-[26px] text-primary">Password</h2>
+        <p className="mt-1 text-on-surface-variant">
+          Usa Supabase Auth per aggiornare la password della sessione corrente.
+        </p>
+        <form className="mt-5 space-y-4" onSubmit={savePassword}>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <TextField
+              label="Nuova password"
+              value={newPassword}
+              onChange={setNewPassword}
+              type="password"
+              required
+            />
+            <TextField
+              label="Conferma nuova password"
+              value={confirmPassword}
+              onChange={setConfirmPassword}
+              type="password"
+              required
+            />
+          </div>
+          <button
+            type="submit"
+            className="rounded-full border border-primary px-5 py-3 font-button text-primary transition hover:bg-primary-fixed disabled:opacity-60"
+            disabled={passwordLoading}
+          >
+            {passwordLoading ? "Aggiornamento…" : "Aggiorna password"}
+          </button>
         </form>
       </section>
 
@@ -217,9 +262,29 @@ export default function AdminSettingsClient({
           body="Questa azione è definitiva. Se non esiste un altro admin attivo, il sistema bloccherà l’eliminazione per sicurezza."
           confirmLabel="Elimina account"
           busy={deleteLoading}
-          onCancel={() => setDeleteModalOpen(false)}
+          confirmDisabled={!canDelete}
+          onCancel={() => {
+            if (deleteLoading) return;
+            setDeleteModalOpen(false);
+            setDeleteConfirm("");
+          }}
           onConfirm={() => void deleteOwnAccount()}
-        />
+        >
+          <label className="mt-4 block font-label-md text-primary">
+            Conferma scrivendo ELIMINA
+            <input
+              className="mt-2 w-full rounded-2xl border border-outline-variant px-4 py-3 outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
+              value={deleteConfirm}
+              onChange={(event) => setDeleteConfirm(event.target.value)}
+              disabled={deleteLoading}
+            />
+          </label>
+          {!canDelete ? (
+            <p className="mt-2 text-sm text-on-surface-variant">
+              Il pulsante funziona solo dopo la conferma esplicita.
+            </p>
+          ) : null}
+        </ConfirmActionModal>
       ) : null}
     </div>
   );

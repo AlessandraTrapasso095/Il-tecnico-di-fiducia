@@ -6,8 +6,16 @@ import AdminLoginClient from "./admin-login-client";
 
 export const dynamic = "force-dynamic";
 
-export default async function AdminLoginPage() {
+type SearchParams = Promise<{ [key: string]: string | string[] | undefined }>;
+
+export default async function AdminLoginPage({
+  searchParams,
+}: {
+  searchParams: SearchParams;
+}) {
   const supabase = await createClient();
+  const sp = await searchParams;
+  const reason = typeof sp.reason === "string" ? sp.reason : null;
   const {
     data: { user },
   } = await supabase.auth.getUser();
@@ -24,5 +32,9 @@ export default async function AdminLoginPage() {
     }
   }
 
-  return <AdminLoginClient />;
+  return (
+    <AdminLoginClient
+      infoMessage={reason === "inactive" ? "Sessione terminata per inattività." : null}
+    />
+  );
 }

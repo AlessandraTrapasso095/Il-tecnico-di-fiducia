@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { requireAuth } from "@/lib/api/auth";
+import { getRequestBaseUrl } from "@/lib/api/base-url";
 import { isNonEmptyString } from "@/lib/api/validation";
 import { normalizeItalianProvinceCode } from "@/lib/locations/italian-provinces";
 
@@ -26,7 +27,7 @@ function normalizeOptionalText(value: unknown) {
 }
 
 export async function PATCH(request: Request) {
-  const auth = await requireAuth({ allowedRoles: ["professional"] });
+  const auth = await requireAuth({ allowedRoles: ["customer", "professional"] });
   if (!auth.ok) return auth.response;
 
   const { supabase, user, profile } = auth.ctx;
@@ -56,10 +57,10 @@ export async function PATCH(request: Request) {
 
   if (payload.province_code !== undefined) {
     const normalizedProvince = normalizeItalianProvinceCode(payload.province_code);
-    if (!normalizedProvince) {
+    if (!normalizedProvince && profile.role === "professional") {
       return NextResponse.json({ error: "Provincia non valida" }, { status: 400 });
     }
-    profileUpdates.province_code = normalizedProvince;
+    profileUpdates.province_code = normalizedProvince ?? null;
   }
 
   if (payload.phone !== undefined) {
@@ -84,7 +85,13 @@ export async function PATCH(request: Request) {
 
   const cleanEmail = normalizeOptionalText(payload.email);
   if (cleanEmail && cleanEmail.toLowerCase() !== profile.email.toLowerCase()) {
-    const { error: emailError } = await supabase.auth.updateUser({ email: cleanEmail });
+    const nextSettingsPath =
+      profile.role === "professional" ? "/professionista/impostazioni" : "/customer/impostazioni";
+    const emailRedirectTo = `${getRequestBaseUrl(request)}/auth/callback?next=${encodeURIComponent(nextSettingsPath)}`;
+    const { error: emailError } = await supabase.auth.updateUser(
+      { email: cleanEmail },
+      { emailRedirectTo },
+    );
     if (emailError) {
       return NextResponse.json({ error: emailError.message }, { status: 400 });
     }

@@ -31,9 +31,14 @@ function safeNextPath(raw: string | null | undefined, role: UserRole) {
 type LoginClientProps = {
   initialRole: "customer" | "professional";
   nextPath?: string | null;
+  infoMessage?: string | null;
 };
 
-export default function LoginClient({ initialRole, nextPath }: LoginClientProps) {
+export default function LoginClient({
+  initialRole,
+  nextPath,
+  infoMessage = null,
+}: LoginClientProps) {
   const router = useRouter();
 
   const [roleHint, setRoleHint] = useState<"customer" | "professional">(initialRole);
@@ -108,6 +113,12 @@ export default function LoginClient({ initialRole, nextPath }: LoginClientProps)
             </div>
 
             <form className="space-y-4" onSubmit={onSubmit}>
+              {infoMessage ? (
+                <div className="rounded-xl border border-tertiary/20 bg-tertiary-fixed px-4 py-3 text-sm text-on-tertiary-fixed-variant">
+                  {infoMessage}
+                </div>
+              ) : null}
+
               <div className="space-y-2">
                 <label className="font-label-md text-label-md text-on-surface-variant">
                   Indirizzo Email

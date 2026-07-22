@@ -13,7 +13,11 @@ type NotificationPreferences = {
   email: boolean;
 };
 
-type ProfessionalSettingsClientProps = {
+type AccountSettingsClientProps = {
+  areaLabel: string;
+  title?: string;
+  description?: string;
+  requireProvince?: boolean;
   profile: {
     first_name: string;
     last_name: string;
@@ -30,21 +34,32 @@ type SettingsResponse = {
 };
 
 const DEFAULT_CONFIRM_TEXT = "ELIMINA";
+const PASSWORD_MIN_LENGTH = 8;
 
-export default function ProfessionalSettingsClient({
+function normalizeTrim(value: string) {
+  return value.replace(/\s+/g, " ").trim();
+}
+
+export default function AccountSettingsClient({
+  areaLabel,
+  title = "Impostazioni",
+  description = "Gestisci i dati account, la sicurezza e le notifiche del tuo profilo.",
+  requireProvince = false,
   profile,
   preferences,
-}: ProfessionalSettingsClientProps) {
+}: AccountSettingsClientProps) {
   const [firstName, setFirstName] = useState(profile.first_name);
   const [lastName, setLastName] = useState(profile.last_name);
   const [email, setEmail] = useState(profile.email);
   const [provinceCode, setProvinceCode] = useState(profile.province_code ?? "");
   const [phone, setPhone] = useState(profile.phone ?? "");
   const [notificationSettings, setNotificationSettings] = useState(preferences);
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
   const [saving, setSaving] = useState(false);
+  const [passwordSaving, setPasswordSaving] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [resetSending, setResetSending] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState("");
   const [deleting, setDeleting] = useState(false);
@@ -57,6 +72,26 @@ export default function ProfessionalSettingsClient({
 
   async function saveSettings(event: React.FormEvent) {
     event.preventDefault();
+    const cleanFirstName = normalizeTrim(firstName);
+    const cleanLastName = normalizeTrim(lastName);
+    const cleanEmail = email.trim().toLowerCase();
+    const cleanPhone = phone.trim();
+
+    if (!cleanFirstName || !cleanLastName) {
+      setError("Nome e cognome sono obbligatori.");
+      return;
+    }
+
+    if (!cleanEmail) {
+      setError("Email obbligatoria.");
+      return;
+    }
+
+    if (requireProvince && !provinceCode) {
+      setError("Seleziona una provincia.");
+      return;
+    }
+
     setSaving(true);
     setError(null);
     setMessage(null);
@@ -64,14 +99,19 @@ export default function ProfessionalSettingsClient({
       const response = await fetchJson<SettingsResponse>("/api/account/settings", {
         method: "PATCH",
         body: JSON.stringify({
-          first_name: firstName,
-          last_name: lastName,
-          email,
-          province_code: provinceCode,
-          phone,
+          first_name: cleanFirstName,
+          last_name: cleanLastName,
+          email: cleanEmail,
+          province_code: provinceCode || null,
+          phone: cleanPhone || null,
           notifications: notificationSettings,
         }),
       });
+
+      setFirstName(cleanFirstName);
+      setLastName(cleanLastName);
+      setEmail(cleanEmail);
+      setPhone(cleanPhone);
       setMessage(
         response.email_update_pending
           ? "Dati salvati. Controlla la nuova email per confermare il cambio indirizzo."
@@ -84,20 +124,33 @@ export default function ProfessionalSettingsClient({
     }
   }
 
-  async function sendPasswordReset() {
-    setResetSending(true);
+  async function savePassword(event: React.FormEvent) {
+    event.preventDefault();
+    setPasswordSaving(true);
     setError(null);
     setMessage(null);
+
     try {
-      await fetchJson<{ ok: true }>("/api/auth/request-password-reset", {
+      if (newPassword.length < PASSWORD_MIN_LENGTH) {
+        throw new Error(`La password deve contenere almeno ${PASSWORD_MIN_LENGTH} caratteri.`);
+      }
+      if (newPassword !== confirmPassword) {
+        throw new Error("Le password non coincidono.");
+      }
+
+      await fetchJson<{ ok: true }>("/api/auth/update-password", {
         method: "POST",
-        body: JSON.stringify({ email: profile.email }),
+        body: JSON.stringify({ new_password: newPassword }),
       });
-      setMessage("Ti abbiamo inviato un’email per cambiare la password.");
-    } catch (resetError) {
-      setError(resetError instanceof Error ? resetError.message : "Email non inviata.");
+      setNewPassword("");
+      setConfirmPassword("");
+      setMessage("Password aggiornata correttamente.");
+    } catch (passwordError) {
+      setError(
+        passwordError instanceof Error ? passwordError.message : "Cambio password non riuscito.",
+      );
     } finally {
-      setResetSending(false);
+      setPasswordSaving(false);
     }
   }
 
@@ -106,7 +159,10 @@ export default function ProfessionalSettingsClient({
     setDeleting(true);
     setDeleteError(null);
     try {
-      await fetchJson<{ ok: true }>("/api/account", { method: "DELETE" });
+      await fetchJson<{ ok: true }>("/api/account", {
+        method: "DELETE",
+        body: JSON.stringify({ confirm: DEFAULT_CONFIRM_TEXT }),
+      });
       window.location.href = "/";
     } catch (accountError) {
       setDeleteError(
@@ -124,33 +180,19 @@ export default function ProfessionalSettingsClient({
     <main className="mx-auto max-w-[1180px] px-4 py-8 sm:px-6 lg:px-8">
       <div className="mb-8">
         <p className="font-label-md text-label-md uppercase tracking-[0.18em] text-on-tertiary-container">
-          Area professionista
+          {areaLabel}
         </p>
-        <h1 className="mt-2 font-headline-md text-headline-md text-primary">
-          Impostazioni
-        </h1>
-        <p className="mt-2 max-w-2xl text-on-surface-variant">
-          Gestisci i dati account, le notifiche e le azioni di sicurezza del tuo profilo.
-        </p>
+        <h1 className="mt-2 font-headline-md text-headline-md text-primary">{title}</h1>
+        <p className="mt-2 max-w-2xl text-on-surface-variant">{description}</p>
       </div>
 
       <form className="space-y-6" onSubmit={saveSettings}>
-        <section className="rounded-[28px] border border-outline-variant/30 bg-surface-container-lowest p-6 shadow-[0_4px_20px_rgba(8,43,95,0.08)]">
-          <div className="mb-5 flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
-            <div>
-              <h2 className="font-headline-sm text-[24px] text-primary">Dati account</h2>
-              <p className="text-on-surface-variant">
-                Email e password seguono i flussi sicuri Supabase con conferma via email.
-              </p>
-            </div>
-            <button
-              type="button"
-              className="rounded-full border-2 border-primary px-5 py-3 font-button text-primary transition hover:bg-primary hover:text-white disabled:opacity-60"
-              disabled={resetSending}
-              onClick={() => void sendPasswordReset()}
-            >
-              {resetSending ? "Invio…" : "Cambia password"}
-            </button>
+        <section className="rounded-[28px] border border-outline-variant/30 bg-surface-container-lowest p-5 shadow-[0_4px_20px_rgba(8,43,95,0.08)] sm:p-6">
+          <div className="mb-5">
+            <h2 className="font-headline-sm text-[24px] text-primary">Dati account</h2>
+            <p className="text-on-surface-variant">
+              Email e password seguono i flussi sicuri Supabase con conferma via email.
+            </p>
           </div>
 
           <div className="grid gap-4 sm:grid-cols-2">
@@ -164,9 +206,11 @@ export default function ProfessionalSettingsClient({
                 className="mt-2 w-full rounded-2xl border border-outline-variant bg-white px-4 py-3 outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
                 value={provinceCode}
                 onChange={(event) => setProvinceCode(event.target.value)}
-                required
+                required={requireProvince}
               >
-                <option value="">Seleziona provincia</option>
+                <option value="">
+                  {requireProvince ? "Seleziona provincia" : "Provincia non indicata"}
+                </option>
                 {ITALIAN_PROVINCES_BY_NAME.map((province) => (
                   <option key={province.code} value={province.code}>
                     {province.name}
@@ -177,14 +221,12 @@ export default function ProfessionalSettingsClient({
           </div>
         </section>
 
-        <section className="rounded-[28px] border border-outline-variant/30 bg-surface-container-lowest p-6 shadow-[0_4px_20px_rgba(8,43,95,0.08)]">
-          <h2 className="font-headline-sm text-[24px] text-primary">
-            Impostazioni notifiche
-          </h2>
+        <section className="rounded-[28px] border border-outline-variant/30 bg-surface-container-lowest p-5 shadow-[0_4px_20px_rgba(8,43,95,0.08)] sm:p-6">
+          <h2 className="font-headline-sm text-[24px] text-primary">Impostazioni notifiche</h2>
           <div className="mt-5 grid gap-3 sm:grid-cols-2">
             <ToggleRow
               title="Nuove richieste"
-              description="Avvisi quando ricevi nuove richieste dai clienti."
+              description="Avvisi quando ricevi nuove richieste."
               checked={notificationSettings.new_requests}
               onToggle={() => toggleNotification("new_requests")}
             />
@@ -232,10 +274,47 @@ export default function ProfessionalSettingsClient({
         </div>
       </form>
 
-      <section className="mt-8 rounded-[28px] border border-error/20 bg-error-container/40 p-6">
+      <form
+        className="mt-8 rounded-[28px] border border-outline-variant/30 bg-surface-container-lowest p-5 shadow-[0_4px_20px_rgba(8,43,95,0.08)] sm:p-6"
+        onSubmit={savePassword}
+      >
+        <h2 className="font-headline-sm text-[24px] text-primary">Password</h2>
+        <p className="mt-1 text-on-surface-variant">
+          Scegli una nuova password di almeno {PASSWORD_MIN_LENGTH} caratteri.
+        </p>
+        <div className="mt-5 grid gap-4 sm:grid-cols-2">
+          <Field
+            label="Nuova password"
+            value={newPassword}
+            onChange={setNewPassword}
+            type="password"
+            required
+          />
+          <Field
+            label="Conferma nuova password"
+            value={confirmPassword}
+            onChange={setConfirmPassword}
+            type="password"
+            required
+          />
+        </div>
+        <div className="mt-5 flex justify-end">
+          <button
+            type="submit"
+            className="rounded-full border-2 border-primary px-6 py-3 font-button text-primary transition hover:bg-primary hover:text-white disabled:opacity-60"
+            disabled={passwordSaving}
+          >
+            {passwordSaving ? "Aggiornamento…" : "Aggiorna password"}
+          </button>
+        </div>
+      </form>
+
+      <section className="mt-8 rounded-[28px] border border-error/20 bg-error-container/40 p-5 sm:p-6">
         <h2 className="font-headline-sm text-[24px] text-error">Eliminazione account</h2>
         <p className="mt-2 max-w-2xl text-on-error-container">
-          Questa azione elimina definitivamente il tuo account, i file collegati e l’utente da Supabase Auth.
+          Questa azione è definitiva. I dati collegati vengono rimossi secondo i vincoli reali
+          del database; eventuali conversazioni, ticket o log necessari alla sicurezza possono
+          restare anonimizzati o conservati se richiesto dalle regole tecniche.
         </p>
         <button
           type="button"
@@ -249,7 +328,7 @@ export default function ProfessionalSettingsClient({
       {deleteOpen ? (
         <ConfirmActionModal
           title="Eliminare definitivamente l’account?"
-          body="Questa azione non può essere annullata. Scrivi ELIMINA nel campo richiesto e conferma per procedere."
+          body="Questa azione non può essere annullata. Se hai un abbonamento Stripe attivo, dovrai prima cancellarlo dal portale abbonamento."
           confirmLabel="Elimina account"
           busy={deleting}
           confirmDisabled={!canDelete}

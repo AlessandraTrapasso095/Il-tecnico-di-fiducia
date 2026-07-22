@@ -12,6 +12,7 @@ import {
 } from "react";
 import type { RealtimeChannel } from "@supabase/supabase-js";
 
+import { InactivityTimeoutProvider } from "@/components/auth/inactivity-timeout-provider";
 import { logRealtimeDev } from "@/lib/realtime-dev-logger";
 import { createClient } from "@/lib/supabase/client";
 
@@ -250,7 +251,9 @@ export function AuthenticatedPresence({
 
   return (
     <AuthenticatedPresenceContext.Provider value={value}>
-      {children}
+      <InactivityTimeoutProvider role={role as "customer" | "professional" | "admin"}>
+        {children}
+      </InactivityTimeoutProvider>
     </AuthenticatedPresenceContext.Provider>
   );
 }

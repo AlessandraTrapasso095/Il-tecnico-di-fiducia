@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import type { ReactNode } from "react";
 
+import { InactivityTimeoutProvider } from "@/components/auth/inactivity-timeout-provider";
 import { SignOutButton } from "@/components/auth/sign-out-button";
 import { HeaderBackButton } from "@/components/navigation/header-back-button";
 
@@ -33,6 +34,7 @@ export function AdminShell({ children, title, subtitle, adminName }: AdminShellP
   const pathname = usePathname();
 
   return (
+    <InactivityTimeoutProvider role="admin">
     <div className="min-h-dvh bg-background text-on-surface">
       <header className="sticky top-0 z-40 border-b border-outline-variant/30 bg-surface-container-lowest/85 backdrop-blur-xl lg:ml-72">
         <div className="flex min-h-20 flex-col gap-3 px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-6 lg:px-8">
@@ -58,6 +60,17 @@ export function AdminShell({ children, title, subtitle, adminName }: AdminShellP
             <div className="hidden rounded-full border border-outline-variant/40 bg-surface-container-low px-4 py-2 text-sm text-on-surface-variant sm:block">
               {adminName || "Admin"}
             </div>
+            <Link
+              href="/admin/impostazioni"
+              className={[
+                "inline-flex h-11 w-11 items-center justify-center rounded-full border border-outline-variant/30 text-primary transition hover:bg-surface-container-high",
+                isActive(pathname, "/admin/impostazioni") ? "bg-primary-fixed" : "",
+              ].join(" ")}
+              aria-label="Apri impostazioni account"
+              title="Impostazioni"
+            >
+              <span className="material-symbols-outlined text-[20px]">settings</span>
+            </Link>
             <SignOutButton className="inline-flex min-h-11 items-center gap-2 rounded-full border border-error/30 px-4 py-2 font-button text-error transition hover:bg-error-container">
               <span className="material-symbols-outlined text-[20px]">logout</span>
               Esci
@@ -131,5 +144,6 @@ export function AdminShell({ children, title, subtitle, adminName }: AdminShellP
         {children}
       </main>
     </div>
+    </InactivityTimeoutProvider>
   );
 }

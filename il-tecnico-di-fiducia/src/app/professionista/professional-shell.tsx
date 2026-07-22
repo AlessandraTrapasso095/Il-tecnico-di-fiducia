@@ -753,6 +753,14 @@ export default function ProfessionalShell({ profile, children }: ProfessionalShe
               ) : null}
             </div>
             <Link
+              href="/professionista/impostazioni"
+              className="flex h-11 w-11 items-center justify-center rounded-full text-primary transition hover:bg-surface-container-high"
+              aria-label="Apri impostazioni account"
+              title="Impostazioni"
+            >
+              <span className="material-symbols-outlined">settings</span>
+            </Link>
+            <Link
               href="/professionista/profilo"
               className={professionalHeaderIconClass(
                 isProfessionalNavActive(pathname, "/professionista/profilo"),

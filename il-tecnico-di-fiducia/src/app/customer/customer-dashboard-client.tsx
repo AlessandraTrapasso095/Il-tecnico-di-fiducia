@@ -1186,6 +1186,16 @@ export default function CustomerDashboardClient({
                 chat
               </span>
             </button>
+            <Link
+              href="/customer/impostazioni"
+              className={customerIconButtonClass(false)}
+              title="Impostazioni"
+              aria-label="Apri impostazioni account"
+            >
+              <span className="material-symbols-outlined" aria-hidden>
+                settings
+              </span>
+            </Link>
             <SignOutButton
               className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-error transition-all hover:bg-error-container/30 sm:h-11 sm:w-11"
               aria-label="Logout"

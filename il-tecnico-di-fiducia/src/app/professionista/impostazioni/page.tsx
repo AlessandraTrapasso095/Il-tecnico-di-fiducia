@@ -1,5 +1,4 @@
-import ProfessionalSettingsClient from "./professional-settings-client";
-
+import AccountSettingsClient from "@/components/account/account-settings-client";
 import { requirePageAuth } from "@/lib/server/require-page-auth";
 
 export const dynamic = "force-dynamic";
@@ -21,7 +20,9 @@ export default async function ProfessionalSettingsPage() {
     .maybeSingle();
 
   return (
-    <ProfessionalSettingsClient
+    <AccountSettingsClient
+      areaLabel="Area professionista"
+      requireProvince
       profile={{
         first_name: profile.first_name,
         last_name: profile.last_name,

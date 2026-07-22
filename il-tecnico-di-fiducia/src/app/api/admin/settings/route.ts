@@ -2,12 +2,14 @@ import { NextResponse } from "next/server";
 
 import { writeAuditLog } from "@/lib/api/audit-log";
 import { requireAuth } from "@/lib/api/auth";
+import { getRequestBaseUrl } from "@/lib/api/base-url";
 import { isNonEmptyString } from "@/lib/api/validation";
 
 type AdminSettingsPayload = {
   first_name?: string;
   last_name?: string;
   email?: string;
+  phone?: string | null;
   notifications?: {
     new_requests?: boolean;
     messages?: boolean;
@@ -29,10 +31,26 @@ export async function PATCH(request: Request) {
     return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
   }
 
-  const updates: Record<string, string> = {};
+  const updates: Record<string, string | null> = {};
 
-  if (payload.first_name !== undefined) updates.first_name = String(payload.first_name).trim();
-  if (payload.last_name !== undefined) updates.last_name = String(payload.last_name).trim();
+  if (payload.first_name !== undefined) {
+    const cleanFirstName = String(payload.first_name).trim();
+    if (!cleanFirstName) {
+      return NextResponse.json({ error: "Nome obbligatorio" }, { status: 400 });
+    }
+    updates.first_name = cleanFirstName;
+  }
+  if (payload.last_name !== undefined) {
+    const cleanLastName = String(payload.last_name).trim();
+    if (!cleanLastName) {
+      return NextResponse.json({ error: "Cognome obbligatorio" }, { status: 400 });
+    }
+    updates.last_name = cleanLastName;
+  }
+  if (payload.phone !== undefined) {
+    const cleanPhone = typeof payload.phone === "string" ? payload.phone.trim() : null;
+    updates.phone = cleanPhone || null;
+  }
 
   const nextEmail =
     typeof payload.email === "string" ? payload.email.trim().toLowerCase() : null;
@@ -43,7 +61,11 @@ export async function PATCH(request: Request) {
       return NextResponse.json({ error: "Email is required" }, { status: 400 });
     }
     if (nextEmail !== profile.email.toLowerCase()) {
-      const { error } = await supabase.auth.updateUser({ email: nextEmail });
+      const emailRedirectTo = `${getRequestBaseUrl(request)}/auth/callback?next=${encodeURIComponent("/admin/impostazioni")}`;
+      const { error } = await supabase.auth.updateUser(
+        { email: nextEmail },
+        { emailRedirectTo },
+      );
       if (error) {
         return NextResponse.json({ error: error.message }, { status: 400 });
       }

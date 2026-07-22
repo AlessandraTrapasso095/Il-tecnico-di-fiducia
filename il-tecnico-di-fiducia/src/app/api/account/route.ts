@@ -6,7 +6,11 @@ import { createServiceClient } from "@/lib/supabase/service";
 import { createClient } from "@/lib/supabase/server";
 import { deleteAllStorageObjectsForUser } from "@/lib/storage/delete-user-storage";
 
-export async function DELETE() {
+type DeleteAccountPayload = {
+  confirm?: string;
+};
+
+export async function DELETE(request: Request) {
   const supabase = await createClient();
 
   const {
@@ -15,6 +19,51 @@ export async function DELETE() {
 
   if (!user) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  let payload: DeleteAccountPayload = {};
+  try {
+    payload = (await request.json()) as DeleteAccountPayload;
+  } catch {
+    payload = {};
+  }
+
+  if (payload.confirm?.trim().toUpperCase() !== "ELIMINA") {
+    return NextResponse.json(
+      { error: "Conferma richiesta: scrivi ELIMINA per eliminare l’account." },
+      { status: 400 },
+    );
+  }
+
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("id, role")
+    .eq("id", user.id)
+    .maybeSingle();
+
+  if (profile?.role === "professional") {
+    const { data: subscription, error: subscriptionError } = await supabase
+      .from("professional_subscriptions")
+      .select("status, stripe_subscription_id")
+      .eq("professional_id", user.id)
+      .maybeSingle();
+
+    if (subscriptionError) {
+      return NextResponse.json(
+        { error: "Impossibile verificare lo stato dell’abbonamento." },
+        { status: 500 },
+      );
+    }
+
+    if (subscription?.status === "stripe_active" && subscription.stripe_subscription_id) {
+      return NextResponse.json(
+        {
+          error:
+            "Prima di eliminare l’account devi cancellare l’abbonamento Stripe dal portale abbonamento.",
+        },
+        { status: 409 },
+      );
+    }
   }
 
   // Avoid locking the project out: do not allow deleting the last admin account.
