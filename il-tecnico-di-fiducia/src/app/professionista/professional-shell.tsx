@@ -10,6 +10,7 @@ import { SignOutButton } from "@/components/auth/sign-out-button";
 import { HeaderBackButton } from "@/components/navigation/header-back-button";
 import { AuthenticatedPresence } from "@/components/realtime/authenticated-presence";
 import { Footer } from "@/components/site/footer";
+import { ProfileAvatar } from "@/components/ui/profile-avatar";
 import { fetchJson } from "@/lib/api/fetch-json";
 import { logRealtimeDev } from "@/lib/realtime-dev-logger";
 import { createClient } from "@/lib/supabase/client";
@@ -121,12 +122,6 @@ function fullName(person: { first_name: string; last_name: string } | null | und
   return `${person.first_name ?? ""} ${person.last_name ?? ""}`.trim() || "Utente";
 }
 
-function initials(person: { first_name: string; last_name: string }) {
-  const first = person.first_name.trim().slice(0, 1).toUpperCase();
-  const last = person.last_name.trim().slice(0, 1).toUpperCase();
-  return `${first}${last}` || "P";
-}
-
 function formatTime(value: string | null | undefined) {
   if (!value) return "";
   return new Intl.DateTimeFormat("it-IT", {
@@ -216,27 +211,14 @@ function Avatar({
   person: { first_name: string; last_name: string; avatar_url?: string | null };
   size?: "sm" | "md";
 }) {
-  const sizeClass = size === "md" ? "h-12 w-12" : "h-10 w-10";
-
-  if (person.avatar_url) {
-    return (
-      <Image
-        src={person.avatar_url}
-        alt={fullName(person)}
-        width={48}
-        height={48}
-        unoptimized
-        className={`${sizeClass} rounded-full border-2 border-primary-container object-cover`}
-      />
-    );
-  }
-
   return (
-    <div
-      className={`${sizeClass} flex shrink-0 items-center justify-center rounded-full bg-primary text-sm font-bold text-white`}
-    >
-      {initials(person)}
-    </div>
+    <ProfileAvatar
+      person={person}
+      alt={fullName(person)}
+      size={size === "md" ? "lg" : "sm"}
+      fallback="P"
+      className="border-2 border-primary-container"
+    />
   );
 }
 
@@ -620,7 +602,7 @@ export default function ProfessionalShell({ profile, children }: ProfessionalShe
                 <span className="material-symbols-outlined">search</span>
               </button>
               {searchOpen ? (
-                <div className="absolute right-0 top-[56px] w-[min(440px,calc(100vw-24px))] rounded-[24px] border border-outline-variant/40 bg-surface-container-lowest p-4 shadow-2xl">
+                <div className="fixed left-1/2 top-[calc(env(safe-area-inset-top)+5rem)] z-[100] max-h-[calc(100dvh-6rem)] w-[calc(100vw-24px)] max-w-[440px] -translate-x-1/2 overflow-hidden rounded-[24px] border border-outline-variant/40 bg-surface-container-lowest p-4 shadow-2xl md:absolute md:left-auto md:right-0 md:top-[56px] md:w-[min(440px,calc(100vw-24px))] md:translate-x-0">
                   <label className="font-label-md text-primary" htmlFor="professional-search">
                     Cerca altri professionisti
                   </label>
@@ -643,7 +625,7 @@ export default function ProfessionalShell({ profile, children }: ProfessionalShe
                       placeholder="Nome, cognome o specializzazione"
                     />
                   </div>
-                  <div className="mt-4 max-h-[420px] space-y-3 overflow-auto">
+                  <div className="mt-4 max-h-[min(420px,calc(100dvh-12rem))] space-y-3 overflow-auto">
                     {searchQuery.trim().length < 2 ? (
                       <p className="rounded-2xl bg-surface-container-low p-4 text-sm text-on-surface-variant">
                         Scrivi almeno 2 caratteri per cercare professionisti iscritti.
@@ -717,7 +699,7 @@ export default function ProfessionalShell({ profile, children }: ProfessionalShe
                 ) : null}
               </button>
               {notificationsOpen ? (
-                <div className="absolute right-0 top-[56px] w-[min(380px,calc(100vw-24px))] rounded-[24px] border border-outline-variant/40 bg-surface-container-lowest p-4 shadow-2xl">
+                <div className="fixed left-1/2 top-[calc(env(safe-area-inset-top)+5rem)] z-[100] max-h-[calc(100dvh-6rem)] w-[calc(100vw-24px)] max-w-[420px] -translate-x-1/2 overflow-hidden rounded-[24px] border border-outline-variant/40 bg-surface-container-lowest p-4 shadow-2xl md:absolute md:left-auto md:right-0 md:top-[56px] md:w-[min(380px,calc(100vw-24px))] md:translate-x-0">
                   <div className="mb-3 flex items-center justify-between">
                     <div className="font-headline-sm text-[20px] text-primary">Notifiche</div>
                     <button
@@ -733,7 +715,7 @@ export default function ProfessionalShell({ profile, children }: ProfessionalShe
                       Nessuna notifica.
                     </p>
                   ) : (
-                    <div className="max-h-[360px] space-y-2 overflow-auto">
+                    <div className="max-h-[min(360px,calc(100dvh-12rem))] space-y-2 overflow-auto">
                       {notifications.map((notification) => (
                         <Link
                           key={notification.id}

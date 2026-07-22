@@ -1,8 +1,8 @@
 "use client";
 
-import Image from "next/image";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
+import { ProfileAvatar } from "@/components/ui/profile-avatar";
 import { fetchJson } from "@/lib/api/fetch-json";
 
 type TicketStatus = "all" | "open" | "waiting" | "closed";
@@ -155,27 +155,14 @@ function subscriptionDot(status: SubscriptionStatus | undefined) {
 }
 
 function Avatar({ user, size = "md" }: { user: AdminUserSummary | null; size?: "sm" | "md" }) {
-  const className = size === "sm" ? "h-10 w-10" : "h-12 w-12";
-
-  if (user?.avatar_url) {
-    return (
-      <Image
-        src={user.avatar_url}
-        alt={fullName(user)}
-        width={48}
-        height={48}
-        unoptimized
-        className={`${className} shrink-0 rounded-full border-2 border-primary-fixed object-cover`}
-      />
-    );
-  }
-
   return (
-    <div
-      className={`${className} flex shrink-0 items-center justify-center rounded-full bg-primary-fixed text-sm font-bold text-primary`}
-    >
-      {initials(user)}
-    </div>
+    <ProfileAvatar
+      person={user}
+      alt={fullName(user)}
+      size={size === "sm" ? "sm" : "lg"}
+      fallback={initials(user)}
+      className="border-2 border-primary-fixed bg-primary-fixed text-primary"
+    />
   );
 }
 

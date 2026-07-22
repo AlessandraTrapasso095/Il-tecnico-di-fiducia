@@ -1,9 +1,9 @@
 "use client";
 
-import Image from "next/image";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 
+import { ProfileAvatar } from "@/components/ui/profile-avatar";
 import { fetchJson } from "@/lib/api/fetch-json";
 
 type FollowedProfessional = {
@@ -21,33 +21,6 @@ type FollowsResponse = {
 
 function fullName(person: Pick<FollowedProfessional, "first_name" | "last_name">) {
   return `${person.first_name ?? ""} ${person.last_name ?? ""}`.trim() || "Professionista";
-}
-
-function initials(person: Pick<FollowedProfessional, "first_name" | "last_name">) {
-  const first = person.first_name.trim().slice(0, 1).toUpperCase();
-  const last = person.last_name.trim().slice(0, 1).toUpperCase();
-  return `${first}${last}` || "P";
-}
-
-function Avatar({ professional }: { professional: FollowedProfessional }) {
-  if (professional.avatar_url) {
-    return (
-      <Image
-        src={professional.avatar_url}
-        alt={fullName(professional)}
-        width={72}
-        height={72}
-        unoptimized
-        className="h-16 w-16 rounded-full border-2 border-primary-container object-cover"
-      />
-    );
-  }
-
-  return (
-    <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-full bg-primary text-lg font-bold text-white">
-      {initials(professional)}
-    </div>
-  );
 }
 
 export default function FollowedProfessionalsClient() {
@@ -130,7 +103,13 @@ export default function FollowedProfessionalsClient() {
               className="group rounded-[28px] border border-outline-variant/30 bg-surface-container-lowest p-5 shadow-[0_4px_20px_rgba(8,43,95,0.08)] transition hover:-translate-y-0.5 hover:shadow-[0_8px_28px_rgba(8,43,95,0.12)]"
             >
               <div className="flex gap-4">
-                <Avatar professional={professional} />
+                <ProfileAvatar
+                  person={professional}
+                  alt={fullName(professional)}
+                  size="xl"
+                  fallback="P"
+                  className="border-2 border-primary-container"
+                />
                 <div className="min-w-0 flex-1">
                   <h2 className="truncate font-headline-sm text-[22px] text-primary">
                     {fullName(professional)}

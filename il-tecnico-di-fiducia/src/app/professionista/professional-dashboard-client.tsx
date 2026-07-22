@@ -1,6 +1,5 @@
 "use client";
 
-import Image from "next/image";
 import Link from "next/link";
 import type { FormEvent } from "react";
 import { useCallback, useEffect, useState } from "react";
@@ -13,6 +12,7 @@ import {
   type PostMediaAttachment,
 } from "@/components/posts/post-media-ui";
 import { PostComments } from "@/components/posts/post-comments";
+import { ProfileAvatar } from "@/components/ui/profile-avatar";
 import { fetchJson } from "@/lib/api/fetch-json";
 
 type ProfessionalProfileLite = {
@@ -87,12 +87,6 @@ const SUBSCRIPTION_SETTINGS_PATH = "/professionista/abbonamento";
 function fullName(person: { first_name: string; last_name: string } | null | undefined) {
   if (!person) return "Utente";
   return `${person.first_name ?? ""} ${person.last_name ?? ""}`.trim() || "Utente";
-}
-
-function initials(person: { first_name: string; last_name: string }) {
-  const first = person.first_name.trim().slice(0, 1).toUpperCase();
-  const last = person.last_name.trim().slice(0, 1).toUpperCase();
-  return `${first}${last}` || "P";
 }
 
 function formatDate(value: string | null | undefined) {
@@ -181,28 +175,14 @@ function Avatar({
   person: { first_name: string; last_name: string; avatar_url?: string | null };
   size?: "sm" | "md" | "lg";
 }) {
-  const sizeClass =
-    size === "lg" ? "h-14 w-14" : size === "sm" ? "h-10 w-10" : "h-12 w-12";
-
-  if (person.avatar_url) {
-    return (
-      <Image
-        src={person.avatar_url}
-        alt={fullName(person)}
-        width={56}
-        height={56}
-        unoptimized
-        className={`${sizeClass} rounded-full border-2 border-primary-container object-cover`}
-      />
-    );
-  }
-
   return (
-    <div
-      className={`${sizeClass} flex shrink-0 items-center justify-center rounded-full bg-primary text-sm font-bold text-white`}
-    >
-      {initials(person)}
-    </div>
+    <ProfileAvatar
+      person={person}
+      alt={fullName(person)}
+      size={size}
+      fallback="P"
+      className="border-2 border-primary-container"
+    />
   );
 }
 

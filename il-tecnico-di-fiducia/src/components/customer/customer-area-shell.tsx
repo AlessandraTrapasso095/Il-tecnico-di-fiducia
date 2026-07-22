@@ -24,7 +24,7 @@ function customerNavTextClass(active: boolean) {
 
 function customerIconClass(active: boolean) {
   return [
-    "rounded-full p-2 transition-all hover:bg-surface-container-high",
+    "inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full transition-all hover:bg-surface-container-high sm:h-11 sm:w-11",
     active ? "bg-[#FF8500]/10 text-[#FF8500]" : "text-primary",
   ].join(" ");
 }
@@ -57,7 +57,7 @@ export function CustomerAreaShell({ children }: CustomerAreaShellProps) {
                 className="h-10 w-10 shrink-0 object-contain sm:h-[54px] sm:w-[54px]"
                 priority
               />
-              <span className="min-w-0 leading-none">
+              <span className="hidden min-w-0 leading-none min-[430px]:block">
                 <span className="block font-headline-sm text-[15px] font-bold text-[#FF8500] sm:text-[21px]">
                   Il tecnico
                 </span>
@@ -86,6 +86,16 @@ export function CustomerAreaShell({ children }: CustomerAreaShellProps) {
           <div className="flex shrink-0 items-center gap-1 sm:gap-2">
             <Link
               href="/customer"
+              className={customerIconClass(isSearchActive)}
+              title="Cerca"
+              aria-label="Vai alla ricerca professionisti"
+            >
+              <span className="material-symbols-outlined" aria-hidden>
+                search
+              </span>
+            </Link>
+            <Link
+              href="/customer"
               className={customerIconClass(false)}
               title="Preferiti"
               aria-label="Apri preferiti"
@@ -105,7 +115,7 @@ export function CustomerAreaShell({ children }: CustomerAreaShellProps) {
               </span>
             </Link>
             <SignOutButton
-              className="rounded-full p-2 text-error transition-all hover:bg-error-container/30"
+              className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-error transition-all hover:bg-error-container/30 sm:h-11 sm:w-11"
               aria-label="Logout"
             >
               <span className="material-symbols-outlined" aria-hidden>

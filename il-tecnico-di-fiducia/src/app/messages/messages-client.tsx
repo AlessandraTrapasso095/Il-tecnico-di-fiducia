@@ -6,6 +6,7 @@ import type { RealtimeChannel } from "@supabase/supabase-js";
 import type { RealtimePostgresChangesPayload } from "@supabase/realtime-js";
 
 import { useAuthenticatedPresence } from "@/components/realtime/authenticated-presence";
+import { ProfileAvatar } from "@/components/ui/profile-avatar";
 import { ApiError, fetchJson } from "@/lib/api/fetch-json";
 import { logRealtimeDev } from "@/lib/realtime-dev-logger";
 import type {
@@ -730,18 +731,13 @@ function QuoteSendModal({
               Dati professionista
             </p>
             <div className="flex items-center gap-3">
-              {professional?.avatar_url ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img
-                  src={professional.avatar_url}
-                  alt={fullName(professional)}
-                  className="h-14 w-14 rounded-full object-cover"
-                />
-              ) : (
-                <div className="flex h-14 w-14 items-center justify-center rounded-full bg-primary-fixed font-bold text-primary">
-                  {initials(professional)}
-                </div>
-              )}
+              <ProfileAvatar
+                person={professional}
+                alt={fullName(professional)}
+                size="lg"
+                fallback={initials(professional)}
+                className="bg-primary-fixed text-primary"
+              />
               <div className="min-w-0">
                 <p className="font-label-md text-primary">{fullName(professional)}</p>
                 <p className="truncate text-sm text-on-surface-variant">
@@ -760,18 +756,13 @@ function QuoteSendModal({
               Dati cliente
             </p>
             <div className="flex items-center gap-3">
-              {client?.avatar_url ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img
-                  src={client.avatar_url}
-                  alt={fullName(client)}
-                  className="h-14 w-14 rounded-full object-cover"
-                />
-              ) : (
-                <div className="flex h-14 w-14 items-center justify-center rounded-full bg-secondary-fixed font-bold text-primary">
-                  {initials(client)}
-                </div>
-              )}
+              <ProfileAvatar
+                person={client}
+                alt={fullName(client)}
+                size="lg"
+                fallback={initials(client)}
+                className="bg-secondary-fixed text-primary"
+              />
               <div className="min-w-0">
                 <p className="font-label-md text-primary">{fullName(client)}</p>
                 <p className="truncate text-sm text-on-surface-variant">{clientLocation}</p>
@@ -910,18 +901,13 @@ function QuoteDetailModal({
           <span className="material-symbols-outlined">close</span>
         </button>
         <div className="flex items-center gap-3 pr-10">
-          {professional?.avatar_url ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img
-              src={professional.avatar_url}
-              alt={fullName(professional)}
-              className="h-16 w-16 rounded-full object-cover"
-            />
-          ) : (
-            <div className="flex h-16 w-16 items-center justify-center rounded-full bg-primary-fixed font-bold text-primary">
-              {initials(professional)}
-            </div>
-          )}
+          <ProfileAvatar
+            person={professional}
+            alt={fullName(professional)}
+            size="xl"
+            fallback={initials(professional)}
+            className="bg-primary-fixed text-primary"
+          />
           <div className="min-w-0">
             <h2 className="font-headline-sm text-[26px] text-primary">{fullName(professional)}</h2>
             <p className="text-on-surface-variant">{professionalTitle}</p>

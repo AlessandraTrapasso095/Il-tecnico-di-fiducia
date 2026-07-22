@@ -25,6 +25,7 @@ import {
   PostMediaViewer,
   type PostMediaAttachment,
 } from "@/components/posts/post-media-ui";
+import { ProfileAvatar } from "@/components/ui/profile-avatar";
 import { fetchJson } from "@/lib/api/fetch-json";
 import { ITALIAN_PROVINCES } from "@/lib/locations/italian-provinces";
 import type {
@@ -143,23 +144,14 @@ function CompactAvatar({
 }: {
   person: { first_name: string; last_name: string; avatar_url?: string | null };
 }) {
-  if (person.avatar_url) {
-    return (
-      <Image
-        src={person.avatar_url}
-        alt={fullName(person)}
-        width={44}
-        height={44}
-        unoptimized
-        className="h-11 w-11 shrink-0 rounded-full border-2 border-primary-container object-cover"
-      />
-    );
-  }
-
   return (
-    <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-primary text-sm font-bold text-white">
-      {initials(person)}
-    </div>
+    <ProfileAvatar
+      person={person}
+      alt={fullName(person)}
+      size="md"
+      fallback="P"
+      className="border-2 border-primary-container"
+    />
   );
 }
 
@@ -995,20 +987,14 @@ export default function ProfessionalProfileClient({
           <div className="relative px-5 pb-6 sm:px-8">
             <div className="flex flex-col gap-5 md:flex-row md:items-start md:justify-between">
               <div className="flex flex-col gap-4 md:flex-row md:items-start">
-                <div className="relative -mt-14 h-28 w-28 shrink-0 rounded-full border-4 border-surface-container-lowest bg-primary shadow-xl sm:-mt-16 sm:h-40 sm:w-40 md:-mt-20">
-                  {profile.avatar_url ? (
-                    <Image
-                      src={profile.avatar_url}
-                      alt={fullName(profile)}
-                      fill
-                      unoptimized
-                      className="rounded-full object-cover"
-                    />
-                  ) : (
-                    <div className="flex h-full w-full items-center justify-center rounded-full text-3xl font-bold text-white sm:text-4xl">
-                      {initials(profile)}
-                    </div>
-                  )}
+                <div className="relative -mt-14 shrink-0 sm:-mt-16 md:-mt-20">
+                  <ProfileAvatar
+                    person={profile}
+                    alt={fullName(profile)}
+                    size="2xl"
+                    fallback={initials(profile)}
+                    className="border-4 border-surface-container-lowest shadow-xl"
+                  />
                   {isOwner ? (
                     <div ref={avatarMenuRef} className="absolute bottom-2 right-2">
                       <button

@@ -336,7 +336,7 @@ function customerNavTextClass(active: boolean) {
 
 function customerIconButtonClass(active: boolean) {
   return [
-    "inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full transition-all hover:bg-surface-container-high",
+    "inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full transition-all hover:bg-surface-container-high sm:h-11 sm:w-11",
     active ? "bg-[#FF8500]/10 text-[#FF8500]" : "text-primary",
   ].join(" ");
 }
@@ -943,7 +943,7 @@ export default function CustomerDashboardClient({
                 className="h-10 w-10 shrink-0 object-contain sm:h-[54px] sm:w-[54px]"
                 priority
               />
-              <span className="min-w-0 leading-none">
+              <span className="hidden min-w-0 leading-none min-[430px]:block">
                 <span className="block font-headline-sm text-[15px] font-bold text-[#FF8500] sm:text-[21px]">
                   Il tecnico
                 </span>
@@ -1008,7 +1008,7 @@ export default function CustomerDashboardClient({
               </button>
 
               {favoritesOpen ? (
-                <div className="fixed left-1/2 top-[calc(env(safe-area-inset-top)+5rem)] z-[100] max-h-[calc(100dvh-6rem)] w-[calc(100vw-24px)] max-w-[420px] -translate-x-1/2 overflow-hidden rounded-[24px] border border-outline-variant/30 bg-surface-container-lowest text-left shadow-[0_18px_50px_rgba(8,43,95,0.18)] sm:absolute sm:left-auto sm:right-0 sm:top-[calc(100%+12px)] sm:w-[420px] sm:translate-x-0">
+                <div className="fixed left-1/2 top-[calc(env(safe-area-inset-top)+5rem)] z-[100] max-h-[calc(100dvh-6rem)] w-[calc(100vw-24px)] max-w-[420px] -translate-x-1/2 overflow-hidden rounded-[24px] border border-outline-variant/30 bg-surface-container-lowest text-left shadow-[0_18px_50px_rgba(8,43,95,0.18)] md:absolute md:left-auto md:right-0 md:top-[calc(100%+12px)] md:w-[420px] md:translate-x-0">
                   <div className="border-b border-outline-variant/25 p-4">
                     <div className="font-headline-sm text-primary">Preferiti</div>
                     <div className="text-sm text-on-surface-variant">
@@ -1029,7 +1029,7 @@ export default function CustomerDashboardClient({
                       </p>
                     </div>
                   ) : (
-                  <div className="max-h-[min(420px,calc(100dvh-9rem))] overflow-y-auto p-2">
+                    <div className="max-h-[min(420px,calc(100dvh-9rem))] overflow-y-auto p-2">
                       {savedProfessionals.map((professional) => (
                         <Link
                           key={professional.id}
@@ -1102,7 +1102,7 @@ export default function CustomerDashboardClient({
               </button>
 
               {notificationsOpen ? (
-                <div className="fixed left-1/2 top-[calc(env(safe-area-inset-top)+5rem)] z-[100] max-h-[calc(100dvh-6rem)] w-[calc(100vw-24px)] max-w-[420px] -translate-x-1/2 overflow-hidden rounded-[24px] border border-outline-variant/30 bg-surface-container-lowest text-left shadow-[0_18px_50px_rgba(8,43,95,0.18)] sm:absolute sm:left-auto sm:right-0 sm:top-[calc(100%+12px)] sm:w-[420px] sm:translate-x-0">
+                <div className="fixed left-1/2 top-[calc(env(safe-area-inset-top)+5rem)] z-[100] max-h-[calc(100dvh-6rem)] w-[calc(100vw-24px)] max-w-[420px] -translate-x-1/2 overflow-hidden rounded-[24px] border border-outline-variant/30 bg-surface-container-lowest text-left shadow-[0_18px_50px_rgba(8,43,95,0.18)] md:absolute md:left-auto md:right-0 md:top-[calc(100%+12px)] md:w-[420px] md:translate-x-0">
                   <div className="flex items-center justify-between gap-3 border-b border-outline-variant/25 p-4">
                     <div>
                       <div className="font-headline-sm text-primary">Notifiche</div>
@@ -1187,7 +1187,7 @@ export default function CustomerDashboardClient({
               </span>
             </button>
             <SignOutButton
-              className="rounded-full p-2 text-error transition-all hover:bg-error-container/30"
+              className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-error transition-all hover:bg-error-container/30 sm:h-11 sm:w-11"
               aria-label="Logout"
             >
               <span className="material-symbols-outlined" aria-hidden>

@@ -89,7 +89,7 @@ export function TopNav() {
 
         <button
           type="button"
-          className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-outline-variant/40 text-primary transition-colors hover:bg-surface-container-high lg:hidden"
+          className="flex h-11 w-11 shrink-0 cursor-pointer touch-manipulation items-center justify-center rounded-full border border-outline-variant/40 text-primary transition-colors hover:bg-surface-container-high lg:hidden"
           aria-label="Apri menu"
           aria-controls={mobileMenuId}
           aria-expanded={open}
@@ -102,7 +102,7 @@ export function TopNav() {
       </div>
 
       {open ? (
-        <div className="fixed inset-0 z-[100] lg:hidden" id={mobileMenuId}>
+        <div className="fixed inset-0 z-[200] lg:hidden" id={mobileMenuId}>
           <button
             type="button"
             className="absolute inset-0 h-full w-full bg-inverse-surface/45 backdrop-blur-sm"
@@ -110,7 +110,7 @@ export function TopNav() {
             aria-label="Chiudi menu"
           />
           <div
-            className="absolute right-0 top-0 flex h-dvh w-[min(360px,88vw)] flex-col overflow-y-auto border-l border-outline-variant/30 bg-surface-container-lowest p-4 pt-[max(1rem,env(safe-area-inset-top))] shadow-2xl"
+            className="absolute right-0 top-0 flex h-dvh w-[min(360px,88vw)] max-w-full flex-col overflow-y-auto border-l border-outline-variant/30 bg-surface-container-lowest p-4 pt-[max(1rem,env(safe-area-inset-top))] shadow-2xl"
             role="dialog"
             aria-modal="true"
             aria-label="Menu principale"
@@ -119,7 +119,7 @@ export function TopNav() {
               <span className="font-headline-sm text-[21px] text-primary">Menu</span>
               <button
                 type="button"
-                className="flex h-11 w-11 items-center justify-center rounded-full text-primary transition-colors hover:bg-surface-container-high"
+                className="flex h-11 w-11 cursor-pointer items-center justify-center rounded-full text-primary transition-colors hover:bg-surface-container-high"
                 onClick={() => setOpen(false)}
                 aria-label="Chiudi menu"
               >
