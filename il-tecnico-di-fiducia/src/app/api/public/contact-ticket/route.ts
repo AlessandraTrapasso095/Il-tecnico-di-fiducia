@@ -39,7 +39,6 @@ const MAX_EMAIL_LENGTH = 180;
 const MAX_SUBJECT_LENGTH = 160;
 const MAX_BODY_LENGTH = 5000;
 const PUBLIC_CONTACT_SOURCE = "public_contact";
-const PUBLIC_CONTACT_ADMIN_EMAIL_FALLBACK = "admin@iltecnicodifiducia.it";
 
 function normalizeText(value: unknown, maxLength: number) {
   if (typeof value !== "string") return "";
@@ -156,11 +155,10 @@ function publicContactEmail({
 
 async function loadSupportAuthor() {
   const service = createServiceClient();
+  const adminEmail = supportAdminEmail()?.toLowerCase().trim();
   const configuredEmails = Array.from(
     new Set(
-      [supportAdminEmail(), PUBLIC_CONTACT_ADMIN_EMAIL_FALLBACK]
-        .map((email) => email?.toLowerCase().trim())
-        .filter((email): email is string => Boolean(email)),
+      adminEmail ? [adminEmail] : [],
     ),
   );
 
@@ -306,8 +304,7 @@ export async function POST(request: Request) {
 
   let emailSent = false;
   try {
-    const adminRecipient =
-      supportAdminEmail() ?? PUBLIC_CONTACT_ADMIN_EMAIL_FALLBACK;
+    const adminRecipient = supportAdminEmail();
     const emailContent = publicContactEmail({
       ticket,
       firstName,
@@ -325,7 +322,7 @@ export async function POST(request: Request) {
     logPublicContact("EMAIL_RESULT", {
       ticket_id: ticket.id,
       email_sent: emailSent,
-      recipient_domain: emailDomain(adminRecipient),
+      recipient_domain: adminRecipient ? emailDomain(adminRecipient) : null,
       recipient_from_support_admin_env: Boolean(supportAdminEmail()),
       skipped: emailResult.sent ? false : emailResult.skipped,
       reason: emailResult.sent ? null : emailResult.reason,
