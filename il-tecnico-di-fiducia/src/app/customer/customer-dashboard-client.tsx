@@ -16,6 +16,7 @@ import { SignOutButton } from "@/components/auth/sign-out-button";
 import { HeaderBackButton } from "@/components/navigation/header-back-button";
 import { AuthenticatedPresence } from "@/components/realtime/authenticated-presence";
 import { Footer } from "@/components/site/footer";
+import { ProfileAvatar } from "@/components/ui/profile-avatar";
 import { fetchJson } from "@/lib/api/fetch-json";
 import { logRealtimeDev } from "@/lib/realtime-dev-logger";
 import { createClient } from "@/lib/supabase/client";
@@ -158,12 +159,6 @@ type ContactModalState = {
 function fullName(p: { first_name: string; last_name: string } | null | undefined) {
   if (!p) return "Professionista";
   return `${p.first_name ?? ""} ${p.last_name ?? ""}`.trim() || "Professionista";
-}
-
-function initials(firstName: string, lastName: string) {
-  const a = (firstName ?? "").trim().slice(0, 1).toUpperCase();
-  const b = (lastName ?? "").trim().slice(0, 1).toUpperCase();
-  return `${a}${b}` || "U";
 }
 
 function statusLabel(status: ContactRequestStatus) {
@@ -341,7 +336,7 @@ function customerNavTextClass(active: boolean) {
 
 function customerIconButtonClass(active: boolean) {
   return [
-    "rounded-full p-2 transition-all hover:bg-surface-container-high",
+    "inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full transition-all hover:bg-surface-container-high",
     active ? "bg-[#FF8500]/10 text-[#FF8500]" : "text-primary",
   ].join(" ");
 }
@@ -977,6 +972,23 @@ export default function CustomerDashboardClient({
           </nav>
 
           <div className="flex shrink-0 items-center gap-1 sm:gap-2">
+            <button
+              type="button"
+              className={`${customerIconButtonClass(isSearchNavActive)} lg:hidden`}
+              title="Cerca"
+              aria-label="Vai alla ricerca professionisti"
+              onClick={() => {
+                setFavoritesOpen(false);
+                setNotificationsOpen(false);
+                setFilterOpen(false);
+                openExplore();
+              }}
+            >
+              <span className="material-symbols-outlined" aria-hidden>
+                search
+              </span>
+            </button>
+
             <div ref={favoritesRef} className="relative">
               <button
                 type="button"
@@ -996,7 +1008,7 @@ export default function CustomerDashboardClient({
               </button>
 
               {favoritesOpen ? (
-                <div className="absolute right-0 top-[calc(100%+12px)] z-[95] w-[min(92vw,420px)] overflow-hidden rounded-[24px] border border-outline-variant/30 bg-surface-container-lowest text-left shadow-[0_18px_50px_rgba(8,43,95,0.18)]">
+                <div className="fixed left-1/2 top-[calc(env(safe-area-inset-top)+5rem)] z-[100] max-h-[calc(100dvh-6rem)] w-[calc(100vw-24px)] max-w-[420px] -translate-x-1/2 overflow-hidden rounded-[24px] border border-outline-variant/30 bg-surface-container-lowest text-left shadow-[0_18px_50px_rgba(8,43,95,0.18)] sm:absolute sm:left-auto sm:right-0 sm:top-[calc(100%+12px)] sm:w-[420px] sm:translate-x-0">
                   <div className="border-b border-outline-variant/25 p-4">
                     <div className="font-headline-sm text-primary">Preferiti</div>
                     <div className="text-sm text-on-surface-variant">
@@ -1025,21 +1037,12 @@ export default function CustomerDashboardClient({
                           className="flex gap-3 rounded-2xl p-3 transition-colors hover:bg-surface-container-low"
                           onClick={() => setFavoritesOpen(false)}
                         >
-                          <div className="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-primary-fixed bg-surface-container-high text-primary">
-                            {professional.avatar_url ? (
-                              <Image
-                                src={professional.avatar_url}
-                                alt={fullName(professional)}
-                                width={48}
-                                height={48}
-                                className="h-full w-full object-cover"
-                              />
-                            ) : (
-                              <span className="text-sm font-bold">
-                                {initials(professional.first_name, professional.last_name)}
-                              </span>
-                            )}
-                          </div>
+                          <ProfileAvatar
+                            person={professional}
+                            alt={fullName(professional)}
+                            size="md"
+                            className="border border-primary-fixed bg-surface-container-high text-primary"
+                          />
                           <div className="min-w-0 flex-1">
                             <div className="truncate font-button text-primary">
                               {fullName(professional)}
@@ -1099,7 +1102,7 @@ export default function CustomerDashboardClient({
               </button>
 
               {notificationsOpen ? (
-                <div className="absolute right-0 top-[calc(100%+12px)] z-[95] w-[min(92vw,420px)] overflow-hidden rounded-[24px] border border-outline-variant/30 bg-surface-container-lowest text-left shadow-[0_18px_50px_rgba(8,43,95,0.18)]">
+                <div className="fixed left-1/2 top-[calc(env(safe-area-inset-top)+5rem)] z-[100] max-h-[calc(100dvh-6rem)] w-[calc(100vw-24px)] max-w-[420px] -translate-x-1/2 overflow-hidden rounded-[24px] border border-outline-variant/30 bg-surface-container-lowest text-left shadow-[0_18px_50px_rgba(8,43,95,0.18)] sm:absolute sm:left-auto sm:right-0 sm:top-[calc(100%+12px)] sm:w-[420px] sm:translate-x-0">
                   <div className="flex items-center justify-between gap-3 border-b border-outline-variant/25 p-4">
                     <div>
                       <div className="font-headline-sm text-primary">Notifiche</div>
@@ -1136,7 +1139,6 @@ export default function CustomerDashboardClient({
                           last_name: "",
                           avatar_url: null,
                         };
-                        const actorInitials = initials(actor.first_name, actor.last_name);
                         return (
                           <Link
                             key={notification.id}
@@ -1146,19 +1148,13 @@ export default function CustomerDashboardClient({
                               handleCustomerNotificationClick(event, notification)
                             }
                           >
-                            <div className="relative flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-full border border-primary-fixed bg-surface-container-high text-primary">
-                              {actor.avatar_url ? (
-                                <Image
-                                  src={actor.avatar_url}
-                                  alt={fullName(actor)}
-                                  width={44}
-                                  height={44}
-                                  className="h-full w-full object-cover"
-                                  unoptimized
-                                />
-                              ) : (
-                                <span className="text-xs font-bold">{actorInitials}</span>
-                              )}
+                            <div className="relative shrink-0">
+                              <ProfileAvatar
+                                person={actor}
+                                alt={fullName(actor)}
+                                size="md"
+                                className="border border-primary-fixed bg-surface-container-high text-primary"
+                              />
                               {!notification.read_at ? (
                                 <span className="absolute right-0 top-0 h-2.5 w-2.5 rounded-full bg-[#FF8500]" />
                               ) : null}
@@ -1505,21 +1501,13 @@ export default function CustomerDashboardClient({
                         className="rounded-[24px] border border-outline-variant/30 bg-surface-container-lowest p-6 shadow-[0_4px_20px_rgba(8,43,95,0.08)]"
                       >
                         <div className="flex items-start gap-4">
-                          <div className="flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-2xl border-2 border-primary-fixed bg-surface-container-high text-primary">
-                            {p.avatar_url ? (
-                              <Image
-                                className="h-full w-full object-cover"
-                                alt={fullName(p)}
-                                src={p.avatar_url}
-                                width={64}
-                                height={64}
-                              />
-                            ) : (
-                              <span className="font-button">
-                                {initials(p.first_name, p.last_name)}
-                              </span>
-                            )}
-                          </div>
+                          <ProfileAvatar
+                            person={p}
+                            alt={fullName(p)}
+                            size="xl"
+                            className="border-2 border-primary-fixed bg-surface-container-high text-primary"
+                            fallbackClassName="font-button"
+                          />
 
                           <div className="min-w-0 flex-1">
                             <div className="font-headline-sm text-[24px] leading-tight text-primary">

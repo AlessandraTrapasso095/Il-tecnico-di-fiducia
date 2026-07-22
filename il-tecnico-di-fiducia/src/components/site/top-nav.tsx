@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useId, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
 
@@ -13,6 +13,7 @@ const navLinks = [
 
 export function TopNav() {
   const [open, setOpen] = useState(false);
+  const mobileMenuId = useId();
 
   useEffect(() => {
     function onKeyDown(e: KeyboardEvent) {
@@ -88,44 +89,68 @@ export function TopNav() {
 
         <button
           type="button"
-          className="h-11 w-11 rounded-full border border-outline-variant/40 text-primary transition-colors hover:bg-surface-container-high lg:hidden"
-          aria-label={open ? "Chiudi menu" : "Apri menu"}
-          onClick={() => setOpen((v) => !v)}
+          className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-outline-variant/40 text-primary transition-colors hover:bg-surface-container-high lg:hidden"
+          aria-label="Apri menu"
+          aria-controls={mobileMenuId}
+          aria-expanded={open}
+          onClick={() => setOpen(true)}
         >
-          {open ? "✕" : "☰"}
+          <span className="material-symbols-outlined" aria-hidden>
+            menu
+          </span>
         </button>
       </div>
 
       {open ? (
-        <div className="fixed inset-x-0 bottom-0 top-20 z-50 sm:top-[100px] lg:hidden">
-          <div
-            className="absolute inset-0 bg-inverse-surface/40 backdrop-blur-sm"
+        <div className="fixed inset-0 z-[100] lg:hidden" id={mobileMenuId}>
+          <button
+            type="button"
+            className="absolute inset-0 h-full w-full bg-inverse-surface/45 backdrop-blur-sm"
             onClick={() => setOpen(false)}
+            aria-label="Chiudi menu"
           />
-          <div className="absolute left-0 right-0 top-0 max-h-full overflow-y-auto border-t border-outline-variant/30 bg-surface-container-lowest shadow-lg">
-            <div className="mx-auto flex max-w-[1280px] flex-col gap-2 px-4 py-4 pb-[max(1rem,env(safe-area-inset-bottom))] sm:px-6">
+          <div
+            className="absolute right-0 top-0 flex h-dvh w-[min(360px,88vw)] flex-col overflow-y-auto border-l border-outline-variant/30 bg-surface-container-lowest p-4 pt-[max(1rem,env(safe-area-inset-top))] shadow-2xl"
+            role="dialog"
+            aria-modal="true"
+            aria-label="Menu principale"
+          >
+            <div className="mb-4 flex items-center justify-between gap-3">
+              <span className="font-headline-sm text-[21px] text-primary">Menu</span>
+              <button
+                type="button"
+                className="flex h-11 w-11 items-center justify-center rounded-full text-primary transition-colors hover:bg-surface-container-high"
+                onClick={() => setOpen(false)}
+                aria-label="Chiudi menu"
+              >
+                <span className="material-symbols-outlined" aria-hidden>
+                  close
+                </span>
+              </button>
+            </div>
+            <div className="flex flex-1 flex-col gap-2 pb-[max(1rem,env(safe-area-inset-bottom))]">
               {navLinks.map((l) => (
                 <a
                   key={`mobile-${l.id}`}
                   href={l.href}
-                  className="px-3 py-3 rounded-xl font-label-md text-label-md text-on-surface-variant hover:bg-surface-container-low transition-colors"
+                  className="min-h-11 rounded-xl px-3 py-3 font-label-md text-label-md text-on-surface-variant transition-colors hover:bg-surface-container-low"
                   onClick={() => setOpen(false)}
                 >
                   {l.label}
                 </a>
               ))}
 
-              <div className="pt-2 mt-2 border-t border-outline-variant/30 flex flex-col gap-2">
+              <div className="mt-2 flex flex-col gap-2 border-t border-outline-variant/30 pt-2">
                 <Link
                   href="/auth/login"
-                  className="px-3 py-3 rounded-xl font-button text-button text-primary hover:bg-surface-container-low transition-colors text-center"
+                  className="min-h-11 rounded-xl px-3 py-3 text-center font-button text-button text-primary transition-colors hover:bg-surface-container-low"
                   onClick={() => setOpen(false)}
                 >
                   Log In
                 </Link>
                 <Link
                   href="/auth/register"
-                  className="px-3 py-3 rounded-xl font-button text-button bg-[#FF8500] text-white hover:bg-[#FF9A2B] transition-colors text-center"
+                  className="min-h-11 rounded-xl bg-[#FF8500] px-3 py-3 text-center font-button text-button text-white transition-colors hover:bg-[#FF9A2B]"
                   onClick={() => setOpen(false)}
                 >
                   Inizia ora
