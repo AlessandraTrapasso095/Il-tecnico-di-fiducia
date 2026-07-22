@@ -2,9 +2,15 @@ import { Footer } from "@/components/site/footer";
 import { Container } from "@/components/site/container";
 import { TopNav } from "@/components/site/top-nav";
 import { ProfessionSearchFlow } from "@/components/site/profession-search-flow";
+import { PublicReviewsCarousel } from "@/components/site/public-reviews-carousel";
+import { getPublicHomepageReviews } from "@/lib/server/public-reviews";
 import Image from "next/image";
 
-export default function Home() {
+export const dynamic = "force-dynamic";
+
+export default async function Home() {
+  const publicReviews = await getPublicHomepageReviews();
+
   return (
     <div className="flex min-h-dvh flex-col">
       <TopNav />
@@ -155,27 +161,10 @@ export default function Home() {
           </Container>
         </section>
 
-        {/* Recensioni (stato vuoto) */}
+        {/* Recensioni */}
         <section className="py-20">
           <Container>
-            <div className="bg-surface-container-low rounded-[40px] p-10 text-center border-2 border-dashed border-outline-variant">
-              <div className="mb-6 inline-flex items-center justify-center w-20 h-20 rounded-full bg-surface-container-high text-outline">
-                ★
-              </div>
-              <h2 className="font-headline-md text-headline-md text-primary mb-4">
-                Le recensioni degli utenti
-              </h2>
-              <p className="font-body-lg text-body-lg text-on-surface-variant max-w-[640px] mx-auto mb-8">
-                Siamo una piattaforma in rapida crescita. Qui troverai le esperienze
-                reali degli utenti dopo i primi contatti con i professionisti.
-              </p>
-              <a
-                href="/auth/register"
-                className="inline-flex items-center justify-center font-button text-button bg-primary text-white px-8 py-3 rounded-full hover:bg-secondary transition-colors"
-              >
-                Inizia ora
-              </a>
-            </div>
+            <PublicReviewsCarousel reviews={publicReviews} />
           </Container>
         </section>
       </main>
