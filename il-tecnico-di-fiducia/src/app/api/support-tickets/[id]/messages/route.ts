@@ -11,6 +11,8 @@ import {
 } from "@/lib/server/support-ticket-emails";
 import { createServiceClient } from "@/lib/supabase/service";
 
+export const runtime = "nodejs";
+
 type CreateSupportMessagePayload = {
   body: string;
   next_status?: "waiting" | "closed";

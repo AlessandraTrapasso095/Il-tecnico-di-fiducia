@@ -10,6 +10,8 @@ import {
 } from "@/lib/server/email";
 import { createServiceClient } from "@/lib/supabase/service";
 
+export const runtime = "nodejs";
+
 type PublicContactPayload = {
   first_name?: string;
   last_name?: string;
@@ -37,7 +39,7 @@ const MAX_EMAIL_LENGTH = 180;
 const MAX_SUBJECT_LENGTH = 160;
 const MAX_BODY_LENGTH = 5000;
 const PUBLIC_CONTACT_SOURCE = "public_contact";
-const PUBLIC_CONTACT_ADMIN_EMAIL = "admin@iltecnicodifiducia.it";
+const PUBLIC_CONTACT_ADMIN_EMAIL_FALLBACK = "admin@iltecnicodifiducia.it";
 
 function normalizeText(value: unknown, maxLength: number) {
   if (typeof value !== "string") return "";
@@ -156,7 +158,7 @@ async function loadSupportAuthor() {
   const service = createServiceClient();
   const configuredEmails = Array.from(
     new Set(
-      [supportAdminEmail(), PUBLIC_CONTACT_ADMIN_EMAIL]
+      [supportAdminEmail(), PUBLIC_CONTACT_ADMIN_EMAIL_FALLBACK]
         .map((email) => email?.toLowerCase().trim())
         .filter((email): email is string => Boolean(email)),
     ),
@@ -304,6 +306,8 @@ export async function POST(request: Request) {
 
   let emailSent = false;
   try {
+    const adminRecipient =
+      supportAdminEmail() ?? PUBLIC_CONTACT_ADMIN_EMAIL_FALLBACK;
     const emailContent = publicContactEmail({
       ticket,
       firstName,
@@ -313,7 +317,7 @@ export async function POST(request: Request) {
       body,
     });
     const emailResult = await sendTransactionalEmail({
-      to: PUBLIC_CONTACT_ADMIN_EMAIL,
+      to: adminRecipient,
       ...emailContent,
     });
 
@@ -321,7 +325,8 @@ export async function POST(request: Request) {
     logPublicContact("EMAIL_RESULT", {
       ticket_id: ticket.id,
       email_sent: emailSent,
-      recipient_domain: emailDomain(PUBLIC_CONTACT_ADMIN_EMAIL),
+      recipient_domain: emailDomain(adminRecipient),
+      recipient_from_support_admin_env: Boolean(supportAdminEmail()),
       skipped: emailResult.sent ? false : emailResult.skipped,
       reason: emailResult.sent ? null : emailResult.reason,
       source: PUBLIC_CONTACT_SOURCE,

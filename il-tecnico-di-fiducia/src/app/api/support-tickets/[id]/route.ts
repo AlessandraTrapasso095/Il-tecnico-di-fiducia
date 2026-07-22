@@ -7,6 +7,8 @@ import { loadAdminUserSummaries } from "@/lib/server/admin-user-summaries";
 import { sendSupportTicketResolvedEmail } from "@/lib/server/support-ticket-emails";
 import { createServiceClient } from "@/lib/supabase/service";
 
+export const runtime = "nodejs";
+
 type UpdateTicketPayload = {
   subject?: string;
   body?: string;

@@ -10,6 +10,8 @@ import { logApiError } from "@/lib/server/api-logger";
 import { sendSupportTicketCreatedEmail } from "@/lib/server/support-ticket-emails";
 import { createServiceClient } from "@/lib/supabase/service";
 
+export const runtime = "nodejs";
+
 type CreateTicketPayload = {
   subject: string;
   body: string;
