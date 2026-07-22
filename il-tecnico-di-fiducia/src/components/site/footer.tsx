@@ -46,24 +46,24 @@ export function Footer() {
             Supporto
           </div>
           <div className="flex flex-col gap-2">
-            <a
+            <Link
               className="text-surface-container-highest hover:text-on-primary-container transition-colors"
-              href="#"
+              href="/centro-assistenza"
             >
               Centro assistenza
-            </a>
-            <a
+            </Link>
+            <Link
               className="text-surface-container-highest hover:text-on-primary-container transition-colors"
-              href="#"
+              href="/contattaci"
             >
               Contattaci
-            </a>
-            <a
+            </Link>
+            <Link
               className="text-surface-container-highest hover:text-on-primary-container transition-colors"
-              href="#"
+              href="/faq"
             >
               FAQ
-            </a>
+            </Link>
           </div>
         </div>
 
@@ -72,24 +72,18 @@ export function Footer() {
             Legale
           </div>
           <div className="flex flex-col gap-2">
-            <a
+            <Link
               className="text-surface-container-highest hover:text-on-primary-container transition-colors"
-              href="#"
+              href="/termini-di-servizio"
             >
               Termini di servizio
-            </a>
-            <a
+            </Link>
+            <Link
               className="text-surface-container-highest hover:text-on-primary-container transition-colors"
-              href="#"
+              href="/privacy"
             >
-              Privacy policy
-            </a>
-            <a
-              className="text-surface-container-highest hover:text-on-primary-container transition-colors"
-              href="#"
-            >
-              Cookie policy
-            </a>
+              Privacy Policy
+            </Link>
           </div>
         </div>
       </Container>
@@ -98,14 +92,6 @@ export function Footer() {
         <Container className="flex flex-col items-center justify-between gap-4 py-6 text-center sm:flex-row sm:text-left">
           <div className="text-surface-container-highest/70 text-sm">
             © {new Date().getFullYear()} Il Tecnico di Fiducia. Tutti i diritti riservati.
-          </div>
-          <div className="flex gap-3 text-surface-container-highest/80">
-            <a className="hover:text-on-tertiary-container transition-colors" href="#">
-              Contatti
-            </a>
-            <a className="hover:text-on-tertiary-container transition-colors" href="#">
-              Privacy
-            </a>
           </div>
         </Container>
       </div>
