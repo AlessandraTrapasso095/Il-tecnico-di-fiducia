@@ -30,8 +30,8 @@ function isSubscriptionActive(row: SubscriptionRow, nowMs = Date.now()) {
 
 function isProfileActive(row: ProfileStatusRow, nowMs = Date.now()) {
   if (row.role !== "professional") return false;
-  if (row.is_banned === false || row.is_banned === null) return true;
-  if (!row.suspended_until) return false;
+  if (row.is_banned === true) return false;
+  if (!row.suspended_until) return true;
   return new Date(row.suspended_until).getTime() <= nowMs;
 }
 

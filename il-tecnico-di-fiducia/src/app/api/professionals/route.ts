@@ -11,6 +11,7 @@ import {
   type ProfessionalWithRating,
 } from "@/lib/server/professional-ratings";
 import { loadCustomerVisibleProfessionalIds } from "@/lib/server/professional-visibility";
+import { createServiceClient } from "@/lib/supabase/service";
 
 type ProfessionalDirectoryRow = {
   id: string;
@@ -102,6 +103,15 @@ function matchesSearchText(haystack: string, rawNeedle: string) {
     const tokens = needle.split(" ").filter(Boolean);
     return tokens.length > 0 && tokens.every((token) => haystack.includes(token));
   });
+}
+
+function matchesSubcategoryText(haystack: string, rawNeedle: string) {
+  const needle = normalizeSearchText(rawNeedle);
+  if (!needle) return true;
+  if (matchesSearchText(haystack, needle)) return true;
+
+  const tokens = needle.split(" ").filter((token) => token.length >= MIN_ALIAS_LENGTH);
+  return tokens.length > 0 && tokens.some((token) => haystack.includes(token));
 }
 
 function categoryAliases(category: Pick<CategoryRow, "name" | "slug">) {
@@ -229,210 +239,280 @@ async function loadProfessionalCategoryLookup(
 
 export async function GET(request: NextRequest) {
   try {
-  const auth = await requireAuth();
-  if (!auth.ok) return auth.response;
+    const auth = await requireAuth();
+    if (!auth.ok) return auth.response;
 
-  const { supabase, profile } = auth.ctx;
+    const { supabase, profile } = auth.ctx;
+    const isCustomerSearch = profile.role === "customer";
+    const dataClient = isCustomerSearch ? createServiceClient() : supabase;
 
-  const searchParams = request.nextUrl.searchParams;
+    const searchParams = request.nextUrl.searchParams;
 
-  const provinceCode = searchParams.get("province_code");
-  const query = searchParams.get("q");
-  const categoryIdRaw = searchParams.get("category_id");
-  const categorySlugRaw = searchParams.get("category_slug");
-  const subcategory = sanitizeSpecialization(searchParams.get("subcategory"));
-  const availableRemote = parseBoolean(searchParams.get("remote"));
-  const availableTravel = parseBoolean(searchParams.get("travel"));
-  const recommended = searchParams.get("recommended") === "true";
-  const customerProvinceCode = searchParams.get("customer_province_code");
+    const provinceCode = searchParams.get("province_code");
+    const query = searchParams.get("q");
+    const categoryIdRaw = searchParams.get("category_id");
+    const categorySlugRaw = searchParams.get("category_slug");
+    const subcategory = sanitizeSpecialization(searchParams.get("subcategory"));
+    const availableRemote = parseBoolean(searchParams.get("remote"));
+    const availableTravel = parseBoolean(searchParams.get("travel"));
+    const recommended = searchParams.get("recommended") === "true";
+    const customerProvinceCode = searchParams.get("customer_province_code");
 
-  const page = clampInt(searchParams.get("page"), 1, 1, 10_000);
-  const pageSize = clampInt(searchParams.get("page_size"), 12, 1, 50);
+    const page = clampInt(searchParams.get("page"), 1, 1, 10_000);
+    const pageSize = clampInt(searchParams.get("page_size"), 12, 1, 50);
 
-  const rangeFrom = (page - 1) * pageSize;
-  const rangeTo = rangeFrom + pageSize - 1;
-  const q = query && query.trim().length > 0 ? sanitizeOrSearchQuery(query) : "";
-  const emptyResponse = {
-    page,
-    page_size: pageSize,
-    total: 0,
-    professionals: [],
-  };
-  const customerVisibleProfessionalIds =
-    profile.role === "customer" ? await loadCustomerVisibleProfessionalIds() : null;
+    const rangeFrom = (page - 1) * pageSize;
+    const rangeTo = rangeFrom + pageSize - 1;
+    const q = query && query.trim().length > 0 ? sanitizeOrSearchQuery(query) : "";
+    const emptyResponse = {
+      page,
+      page_size: pageSize,
+      total: 0,
+      professionals: [],
+    };
+    const customerVisibleProfessionalIds = isCustomerSearch
+      ? await loadCustomerVisibleProfessionalIds(undefined, dataClient)
+      : null;
 
-  if (customerVisibleProfessionalIds && customerVisibleProfessionalIds.size === 0) {
-    return NextResponse.json(emptyResponse);
-  }
-
-  let selectedCategory: CategoryRow | null = null;
-  let professionalIdsFromCategory: string[] | null = null;
-  if (categoryIdRaw) {
-    const categoryId = Number.parseInt(categoryIdRaw, 10);
-    if (!Number.isFinite(categoryId)) {
-      return NextResponse.json({ error: "Invalid category_id" }, { status: 400 });
+    if (customerVisibleProfessionalIds && customerVisibleProfessionalIds.size === 0) {
+      return NextResponse.json(emptyResponse);
     }
 
-    const [mappingResult, categoryResult] = await Promise.all([
-      supabase
-        .from("professional_categories")
-        .select("professional_id")
-        .eq("category_id", categoryId),
-      supabase
-        .from("categories")
-        .select("id, name, slug")
-        .eq("id", categoryId)
-        .maybeSingle(),
-    ]);
+    let selectedCategory: CategoryRow | null = null;
+    let professionalIdsFromCategory: string[] | null = null;
+    if (categoryIdRaw) {
+      const categoryId = Number.parseInt(categoryIdRaw, 10);
+      if (!Number.isFinite(categoryId)) {
+        return NextResponse.json({ error: "Invalid category_id" }, { status: 400 });
+      }
 
-    if (mappingResult.error) {
-      logApiError("PROFESSIONALS ERROR", {
-        user_id: auth.ctx.user.id,
-        role: profile.role,
-        query: "professional_categories select professional_id by category_id",
-        category_id: categoryId,
-        error: mappingResult.error,
-      });
-      return NextResponse.json(
-        { error: "Failed to filter by category" },
-        { status: 500 },
-      );
-    }
+      const [mappingResult, categoryResult] = await Promise.all([
+        dataClient
+          .from("professional_categories")
+          .select("professional_id")
+          .eq("category_id", categoryId),
+        dataClient
+          .from("categories")
+          .select("id, name, slug")
+          .eq("id", categoryId)
+          .maybeSingle(),
+      ]);
 
-    if (categoryResult.error) {
-      logApiError("PROFESSIONALS ERROR", {
-        user_id: auth.ctx.user.id,
-        role: profile.role,
-        query: "categories select id, name, slug by id",
-        category_id: categoryId,
-        error: categoryResult.error,
-      });
-      return NextResponse.json(
-        { error: "Failed to load category" },
-        { status: 500 },
-      );
-    }
-
-    selectedCategory = (categoryResult.data as CategoryRow | null) ?? null;
-    professionalIdsFromCategory =
-      (mappingResult.data ?? []).map((m) => m.professional_id) ?? [];
-    if (customerVisibleProfessionalIds) {
-      professionalIdsFromCategory = professionalIdsFromCategory.filter((id) =>
-        customerVisibleProfessionalIds.has(id),
-      );
-    }
-  } else if (categorySlugRaw) {
-    const categorySlug = normalizeSearchText(categorySlugRaw).replace(/\s+/g, "-");
-    if (categorySlug) {
-      const { data: categoryData, error: categoryError } = await supabase
-        .from("categories")
-        .select("id, name, slug")
-        .eq("slug", categorySlug)
-        .maybeSingle();
-
-      if (categoryError) {
+      if (mappingResult.error) {
         logApiError("PROFESSIONALS ERROR", {
           user_id: auth.ctx.user.id,
           role: profile.role,
-          query: "categories select id, name, slug by slug",
-          category_slug: categorySlug,
-          error: categoryError,
+          query: "professional_categories select professional_id by category_id",
+          category_id: categoryId,
+          error: mappingResult.error,
         });
         return NextResponse.json(
-          { error: "Failed to load category" },
+          { error: "Non è stato possibile filtrare per categoria." },
           { status: 500 },
         );
       }
 
-      selectedCategory =
-        (categoryData as CategoryRow | null) ?? findCatalogCategoryBySlug(categorySlug);
-    }
-  }
-
-  let queryBuilder = supabase
-    .from("professional_directory")
-    .select(
-      "id, first_name, last_name, province_code, headline, bio, specializations, avatar_url, available_remote, available_travel",
-      { count: "exact" },
-    );
-
-  if (provinceCode) {
-    queryBuilder = queryBuilder.eq("province_code", provinceCode);
-  }
-
-  if (availableRemote === true) {
-    queryBuilder = queryBuilder.eq("available_remote", true);
-  }
-
-  if (availableTravel === true) {
-    queryBuilder = queryBuilder.eq("available_travel", true);
-  }
-
-  if (customerVisibleProfessionalIds) {
-    const idsForQuery = professionalIdsFromCategory ?? [...customerVisibleProfessionalIds];
-    if (idsForQuery.length === 0) {
-      return NextResponse.json(emptyResponse);
-    }
-    queryBuilder = queryBuilder.in("id", idsForQuery);
-  }
-
-  const requiresLocalSearch =
-    q.length > 0 || selectedCategory !== null || subcategory.length > 0;
-
-  if (!requiresLocalSearch && professionalIdsFromCategory) {
-    if (professionalIdsFromCategory.length === 0) {
-      return NextResponse.json(emptyResponse);
-    }
-    if (!customerVisibleProfessionalIds) {
-      queryBuilder = queryBuilder.in("id", professionalIdsFromCategory);
-    }
-  }
-
-  if (requiresLocalSearch) {
-    const { data, error } = await queryBuilder
-      .order("updated_at", { ascending: false })
-      .limit(MAX_LOCAL_SEARCH_CANDIDATES);
-
-    if (error) {
-      logApiError("PROFESSIONALS ERROR", {
-        user_id: auth.ctx.user.id,
-        role: profile.role,
-        query: "professional_directory local search candidates",
-        search: request.nextUrl.search,
-        error,
-      });
-      return NextResponse.json(
-        { error: "Failed to load professionals" },
-        { status: 500 },
-      );
-    }
-
-    const candidates = (data ?? []) as ProfessionalDirectoryRow[];
-    const candidateIds = candidates.map((professional) => professional.id);
-    const { categoriesByProfessionalId } =
-      await loadProfessionalCategoryLookup(supabase, candidateIds);
-    const categoryIdSet = new Set(professionalIdsFromCategory ?? []);
-
-    const filtered = candidates.filter((professional) => {
-      const categories = categoriesByProfessionalId.get(professional.id) ?? [];
-      const searchable = rowSearchText(professional, categories);
-      const matchesQuery = q.length === 0 || matchesSearchText(searchable, q);
-      const matchesCategory =
-        !selectedCategory ||
-        categoryIdSet.has(professional.id) ||
-        categoryAliases(selectedCategory).some((alias) =>
-          matchesSearchText(searchable, alias),
+      if (categoryResult.error) {
+        logApiError("PROFESSIONALS ERROR", {
+          user_id: auth.ctx.user.id,
+          role: profile.role,
+          query: "categories select id, name, slug by id",
+          category_id: categoryId,
+          error: categoryResult.error,
+        });
+        return NextResponse.json(
+          { error: "Non è stato possibile caricare la categoria." },
+          { status: 500 },
         );
-      const matchesSubcategory =
-        subcategory.length === 0 || matchesSearchText(searchable, subcategory);
+      }
 
-      return matchesQuery && matchesCategory && matchesSubcategory;
-    });
+      selectedCategory = (categoryResult.data as CategoryRow | null) ?? null;
+      professionalIdsFromCategory =
+        (mappingResult.data ?? []).map((m) => m.professional_id) ?? [];
+      if (customerVisibleProfessionalIds) {
+        professionalIdsFromCategory = professionalIdsFromCategory.filter((id) =>
+          customerVisibleProfessionalIds.has(id),
+        );
+      }
+    } else if (categorySlugRaw) {
+      const categorySlug = normalizeSearchText(categorySlugRaw).replace(/\s+/g, "-");
+      if (categorySlug) {
+        const { data: categoryData, error: categoryError } = await dataClient
+          .from("categories")
+          .select("id, name, slug")
+          .eq("slug", categorySlug)
+          .maybeSingle();
 
-    const professionals = await attachProfessionalRatings(supabase, filtered);
-    const sorted = professionals.sort(
-      (a: RatedProfessionalDirectoryRow, b: RatedProfessionalDirectoryRow) => {
-        if (recommended) {
+        if (categoryError) {
+          logApiError("PROFESSIONALS ERROR", {
+            user_id: auth.ctx.user.id,
+            role: profile.role,
+            query: "categories select id, name, slug by slug",
+            category_slug: categorySlug,
+            error: categoryError,
+          });
+          return NextResponse.json(
+            { error: "Non è stato possibile caricare la categoria." },
+            { status: 500 },
+          );
+        }
+
+        selectedCategory =
+          (categoryData as CategoryRow | null) ?? findCatalogCategoryBySlug(categorySlug);
+      }
+    }
+
+    let queryBuilder = dataClient
+      .from("professional_directory")
+      .select(
+        "id, first_name, last_name, province_code, headline, bio, specializations, avatar_url, available_remote, available_travel",
+        { count: "exact" },
+      );
+
+    if (provinceCode) {
+      queryBuilder = queryBuilder.eq("province_code", provinceCode);
+    }
+
+    if (availableRemote === true) {
+      queryBuilder = queryBuilder.eq("available_remote", true);
+    }
+
+    if (availableTravel === true) {
+      queryBuilder = queryBuilder.eq("available_travel", true);
+    }
+
+    if (customerVisibleProfessionalIds) {
+      const idsForQuery =
+        professionalIdsFromCategory && professionalIdsFromCategory.length > 0
+          ? professionalIdsFromCategory
+          : [...customerVisibleProfessionalIds];
+      if (idsForQuery.length === 0) {
+        return NextResponse.json(emptyResponse);
+      }
+      queryBuilder = queryBuilder.in("id", idsForQuery);
+    }
+
+    const requiresLocalSearch =
+      q.length > 0 || selectedCategory !== null || subcategory.length > 0;
+
+    if (!requiresLocalSearch && professionalIdsFromCategory) {
+      if (professionalIdsFromCategory.length === 0) {
+        return NextResponse.json(emptyResponse);
+      }
+      if (!customerVisibleProfessionalIds) {
+        queryBuilder = queryBuilder.in("id", professionalIdsFromCategory);
+      }
+    }
+
+    if (requiresLocalSearch) {
+      const { data, error } = await queryBuilder
+        .order("updated_at", { ascending: false })
+        .limit(MAX_LOCAL_SEARCH_CANDIDATES);
+
+      if (error) {
+        logApiError("PROFESSIONALS ERROR", {
+          user_id: auth.ctx.user.id,
+          role: profile.role,
+          query: "professional_directory local search candidates",
+          search: request.nextUrl.search,
+          error,
+        });
+        return NextResponse.json(
+          { error: "Non è stato possibile caricare i professionisti. Riprova." },
+          { status: 500 },
+        );
+      }
+
+      const candidates = (data ?? []) as ProfessionalDirectoryRow[];
+      const candidateIds = candidates.map((professional) => professional.id);
+      const { categoriesByProfessionalId } =
+        await loadProfessionalCategoryLookup(dataClient, candidateIds);
+      const categoryIdSet = new Set(professionalIdsFromCategory ?? []);
+
+      const filtered = candidates.filter((professional) => {
+        const categories = categoriesByProfessionalId.get(professional.id) ?? [];
+        const searchable = rowSearchText(professional, categories);
+        const matchesQuery = q.length === 0 || matchesSearchText(searchable, q);
+        const matchesCategory =
+          !selectedCategory ||
+          categoryIdSet.has(professional.id) ||
+          categoryAliases(selectedCategory).some((alias) =>
+            matchesSearchText(searchable, alias),
+          );
+        const matchesSubcategory =
+          subcategory.length === 0 || matchesSubcategoryText(searchable, subcategory);
+
+        return matchesQuery && matchesCategory && matchesSubcategory;
+      });
+
+      const professionals = await attachProfessionalRatings(dataClient, filtered);
+      const sorted = professionals.sort(
+        (a: RatedProfessionalDirectoryRow, b: RatedProfessionalDirectoryRow) => {
+          if (recommended) {
+            const aProvinceScore =
+              customerProvinceCode && a.province_code === customerProvinceCode
+                ? 0
+                : a.province_code
+                  ? 1
+                  : 2;
+            const bProvinceScore =
+              customerProvinceCode && b.province_code === customerProvinceCode
+                ? 0
+                : b.province_code
+                  ? 1
+                  : 2;
+            if (aProvinceScore !== bProvinceScore) {
+              return aProvinceScore - bProvinceScore;
+            }
+
+            const ratingDelta = (b.rating_average ?? -1) - (a.rating_average ?? -1);
+            if (ratingDelta !== 0) return ratingDelta;
+
+            const countDelta = b.reviews_count - a.reviews_count;
+            if (countDelta !== 0) return countDelta;
+          }
+
+          return `${a.last_name} ${a.first_name}`.localeCompare(
+            `${b.last_name} ${b.first_name}`,
+            "it",
+          );
+        },
+      );
+
+      return NextResponse.json({
+        page,
+        page_size: pageSize,
+        total: sorted.length,
+        professionals: sorted.slice(rangeFrom, rangeTo + 1),
+      });
+    }
+
+    if (recommended) {
+      const { data, error } = await queryBuilder
+        .order("updated_at", { ascending: false })
+        .limit(200);
+
+      if (error) {
+        logApiError("PROFESSIONALS ERROR", {
+          user_id: auth.ctx.user.id,
+          role: profile.role,
+          query: "professional_directory recommended",
+          search: request.nextUrl.search,
+          error,
+        });
+        return NextResponse.json(
+          { error: "Non è stato possibile caricare i professionisti. Riprova." },
+          { status: 500 },
+        );
+      }
+
+      const professionals = await attachProfessionalRatings(
+        dataClient,
+        ((data ?? []) as ProfessionalDirectoryRow[]),
+      );
+
+      const sorted = professionals.sort(
+        (a: RatedProfessionalDirectoryRow, b: RatedProfessionalDirectoryRow) => {
           const aProvinceScore =
             customerProvinceCode && a.province_code === customerProvinceCode
               ? 0
@@ -452,111 +532,49 @@ export async function GET(request: NextRequest) {
 
           const countDelta = b.reviews_count - a.reviews_count;
           if (countDelta !== 0) return countDelta;
-        }
 
-        return `${a.last_name} ${a.first_name}`.localeCompare(
-          `${b.last_name} ${b.first_name}`,
-          "it",
-        );
-      },
-    );
+          return `${a.last_name} ${a.first_name}`.localeCompare(
+            `${b.last_name} ${b.first_name}`,
+            "it",
+          );
+        },
+      );
 
-    return NextResponse.json({
-      page,
-      page_size: pageSize,
-      total: sorted.length,
-      professionals: sorted.slice(rangeFrom, rangeTo + 1),
-    });
-  }
+      return NextResponse.json({
+        page,
+        page_size: pageSize,
+        total: sorted.length,
+        professionals: sorted.slice(rangeFrom, rangeTo + 1),
+      });
+    }
 
-  if (recommended) {
     const { data, error, count } = await queryBuilder
       .order("updated_at", { ascending: false })
-      .limit(200);
+      .range(rangeFrom, rangeTo);
 
     if (error) {
       logApiError("PROFESSIONALS ERROR", {
         user_id: auth.ctx.user.id,
         role: profile.role,
-        query: "professional_directory recommended",
+        query: "professional_directory paginated",
         search: request.nextUrl.search,
         error,
       });
       return NextResponse.json(
-        { error: "Failed to load professionals" },
+        { error: "Non è stato possibile caricare i professionisti. Riprova." },
         { status: 500 },
       );
     }
 
-    const professionals = await attachProfessionalRatings(
-      supabase,
-      ((data ?? []) as ProfessionalDirectoryRow[]),
-    );
-
-    const sorted = professionals.sort(
-      (a: RatedProfessionalDirectoryRow, b: RatedProfessionalDirectoryRow) => {
-        const aProvinceScore =
-          customerProvinceCode && a.province_code === customerProvinceCode
-            ? 0
-            : a.province_code
-              ? 1
-              : 2;
-        const bProvinceScore =
-          customerProvinceCode && b.province_code === customerProvinceCode
-            ? 0
-            : b.province_code
-              ? 1
-              : 2;
-        if (aProvinceScore !== bProvinceScore) return aProvinceScore - bProvinceScore;
-
-        const ratingDelta = (b.rating_average ?? -1) - (a.rating_average ?? -1);
-        if (ratingDelta !== 0) return ratingDelta;
-
-        const countDelta = b.reviews_count - a.reviews_count;
-        if (countDelta !== 0) return countDelta;
-
-        return `${a.last_name} ${a.first_name}`.localeCompare(
-          `${b.last_name} ${b.first_name}`,
-          "it",
-        );
-      },
-    );
-
     return NextResponse.json({
       page,
       page_size: pageSize,
-      total: count ?? sorted.length,
-      professionals: sorted.slice(rangeFrom, rangeTo + 1),
+      total: count ?? 0,
+      professionals: await attachProfessionalRatings(
+        dataClient,
+        ((data ?? []) as ProfessionalDirectoryRow[]),
+      ),
     });
-  }
-
-  const { data, error, count } = await queryBuilder
-    .order("updated_at", { ascending: false })
-    .range(rangeFrom, rangeTo);
-
-  if (error) {
-    logApiError("PROFESSIONALS ERROR", {
-      user_id: auth.ctx.user.id,
-      role: profile.role,
-      query: "professional_directory paginated",
-      search: request.nextUrl.search,
-      error,
-    });
-    return NextResponse.json(
-      { error: "Failed to load professionals" },
-      { status: 500 },
-    );
-  }
-
-  return NextResponse.json({
-    page,
-    page_size: pageSize,
-    total: count ?? 0,
-    professionals: await attachProfessionalRatings(
-      supabase,
-      ((data ?? []) as ProfessionalDirectoryRow[]),
-    ),
-  });
   } catch (error) {
     logApiError("PROFESSIONALS ERROR", {
       query: "GET /api/professionals",
@@ -564,7 +582,7 @@ export async function GET(request: NextRequest) {
       error,
     });
     return NextResponse.json(
-      { error: "Failed to load professionals" },
+      { error: "Non è stato possibile caricare i professionisti. Riprova." },
       { status: 500 },
     );
   }

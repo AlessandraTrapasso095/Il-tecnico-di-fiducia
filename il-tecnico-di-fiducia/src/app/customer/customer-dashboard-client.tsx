@@ -539,7 +539,12 @@ export default function CustomerDashboardClient({
       setProfessionals(res.professionals ?? []);
       setProfessionalsTotal(res.total ?? 0);
     } catch (e) {
-      setProfessionalsError(e instanceof Error ? e.message : "Errore imprevisto.");
+      const message = e instanceof Error ? e.message : "";
+      setProfessionalsError(
+        message && !message.startsWith("Request failed")
+          ? message
+          : "Non è stato possibile caricare i professionisti. Riprova.",
+      );
       setProfessionals([]);
       setProfessionalsTotal(0);
     } finally {
@@ -1449,8 +1454,15 @@ export default function CustomerDashboardClient({
               </div>
 
               {professionalsError ? (
-                <div className="mb-4 rounded-xl border border-error/20 bg-error-container px-4 py-3 text-sm text-on-error-container">
-                  {professionalsError}
+                <div className="mb-4 flex flex-col gap-3 rounded-xl border border-error/20 bg-error-container px-4 py-3 text-sm text-on-error-container sm:flex-row sm:items-center sm:justify-between">
+                  <span>{professionalsError}</span>
+                  <button
+                    type="button"
+                    className="rounded-full bg-white/80 px-4 py-2 font-button text-xs text-on-error-container shadow-sm transition-colors hover:bg-white"
+                    onClick={() => void loadProfessionals()}
+                  >
+                    Riprova
+                  </button>
                 </div>
               ) : null}
 
@@ -1475,7 +1487,9 @@ export default function CustomerDashboardClient({
                     </span>
                   </div>
                   <div className="font-headline-sm text-headline-sm text-primary">
-                    Nessun professionista disponibile
+                    {hasActiveSearch
+                      ? "Nessun professionista trovato con questi filtri."
+                      : "Nessun professionista disponibile nella tua zona."}
                   </div>
                   <p className="mx-auto mt-2 max-w-[560px] text-on-surface-variant">
                     Prova a modificare testo, categoria, provincia o disponibilità.
