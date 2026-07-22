@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 
 import { requireAuth } from "@/lib/api/auth";
 import { getRequestBaseUrl } from "@/lib/api/base-url";
+import { logApiError } from "@/lib/server/api-logger";
 import { getStripe, getStripeProfessionalPriceId } from "@/lib/server/stripe";
 
 export async function POST(request: Request) {
@@ -19,12 +20,13 @@ export async function POST(request: Request) {
 
   if (existing?.stripe_customer_id) stripeCustomerId = existing.stripe_customer_id;
 
-  const stripe = getStripe();
-  const priceId = getStripeProfessionalPriceId();
   const baseUrl = getRequestBaseUrl(request);
 
   let session;
   try {
+    const stripe = getStripe();
+    const priceId = getStripeProfessionalPriceId();
+
     session = await stripe.checkout.sessions.create({
       mode: "subscription",
       client_reference_id: user.id,
@@ -42,9 +44,24 @@ export async function POST(request: Request) {
       cancel_url: `${baseUrl}/professionista/abbonamento?billing=cancel`,
     });
   } catch (err) {
-    const message =
-      err instanceof Error ? err.message : "Failed to create Stripe session";
-    return NextResponse.json({ error: message }, { status: 500 });
+    logApiError("BILLING_CHECKOUT ERROR", {
+      query: "stripe checkout session create",
+      user_id: user.id,
+      has_stripe_customer: Boolean(stripeCustomerId),
+      base_url: baseUrl,
+      error: err,
+    });
+
+    const isMissingStripeEnv =
+      err instanceof Error && err.message.startsWith("Missing env: STRIPE_");
+    return NextResponse.json(
+      {
+        error: isMissingStripeEnv
+          ? "Pagamenti temporaneamente non configurati. Riprova più tardi."
+          : "Non è stato possibile avviare il pagamento. Riprova.",
+      },
+      { status: isMissingStripeEnv ? 503 : 500 },
+    );
   }
 
   if (!session.url) {
