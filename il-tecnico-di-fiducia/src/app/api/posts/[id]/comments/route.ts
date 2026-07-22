@@ -2,6 +2,7 @@ import { NextResponse, type NextRequest } from "next/server";
 
 import { requireAuth } from "@/lib/api/auth";
 import { clampInt, isNonEmptyString } from "@/lib/api/validation";
+import { logApiError } from "@/lib/server/api-logger";
 import { ensureSocialNotification } from "@/lib/server/social-notifications";
 import { createServiceClient } from "@/lib/supabase/service";
 
@@ -33,21 +34,34 @@ export async function GET(
     .limit(limit);
 
   if (error) {
+    logApiError("POST_COMMENTS ERROR", {
+      query: "post_comments select by post_id",
+      post_id: id,
+      error,
+    });
     return NextResponse.json(
-      { error: "Failed to load comments" },
+      { error: "Non è stato possibile caricare i commenti. Riprova." },
       { status: 500 },
     );
   }
 
   const authorIds = Array.from(new Set((data ?? []).map((comment) => comment.author_id)));
-  const service = createServiceClient();
-  const { data: authors } =
+  const { data: authors, error: authorsError } =
     authorIds.length > 0
-      ? await service
+      ? await supabase
           .from("profiles")
-          .select("id, first_name, last_name")
+          .select("id, first_name, last_name, avatar_url")
           .in("id", authorIds)
       : { data: [] };
+
+  if (authorsError) {
+    logApiError("POST_COMMENTS ERROR", {
+      query: "profiles select comment authors",
+      post_id: id,
+      error: authorsError,
+    });
+  }
+
   const authorsById = new Map((authors ?? []).map((author) => [author.id, author]));
 
   return NextResponse.json({
@@ -90,24 +104,51 @@ export async function POST(
     .single();
 
   if (error) {
-    return NextResponse.json({ error: error.message }, { status: 400 });
+    logApiError("POST_COMMENTS ERROR", {
+      query: "post_comments insert comment",
+      post_id: id,
+      user_id: user.id,
+      error,
+    });
+
+    const status =
+      error.code === "42501" ? 403 : error.code === "23503" ? 404 : 400;
+    const message =
+      status === 403
+        ? "Non hai i permessi per commentare questo post."
+        : status === 404
+          ? "Post non trovato."
+          : "Non è stato possibile pubblicare il commento. Riprova.";
+
+    return NextResponse.json({ error: message }, { status });
   }
 
-  const service = createServiceClient();
-  const { data: post } = await service
-    .from("posts")
-    .select("author_id")
-    .eq("id", id)
-    .maybeSingle();
+  try {
+    const service = createServiceClient();
+    const { data: post, error: postError } = await service
+      .from("posts")
+      .select("author_id")
+      .eq("id", id)
+      .maybeSingle();
 
-  await ensureSocialNotification({
-    recipientId: post?.author_id,
-    actorId: user.id,
-    type: "post_commented",
-    entityType: "post",
-    entityId: id,
-    dedupe: "recent",
-  });
+    if (postError) throw postError;
+
+    await ensureSocialNotification({
+      recipientId: post?.author_id,
+      actorId: user.id,
+      type: "post_commented",
+      entityType: "post",
+      entityId: id,
+      dedupe: "recent",
+    });
+  } catch (notificationError) {
+    logApiError("POST_COMMENTS NOTIFICATION ERROR", {
+      query: "post comment notification",
+      post_id: id,
+      user_id: user.id,
+      error: notificationError,
+    });
+  }
 
   return NextResponse.json({
     comment: {

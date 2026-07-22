@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 
 import { writeAuditLog } from "@/lib/api/audit-log";
 import { requireAuth } from "@/lib/api/auth";
+import { logApiError } from "@/lib/server/api-logger";
 import { loadAdminUserSummaries } from "@/lib/server/admin-user-summaries";
 import { sendSupportTicketResolvedEmail } from "@/lib/server/support-ticket-emails";
 import { createServiceClient } from "@/lib/supabase/service";
@@ -37,19 +38,33 @@ export async function GET(
     .maybeSingle();
 
   if (error) {
-    return NextResponse.json({ error: "Failed to load ticket" }, { status: 500 });
+    logApiError("SUPPORT_TICKET_DETAIL ERROR", {
+      query: "support_tickets select detail",
+      ticket_id: id,
+      error,
+    });
+    return NextResponse.json(
+      { error: "Non è stato possibile caricare il ticket." },
+      { status: 500 },
+    );
   }
 
   if (!data) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
 
-  const service = createServiceClient();
   let author = null;
   try {
+    const service = createServiceClient();
     const authorsById = await loadAdminUserSummaries(service, [data.author_id]);
     author = authorsById.get(data.author_id) ?? null;
-  } catch {
+  } catch (authorError) {
+    logApiError("SUPPORT_TICKET_DETAIL ENRICHMENT ERROR", {
+      query: "load support ticket author",
+      ticket_id: id,
+      author_id: data.author_id,
+      error: authorError,
+    });
     author = null;
   }
 
@@ -63,7 +78,7 @@ export async function PATCH(
   const auth = await requireAuth();
   if (!auth.ok) return auth.response;
 
-  const { supabase, profile } = auth.ctx;
+  const { supabase, user, profile } = auth.ctx;
 
   const { id } = await params;
   if (!id) {
@@ -111,7 +126,17 @@ export async function PATCH(
     .single();
 
   if (error) {
-    return NextResponse.json({ error: error.message }, { status: 400 });
+    logApiError("SUPPORT_TICKET_DETAIL ERROR", {
+      user_id: user.id,
+      role: profile.role,
+      query: "support_tickets update",
+      ticket_id: id,
+      error,
+    });
+    return NextResponse.json(
+      { error: "Non è stato possibile aggiornare il ticket." },
+      { status: 400 },
+    );
   }
 
   if (profile.role === "admin" && payload.status) {
@@ -124,13 +149,22 @@ export async function PATCH(
     });
 
     if (payload.status === "closed") {
-      const service = createServiceClient();
-      const authorsById = await loadAdminUserSummaries(service, [data.author_id]).catch(
-        () => new Map(),
-      );
-      const author = authorsById.get(data.author_id) ?? null;
-
       try {
+        const service = createServiceClient();
+        const authorsById = await loadAdminUserSummaries(service, [data.author_id]).catch(
+          (authorError) => {
+            logApiError("SUPPORT_TICKET_DETAIL ENRICHMENT ERROR", {
+              user_id: user.id,
+              role: profile.role,
+              query: "load support ticket author after resolve",
+              ticket_id: id,
+              error: authorError,
+            });
+            return new Map();
+          },
+        );
+        const author = authorsById.get(data.author_id) ?? null;
+
         await service.from("notifications").insert({
           recipient_id: data.author_id,
           actor_id: profile.id,
@@ -138,16 +172,18 @@ export async function PATCH(
           entity_type: "support_ticket",
           entity_id: data.id,
         });
-      } catch (err) {
-        console.error("[support] Failed to create ticket resolved notification", err);
-      }
 
-      if (author) {
-        try {
+        if (author) {
           await sendSupportTicketResolvedEmail({ ticket: data, author });
-        } catch (err) {
-          console.error("[support] Failed to send ticket resolved email", err);
         }
+      } catch (notificationError) {
+        logApiError("SUPPORT_TICKET_DETAIL NOTIFICATION ERROR", {
+          user_id: user.id,
+          role: profile.role,
+          query: "create ticket resolved notification or email",
+          ticket_id: id,
+          error: notificationError,
+        });
       }
     }
   }

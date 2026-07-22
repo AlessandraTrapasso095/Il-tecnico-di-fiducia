@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { writeAuditLog } from "@/lib/api/audit-log";
 import { requireAuth } from "@/lib/api/auth";
 import { isNonEmptyString } from "@/lib/api/validation";
+import { logApiError } from "@/lib/server/api-logger";
 import { loadAdminUserSummaries } from "@/lib/server/admin-user-summaries";
 import {
   sendSupportTicketReplyEmail,
@@ -36,7 +37,15 @@ export async function GET(
     .maybeSingle();
 
   if (ticketError) {
-    return NextResponse.json({ error: "Failed to load ticket" }, { status: 500 });
+    logApiError("SUPPORT_MESSAGES ERROR", {
+      query: "support_tickets select for messages",
+      ticket_id: ticketId,
+      error: ticketError,
+    });
+    return NextResponse.json(
+      { error: "Non è stato possibile caricare il ticket." },
+      { status: 500 },
+    );
   }
 
   if (!ticket) {
@@ -50,8 +59,13 @@ export async function GET(
     .order("created_at", { ascending: true });
 
   if (error) {
+    logApiError("SUPPORT_MESSAGES ERROR", {
+      query: "support_messages select by ticket",
+      ticket_id: ticketId,
+      error,
+    });
     return NextResponse.json(
-      { error: "Failed to load support messages" },
+      { error: "Non è stato possibile caricare i messaggi del ticket." },
       { status: 500 },
     );
   }
@@ -99,7 +113,17 @@ export async function POST(
     .maybeSingle();
 
   if (ticketError) {
-    return NextResponse.json({ error: "Failed to load ticket" }, { status: 500 });
+    logApiError("SUPPORT_MESSAGES ERROR", {
+      user_id: user.id,
+      role: profile.role,
+      query: "support_tickets select before reply",
+      ticket_id: ticketId,
+      error: ticketError,
+    });
+    return NextResponse.json(
+      { error: "Non è stato possibile caricare il ticket." },
+      { status: 500 },
+    );
   }
 
   if (!ticket) {
@@ -129,7 +153,17 @@ export async function POST(
     .single();
 
   if (error) {
-    return NextResponse.json({ error: error.message }, { status: 400 });
+    logApiError("SUPPORT_MESSAGES ERROR", {
+      user_id: user.id,
+      role: profile.role,
+      query: "support_messages insert reply",
+      ticket_id: ticketId,
+      error,
+    });
+    return NextResponse.json(
+      { error: "Si è verificato un problema durante l’invio della risposta." },
+      { status: 400 },
+    );
   }
 
   let updatedTicket = ticket;
@@ -157,13 +191,22 @@ export async function POST(
       metadata: { status: nextStatus },
     });
 
-    const service = createServiceClient();
-    const authorsById = await loadAdminUserSummaries(service, [updatedTicket.author_id]).catch(
-      () => new Map(),
-    );
-    const author = authorsById.get(updatedTicket.author_id) ?? null;
-
     try {
+      const service = createServiceClient();
+      const authorsById = await loadAdminUserSummaries(service, [updatedTicket.author_id]).catch(
+        (authorError) => {
+          logApiError("SUPPORT_MESSAGES ENRICHMENT ERROR", {
+            user_id: user.id,
+            role: profile.role,
+            query: "load support ticket author after admin reply",
+            ticket_id: ticketId,
+            error: authorError,
+          });
+          return new Map();
+        },
+      );
+      const author = authorsById.get(updatedTicket.author_id) ?? null;
+
       await service.from("notifications").insert({
         recipient_id: updatedTicket.author_id,
         actor_id: profile.id,
@@ -171,26 +214,35 @@ export async function POST(
         entity_type: "support_ticket",
         entity_id: updatedTicket.id,
       });
-    } catch (err) {
-      console.error("[support] Failed to create ticket reply notification", err);
-    }
-
-    if (author) {
-      try {
-        await sendSupportTicketReplyEmail({
-          ticket: updatedTicket,
-          author,
-          replyBody: payload.body.trim(),
-        });
-      } catch (err) {
-        console.error("[support] Failed to send ticket reply email", err);
+      if (author) {
+        try {
+          await sendSupportTicketReplyEmail({
+            ticket: updatedTicket,
+            author,
+            replyBody: payload.body.trim(),
+          });
+        } catch (emailError) {
+          logApiError("SUPPORT_MESSAGES EMAIL ERROR", {
+            user_id: user.id,
+            role: profile.role,
+            query: "send ticket reply email",
+            ticket_id: ticketId,
+            error: emailError,
+          });
+        }
       }
+    } catch (notificationError) {
+      logApiError("SUPPORT_MESSAGES NOTIFICATION ERROR", {
+        user_id: user.id,
+        role: profile.role,
+        query: "create ticket reply notification",
+        ticket_id: ticketId,
+        error: notificationError,
+      });
     }
   } else {
-    const service = createServiceClient();
-
     if (ticket.status !== "open") {
-      const { data: statusTicket, error: statusError } = await service
+      const { data: statusTicket, error: statusError } = await supabase
         .from("support_tickets")
         .update({ status: "open" })
         .eq("id", ticketId)
@@ -205,24 +257,34 @@ export async function POST(
       }
     }
 
-    const [{ data: admins }, authorsById] = await Promise.all([
-      service
-        .from("profiles")
-        .select("id, suspended_until")
-        .eq("role", "admin")
-        .eq("is_banned", false),
-      loadAdminUserSummaries(service, [user.id]).catch(() => new Map()),
-    ]);
-    const author = authorsById.get(user.id) ?? null;
-    const activeAdminIds = (admins ?? [])
-      .filter((admin) => {
-        if (!admin.suspended_until) return true;
-        return new Date(admin.suspended_until) <= new Date();
-      })
-      .map((admin) => admin.id);
+    try {
+      const service = createServiceClient();
+      const [{ data: admins }, authorsById] = await Promise.all([
+        service
+          .from("profiles")
+          .select("id, suspended_until")
+          .eq("role", "admin")
+          .eq("is_banned", false),
+        loadAdminUserSummaries(service, [user.id]).catch((authorError) => {
+          logApiError("SUPPORT_MESSAGES ENRICHMENT ERROR", {
+            user_id: user.id,
+            role: profile.role,
+            query: "load support ticket reply author",
+            ticket_id: ticketId,
+            error: authorError,
+          });
+          return new Map();
+        }),
+      ]);
+      const author = authorsById.get(user.id) ?? null;
+      const activeAdminIds = (admins ?? [])
+        .filter((admin) => {
+          if (!admin.suspended_until) return true;
+          return new Date(admin.suspended_until) <= new Date();
+        })
+        .map((admin) => admin.id);
 
-    if (activeAdminIds.length > 0) {
-      try {
+      if (activeAdminIds.length > 0) {
         await service.from("notifications").insert(
           activeAdminIds.map((adminId) => ({
             recipient_id: adminId,
@@ -232,21 +294,23 @@ export async function POST(
             entity_id: updatedTicket.id,
           })),
         );
-      } catch (err) {
-        console.error("[support] Failed to create admin ticket reply notification", err);
       }
-    }
 
-    if (author) {
-      try {
+      if (author) {
         await sendSupportTicketUserReplyEmail({
           ticket: updatedTicket,
           author,
           replyBody: payload.body.trim(),
         });
-      } catch (err) {
-        console.error("[support] Failed to send admin ticket reply email", err);
       }
+    } catch (notificationError) {
+      logApiError("SUPPORT_MESSAGES NOTIFICATION ERROR", {
+        user_id: user.id,
+        role: profile.role,
+        query: "create admin ticket reply notification or email",
+        ticket_id: ticketId,
+        error: notificationError,
+      });
     }
   }
 

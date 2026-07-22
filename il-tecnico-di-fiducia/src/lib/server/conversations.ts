@@ -4,6 +4,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 
 import type { ConversationRow, UserRole } from "@/lib/types/chat";
 import { loadCustomerVisibleProfessionalIds } from "@/lib/server/professional-visibility";
+import { logApiError } from "@/lib/server/api-logger";
 import { createServiceClient } from "@/lib/supabase/service";
 
 type ListConversationsArgs = {
@@ -28,6 +29,15 @@ export async function listConversationsForViewer({
   const hiddenConversationIds = hiddenError
     ? []
     : (hidden ?? []).map((r) => r.conversation_id);
+
+  if (hiddenError) {
+    logApiError("CONVERSATIONS ERROR", {
+      user_id: userId,
+      role,
+      query: "conversation_user_state select hidden conversations",
+      error: hiddenError,
+    });
+  }
 
   let builder = supabase
     .from("conversations")
@@ -56,16 +66,40 @@ export async function listConversationsForViewer({
   if (error) throw error;
 
   const convs = (conversations ?? []) as ConversationRow[];
-  const service = createServiceClient();
+  if (convs.length === 0) return [];
 
-  async function onlineByUserId(ids: string[]) {
+  let service: SupabaseClient | null = null;
+  try {
+    service = createServiceClient();
+  } catch (error) {
+    logApiError("CONVERSATIONS ENRICHMENT ERROR", {
+      user_id: userId,
+      role,
+      query: "create service client for conversation enrichment",
+      error,
+    });
+  }
+
+  async function onlineByUserId(ids: string[], client: SupabaseClient | null) {
     const uniqueIds = Array.from(new Set(ids)).filter(Boolean);
     if (uniqueIds.length === 0) return new Map<string, boolean>();
+    if (!client) return new Map<string, boolean>();
 
-    const { data } = await service
+    const { data, error: activityError } = await client
       .from("user_activity")
       .select("user_id, last_seen_at")
       .in("user_id", uniqueIds);
+
+    if (activityError) {
+      logApiError("CONVERSATIONS ENRICHMENT ERROR", {
+        user_id: userId,
+        role,
+        query: "user_activity select conversation participants",
+        participant_count: uniqueIds.length,
+        error: activityError,
+      });
+      return new Map<string, boolean>();
+    }
 
     const onlineWindowMs = 60 * 1000;
     return new Map(
@@ -79,18 +113,46 @@ export async function listConversationsForViewer({
 
   if (role === "customer") {
     const proIds = Array.from(new Set(convs.map((c) => c.professional_id)));
-    const visibleIds = await loadCustomerVisibleProfessionalIds(proIds, service);
-    const { data: pros } =
+    let visibleIds = new Set<string>();
+    if (service) {
+      try {
+        visibleIds = await loadCustomerVisibleProfessionalIds(proIds, service);
+      } catch (error) {
+        logApiError("CONVERSATIONS ENRICHMENT ERROR", {
+          user_id: userId,
+          role,
+          query: "load visible professionals for conversations",
+          professional_count: proIds.length,
+          error,
+        });
+      }
+    }
+
+    const profileClient = service ?? supabase;
+    const { data: pros, error: prosError } =
       proIds.length > 0
-        ? await service
+        ? await profileClient
             .from("professional_directory")
             .select("id, first_name, last_name, province_code, avatar_url, headline")
             .in("id", proIds)
-        : { data: [] };
+        : { data: [], error: null };
+
+    if (prosError) {
+      logApiError("CONVERSATIONS ENRICHMENT ERROR", {
+        user_id: userId,
+        role,
+        query: "professional_directory select conversation participants",
+        professional_count: proIds.length,
+        error: prosError,
+      });
+    }
 
     const proById = new Map((pros ?? []).map((p) => [p.id, p]));
+    if (!service) {
+      visibleIds = new Set(proById.keys());
+    }
 
-    const online = await onlineByUserId(proIds);
+    const online = await onlineByUserId(proIds, service);
 
     return convs.map((c) => {
       const participant = proById.get(c.professional_id) ?? null;
@@ -116,7 +178,7 @@ export async function listConversationsForViewer({
 
     const customerById = new Map((customers ?? []).map((c) => [c.id, c]));
 
-    const online = await onlineByUserId(customerIds);
+    const online = await onlineByUserId(customerIds, service ?? supabase);
 
     return convs.map((c) => {
       const participant = customerById.get(c.customer_id) ?? null;

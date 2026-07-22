@@ -2,7 +2,11 @@ import { NextResponse, type NextRequest } from "next/server";
 
 import { requireAuth } from "@/lib/api/auth";
 import { clampInt, isNonEmptyString } from "@/lib/api/validation";
-import { loadAdminUserSummaries } from "@/lib/server/admin-user-summaries";
+import {
+  loadAdminUserSummaries,
+  type AdminUserSummary,
+} from "@/lib/server/admin-user-summaries";
+import { logApiError } from "@/lib/server/api-logger";
 import { sendSupportTicketCreatedEmail } from "@/lib/server/support-ticket-emails";
 import { createServiceClient } from "@/lib/supabase/service";
 
@@ -11,11 +15,44 @@ type CreateTicketPayload = {
   body: string;
 };
 
+function summaryFromProfile(profile: {
+  id: string;
+  role: "customer" | "professional" | "admin";
+  email: string;
+  first_name: string;
+  last_name: string;
+  province_code: string | null;
+  phone: string | null;
+  must_change_password: boolean;
+  is_banned: boolean;
+  suspended_until: string | null;
+}): AdminUserSummary {
+  const now = new Date().toISOString();
+  return {
+    id: profile.id,
+    role: profile.role,
+    email: profile.email,
+    first_name: profile.first_name,
+    last_name: profile.last_name,
+    province_code: profile.province_code,
+    phone: profile.phone,
+    must_change_password: profile.must_change_password,
+    is_banned: profile.is_banned,
+    suspended_until: profile.suspended_until,
+    created_at: now,
+    updated_at: now,
+    avatar_url: null,
+    activity: null,
+    subscription: null,
+    professional_directory: null,
+  };
+}
+
 export async function GET(request: NextRequest) {
   const auth = await requireAuth();
   if (!auth.ok) return auth.response;
 
-  const { supabase } = auth.ctx;
+  const { supabase, user, profile } = auth.ctx;
 
   const searchParams = request.nextUrl.searchParams;
   const status = searchParams.get("status");
@@ -41,8 +78,17 @@ export async function GET(request: NextRequest) {
   const { data, error, count } = await builder;
 
   if (error) {
+    logApiError("SUPPORT_TICKETS ERROR", {
+      user_id: user.id,
+      role: profile.role,
+      query: "support_tickets select list",
+      status_filter: status,
+      page,
+      page_size: pageSize,
+      error,
+    });
     return NextResponse.json(
-      { error: "Failed to load support tickets" },
+      { error: "Non è stato possibile caricare i ticket supporto." },
       { status: 500 },
     );
   }
@@ -50,12 +96,21 @@ export async function GET(request: NextRequest) {
   const tickets = data ?? [];
   const authorIds = tickets.map((ticket) => ticket.author_id);
   const ticketIds = tickets.map((ticket) => ticket.id);
-  const service = createServiceClient();
-  let authorsById: Awaited<ReturnType<typeof loadAdminUserSummaries>>;
+  let authorsById = new Map<string, AdminUserSummary>();
   try {
+    const service = createServiceClient();
     authorsById = await loadAdminUserSummaries(service, authorIds);
-  } catch {
-    authorsById = new Map();
+  } catch (authorError) {
+    logApiError("SUPPORT_TICKETS ENRICHMENT ERROR", {
+      user_id: user.id,
+      role: profile.role,
+      query: "load support ticket authors",
+      author_count: authorIds.length,
+      error: authorError,
+    });
+    if (authorIds.includes(user.id)) {
+      authorsById.set(user.id, summaryFromProfile(profile));
+    }
   }
   const lastMessageByTicketId = new Map<
     string,
@@ -70,14 +125,20 @@ export async function GET(request: NextRequest) {
   >();
 
   if (ticketIds.length > 0) {
-    const { data: latestMessages, error: latestMessagesError } = await service
+    const { data: latestMessages, error: latestMessagesError } = await supabase
       .from("support_messages")
       .select("id, ticket_id, sender_id, sender_role, body, created_at")
       .in("ticket_id", ticketIds)
       .order("created_at", { ascending: false });
 
     if (latestMessagesError) {
-      console.error("[support] Failed to load latest support messages", latestMessagesError);
+      logApiError("SUPPORT_TICKETS ENRICHMENT ERROR", {
+        user_id: user.id,
+        role: profile.role,
+        query: "support_messages select latest by ticket ids",
+        ticket_count: ticketIds.length,
+        error: latestMessagesError,
+      });
     } else {
       for (const message of latestMessages ?? []) {
         if (!lastMessageByTicketId.has(message.ticket_id)) {
@@ -103,7 +164,7 @@ export async function POST(request: Request) {
   const auth = await requireAuth();
   if (!auth.ok) return auth.response;
 
-  const { supabase, user } = auth.ctx;
+  const { supabase, user, profile } = auth.ctx;
 
   let payload: CreateTicketPayload;
   try {
@@ -131,23 +192,43 @@ export async function POST(request: Request) {
     .single();
 
   if (error) {
-    return NextResponse.json({ error: error.message }, { status: 400 });
+    logApiError("SUPPORT_TICKETS ERROR", {
+      user_id: user.id,
+      role: profile.role,
+      query: "support_tickets insert",
+      error,
+    });
+    return NextResponse.json(
+      { error: "Si è verificato un problema durante l’invio del ticket." },
+      { status: 400 },
+    );
   }
 
-  const service = createServiceClient();
-  let author = null;
+  let author: AdminUserSummary | null = summaryFromProfile(profile);
   try {
+    const service = createServiceClient();
     const authorsById = await loadAdminUserSummaries(service, [user.id]);
-    author = authorsById.get(user.id) ?? null;
-  } catch (err) {
-    console.error("[support] Failed to enrich ticket author", err);
+    author = authorsById.get(user.id) ?? author;
+  } catch (authorError) {
+    logApiError("SUPPORT_TICKETS ENRICHMENT ERROR", {
+      user_id: user.id,
+      role: profile.role,
+      query: "load created support ticket author",
+      error: authorError,
+    });
   }
 
   if (author) {
     try {
       await sendSupportTicketCreatedEmail({ ticket: data, author });
-    } catch (err) {
-      console.error("[support] Failed to send admin ticket email", err);
+    } catch (emailError) {
+      logApiError("SUPPORT_TICKETS EMAIL ERROR", {
+        user_id: user.id,
+        role: profile.role,
+        query: "send support ticket created email",
+        ticket_id: data.id,
+        error: emailError,
+      });
     }
   }
 

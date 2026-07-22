@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 
 import { requireAuth } from "@/lib/api/auth";
+import { logApiError } from "@/lib/server/api-logger";
 import { listConversationsForViewer } from "@/lib/server/conversations";
 
 export async function GET(request: NextRequest) {
@@ -19,9 +20,16 @@ export async function GET(request: NextRequest) {
       statusFilter,
     });
     return NextResponse.json({ conversations });
-  } catch {
+  } catch (error) {
+    logApiError("CONVERSATIONS ERROR", {
+      user_id: user.id,
+      role: profile.role,
+      query: "GET /api/conversations",
+      status_filter: statusFilter,
+      error,
+    });
     return NextResponse.json(
-      { error: "Failed to load conversations" },
+      { error: "Non è stato possibile caricare le conversazioni." },
       { status: 500 },
     );
   }
