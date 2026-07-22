@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { type ReactNode, useCallback, useEffect, useMemo, useState } from "react";
 
 import { ProfileAvatar } from "@/components/ui/profile-avatar";
 import { fetchJson } from "@/lib/api/fetch-json";
@@ -82,6 +82,20 @@ type ConfirmAction = {
   onConfirm: () => Promise<void>;
 } | null;
 
+type PublicContactTicketDetails = {
+  origin: string;
+  firstName: string | null;
+  lastName: string | null;
+  email: string | null;
+  title: string | null;
+  message: string | null;
+};
+
+const PUBLIC_CONTACT_INTRO = "Richiesta pubblica ricevuta dal form Contattaci.";
+const PUBLIC_CONTACT_SOURCE = "public_contact";
+const PUBLIC_CONTACT_LABEL = "Contattaci – richiesta pubblica";
+const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
 const roleLabels: Record<UserRole, string> = {
   customer: "Cliente",
   professional: "Professionista",
@@ -145,6 +159,131 @@ function statusTone(status: SupportTicket["status"]) {
   if (status === "waiting") return "bg-primary-fixed text-on-primary-fixed-variant";
   if (status === "closed") return "bg-surface-container-high text-on-surface-variant";
   return "bg-tertiary-fixed text-on-tertiary-fixed-variant";
+}
+
+function cleanTicketField(value: string | null | undefined) {
+  const normalized = value?.trim();
+  return normalized ? normalized : null;
+}
+
+function isPublicContactTicket(ticket: Pick<SupportTicket, "subject" | "body">) {
+  return (
+    ticket.body.includes(`Origine: ${PUBLIC_CONTACT_SOURCE}`) ||
+    ticket.body.startsWith(PUBLIC_CONTACT_INTRO) ||
+    ticket.subject.startsWith("Contatto pubblico:")
+  );
+}
+
+function parsePublicContactTicket(
+  ticket: Pick<SupportTicket, "subject" | "body">,
+): PublicContactTicketDetails | null {
+  if (!isPublicContactTicket(ticket)) return null;
+
+  const fields: Record<"origin" | "firstName" | "lastName" | "email" | "title", string | null> = {
+    origin: null,
+    firstName: null,
+    lastName: null,
+    email: null,
+    title: null,
+  };
+  const messageLines: string[] = [];
+  let readingMessage = false;
+
+  for (const line of ticket.body.replaceAll("\r\n", "\n").split("\n")) {
+    if (readingMessage) {
+      messageLines.push(line);
+      continue;
+    }
+
+    const match = line.match(/^([^:]+):\s*(.*)$/);
+    if (!match) continue;
+
+    const label = match[1].trim().toLowerCase();
+    const value = match[2] ?? "";
+
+    if (label === "origine") fields.origin = value;
+    if (label === "nome") fields.firstName = value;
+    if (label === "cognome") fields.lastName = value;
+    if (label === "email") fields.email = value;
+    if (label === "titolo") fields.title = value;
+    if (label === "messaggio") {
+      readingMessage = true;
+      if (value) messageLines.push(value);
+    }
+  }
+
+  const titleFromSubject = ticket.subject.replace(/^Contatto pubblico:\s*/i, "");
+
+  return {
+    origin: PUBLIC_CONTACT_LABEL,
+    firstName: cleanTicketField(fields.firstName),
+    lastName: cleanTicketField(fields.lastName),
+    email: cleanTicketField(fields.email),
+    title: cleanTicketField(fields.title) ?? cleanTicketField(titleFromSubject),
+    message: cleanTicketField(messageLines.join("\n")),
+  };
+}
+
+function ticketPreview(ticket: SupportTicket) {
+  return parsePublicContactTicket(ticket)?.message ?? ticket.body;
+}
+
+function DetailField({
+  label,
+  children,
+}: {
+  label: string;
+  children: ReactNode;
+}) {
+  return (
+    <div className="rounded-2xl border border-outline-variant/25 bg-white p-4">
+      <p className="font-label-md text-xs uppercase tracking-[0.14em] text-on-surface-variant">
+        {label}
+      </p>
+      <div className="mt-2 break-words font-label-md text-primary [overflow-wrap:anywhere]">
+        {children}
+      </div>
+    </div>
+  );
+}
+
+function PublicContactTicketBody({ details }: { details: PublicContactTicketDetails }) {
+  const emailIsValid = details.email ? EMAIL_PATTERN.test(details.email) : false;
+
+  return (
+    <div className="rounded-[24px] bg-surface-container-low p-5 text-on-surface">
+      <p className="mb-4 font-label-md text-primary">Richiesta iniziale</p>
+      <div className="grid gap-3 sm:grid-cols-2">
+        <DetailField label="Origine">{details.origin}</DetailField>
+        <DetailField label="Nome">{details.firstName ?? "Non indicato"}</DetailField>
+        <DetailField label="Cognome">{details.lastName ?? "Non indicato"}</DetailField>
+        <DetailField label="Email">
+          {details.email ? (
+            emailIsValid ? (
+              <a className="text-[#FF8500] underline-offset-4 hover:underline" href={`mailto:${details.email}`}>
+                {details.email}
+              </a>
+            ) : (
+              details.email
+            )
+          ) : (
+            "Non indicata"
+          )}
+        </DetailField>
+        <div className="sm:col-span-2">
+          <DetailField label="Titolo">{details.title ?? "Non indicato"}</DetailField>
+        </div>
+      </div>
+      <div className="mt-3 rounded-2xl border border-outline-variant/25 bg-white p-4">
+        <p className="font-label-md text-xs uppercase tracking-[0.14em] text-on-surface-variant">
+          Messaggio
+        </p>
+        <p className="mt-2 whitespace-pre-wrap break-words leading-7 text-on-surface [overflow-wrap:anywhere]">
+          {details.message ?? "Nessun messaggio indicato."}
+        </p>
+      </div>
+    </div>
+  );
 }
 
 function subscriptionDot(status: SubscriptionStatus | undefined) {
@@ -494,6 +633,10 @@ export default function AdminSupportClient() {
     () => tickets.find((ticket) => ticket.id === selectedId) ?? tickets[0] ?? null,
     [selectedId, tickets],
   );
+  const selectedPublicContactDetails = useMemo(
+    () => (selected ? parsePublicContactTicket(selected) : null),
+    [selected],
+  );
 
   const loadTickets = useCallback(async () => {
     setLoading(true);
@@ -781,7 +924,7 @@ export default function AdminSupportClient() {
                         {ticket.subject}
                       </h3>
                       <p className="mt-2 line-clamp-2 text-sm text-on-surface-variant">
-                        {ticket.body}
+                        {ticketPreview(ticket)}
                       </p>
                       <p className="mt-2 text-xs text-outline">
                         Creato {formatDate(ticket.created_at)}
@@ -830,10 +973,14 @@ export default function AdminSupportClient() {
                 </span>
               </div>
 
-              <div className="rounded-[24px] bg-surface-container-low p-5 leading-7 text-on-surface">
-                <p className="mb-2 font-label-md text-primary">Richiesta iniziale</p>
-                <p className="break-words [overflow-wrap:anywhere]">{selected.body}</p>
-              </div>
+              {selectedPublicContactDetails ? (
+                <PublicContactTicketBody details={selectedPublicContactDetails} />
+              ) : (
+                <div className="rounded-[24px] bg-surface-container-low p-5 leading-7 text-on-surface">
+                  <p className="mb-2 font-label-md text-primary">Richiesta iniziale</p>
+                  <p className="break-words [overflow-wrap:anywhere]">{selected.body}</p>
+                </div>
+              )}
 
               <div className="rounded-[24px] border border-outline-variant/30 bg-surface-bright p-4">
                 <div className="mb-4 flex items-center justify-between gap-3">
