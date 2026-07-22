@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 
 import { requireAuth } from "@/lib/api/auth";
 import { isNonEmptyString } from "@/lib/api/validation";
+import { resolveCommentAuthors } from "@/lib/server/post-comment-authors";
 
 type UpdateCommentPayload = {
   body: string;
@@ -42,13 +43,17 @@ export async function PATCH(
     return NextResponse.json({ error: error.message }, { status: 400 });
   }
 
+  const authorsById = await resolveCommentAuthors([profile.id]);
   return NextResponse.json({
     comment: {
       ...data,
-      author: {
+      author: authorsById.get(profile.id) ?? {
         id: profile.id,
+        user_id: profile.id,
         first_name: profile.first_name,
         last_name: profile.last_name,
+        display_name: `${profile.first_name ?? ""} ${profile.last_name ?? ""}`.trim(),
+        avatar_url: null,
       },
     },
   });

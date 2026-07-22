@@ -8,8 +8,11 @@ import { ConfirmActionModal } from "./post-media-ui";
 
 type CommentAuthor = {
   id: string;
+  user_id?: string;
   first_name: string;
   last_name: string;
+  display_name?: string;
+  avatar_url?: string | null;
 };
 
 type CommentRow = {
@@ -34,6 +37,7 @@ type PostCommentsProps = {
 
 function fullName(person: CommentAuthor | null | undefined) {
   if (!person) return "Utente";
+  if (person.display_name) return person.display_name;
   return `${person.first_name ?? ""} ${person.last_name ?? ""}`.trim() || "Utente";
 }
 

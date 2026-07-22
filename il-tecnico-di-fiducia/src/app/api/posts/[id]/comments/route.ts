@@ -3,6 +3,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { requireAuth } from "@/lib/api/auth";
 import { clampInt, isNonEmptyString } from "@/lib/api/validation";
 import { logApiError } from "@/lib/server/api-logger";
+import { resolveCommentAuthors } from "@/lib/server/post-comment-authors";
 import { ensureSocialNotification } from "@/lib/server/social-notifications";
 import { createServiceClient } from "@/lib/supabase/service";
 
@@ -45,24 +46,9 @@ export async function GET(
     );
   }
 
-  const authorIds = Array.from(new Set((data ?? []).map((comment) => comment.author_id)));
-  const { data: authors, error: authorsError } =
-    authorIds.length > 0
-      ? await supabase
-          .from("profiles")
-          .select("id, first_name, last_name, avatar_url")
-          .in("id", authorIds)
-      : { data: [] };
-
-  if (authorsError) {
-    logApiError("POST_COMMENTS ERROR", {
-      query: "profiles select comment authors",
-      post_id: id,
-      error: authorsError,
-    });
-  }
-
-  const authorsById = new Map((authors ?? []).map((author) => [author.id, author]));
+  const authorsById = await resolveCommentAuthors(
+    (data ?? []).map((comment) => comment.author_id),
+  );
 
   return NextResponse.json({
     comments: (data ?? []).map((comment) => ({
@@ -150,13 +136,17 @@ export async function POST(
     });
   }
 
+  const authorsById = await resolveCommentAuthors([profile.id]);
   return NextResponse.json({
     comment: {
       ...data,
-      author: {
+      author: authorsById.get(profile.id) ?? {
         id: profile.id,
+        user_id: profile.id,
         first_name: profile.first_name,
         last_name: profile.last_name,
+        display_name: `${profile.first_name ?? ""} ${profile.last_name ?? ""}`.trim(),
+        avatar_url: null,
       },
     },
   });

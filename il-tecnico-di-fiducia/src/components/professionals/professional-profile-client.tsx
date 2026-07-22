@@ -100,7 +100,14 @@ type CommentRow = {
   body: string;
   created_at: string;
   updated_at: string;
-  author: { id: string; first_name: string; last_name: string } | null;
+  author: {
+    id: string;
+    user_id?: string;
+    first_name: string;
+    last_name: string;
+    display_name?: string;
+    avatar_url?: string | null;
+  } | null;
 };
 
 type CommentsResponse = {
@@ -2149,7 +2156,8 @@ function PostComments({ postId, viewerId }: { postId: string; viewerId: string }
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0">
                   <div className="font-label-md text-sm text-primary">
-                    {comment.author ? fullName(comment.author) : "Utente"}
+                    {comment.author?.display_name ||
+                      (comment.author ? fullName(comment.author) : "Utente")}
                   </div>
                   {editingId === comment.id ? (
                     <textarea
