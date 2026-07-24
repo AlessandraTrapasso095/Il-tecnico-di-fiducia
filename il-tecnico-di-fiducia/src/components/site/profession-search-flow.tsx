@@ -214,10 +214,7 @@ export function ProfessionSearchFlow() {
                 />
               </div>
               <div className="absolute bottom-4 left-4 right-4 sm:bottom-5 sm:left-5 sm:right-5">
-                <div className="inline-flex rounded-full bg-[#FF8500] px-2.5 py-1 text-[9px] font-bold uppercase tracking-[0.12em] text-white shadow-sm sm:px-3 sm:text-[11px] sm:tracking-[0.14em]">
-                  Professione
-                </div>
-                <div className="mt-2 font-headline-sm text-[18px] leading-tight text-white drop-shadow-[0_3px_10px_rgba(0,0,0,0.45)] [overflow-wrap:anywhere] sm:mt-3 sm:text-[28px]">
+                <div className="font-headline-sm text-[20px] leading-tight text-white drop-shadow-[0_3px_10px_rgba(0,0,0,0.45)] [overflow-wrap:anywhere] sm:text-[30px]">
                   {category.name}
                 </div>
               </div>

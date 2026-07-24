@@ -17,6 +17,30 @@ const iconProps = {
 
 function iconPath(name: ProfessionIconName) {
   switch (name) {
+    case "accounting":
+      return (
+        <>
+          <path d="M9 7h22v26H9z" />
+          <path d="M14 13h12" />
+          <path d="M14 19h3" />
+          <path d="M20 19h3" />
+          <path d="M26 19h1" />
+          <path d="M14 25h3" />
+          <path d="M20 25h3" />
+          <path d="M26 25h1" />
+          <path d="M14 31h13" />
+        </>
+      );
+    case "agronomy":
+      return (
+        <>
+          <path d="M20 34V15" />
+          <path d="M20 24c-7 0-11-4-12-12 8 1 12 5 12 12Z" />
+          <path d="M20 20c7 0 11-4 12-12-8 1-12 5-12 12Z" />
+          <path d="M8 34h24" />
+          <path d="M12 34c1-5 4-8 8-8s7 3 8 8" />
+        </>
+      );
     case "architect":
       return (
         <>
@@ -35,6 +59,17 @@ function iconPath(name: ProfessionIconName) {
           <path d="m31 13 4-1" />
           <path d="m25 6 1-4" />
           <path d="M24 12l7-7" />
+        </>
+      );
+    case "ctu":
+      return (
+        <>
+          <path d="M9 8h22v26H9z" />
+          <path d="M14 14h12" />
+          <path d="M14 20h12" />
+          <path d="M14 26h7" />
+          <path d="M27 27l5 5" />
+          <circle cx="24" cy="24" r="5" />
         </>
       );
     case "electrician":
@@ -58,6 +93,16 @@ function iconPath(name: ProfessionIconName) {
           <path d="M25 31h5" />
         </>
       );
+    case "geology":
+      return (
+        <>
+          <path d="M6 30 15 10l8 13 5-7 6 14H6Z" />
+          <path d="M15 10l2 10" />
+          <path d="M23 23l-4 7" />
+          <path d="M28 16l-1 8" />
+          <path d="M8 34h24" />
+        </>
+      );
     case "informatics":
       return (
         <>
@@ -67,6 +112,26 @@ function iconPath(name: ProfessionIconName) {
           <path d="M13 13h6" />
           <path d="M13 18h14" />
           <path d="M25 13h2" />
+        </>
+      );
+    case "industrial":
+      return (
+        <>
+          <path d="M7 32V18l8 5v-5l8 5v-5l10 6v8H7Z" />
+          <path d="M10 18V9h6v12" />
+          <path d="M13 26h3" />
+          <path d="M20 26h3" />
+          <path d="M27 26h3" />
+        </>
+      );
+    case "interior":
+      return (
+        <>
+          <path d="M8 22h24v10H8z" />
+          <path d="M11 22v-7a5 5 0 0 1 5-5h8a5 5 0 0 1 5 5v7" />
+          <path d="M12 32v4" />
+          <path d="M28 32v4" />
+          <path d="M16 18h8" />
         </>
       );
     case "law":
@@ -106,6 +171,26 @@ function iconPath(name: ProfessionIconName) {
           <path d="M7 18h16" />
         </>
       );
+    case "notary":
+      return (
+        <>
+          <path d="M11 6h14l4 4v24H11z" />
+          <path d="M25 6v6h6" />
+          <path d="M15 17h10" />
+          <path d="M15 23h10" />
+          <path d="M15 29h6" />
+          <path d="M27 27l5 5" />
+        </>
+      );
+    case "nutrition":
+      return (
+        <>
+          <path d="M20 34c8-5 12-11 12-18 0-5-3-9-8-9-2 0-4 1-4 3-1-2-3-3-5-3-5 0-8 4-8 9 0 7 5 13 13 18Z" />
+          <path d="M20 10c0-4 3-6 7-6" />
+          <path d="M13 18h14" />
+          <path d="M15 24h10" />
+        </>
+      );
     case "solar":
       return (
         <>
@@ -118,6 +203,16 @@ function iconPath(name: ProfessionIconName) {
           <path d="m10 8 4 4" />
           <path d="m30 8-4 4" />
           <path d="M27 12a8 8 0 0 0-14 0" />
+        </>
+      );
+    case "psychology":
+      return (
+        <>
+          <path d="M20 35v-7" />
+          <path d="M13 28h14" />
+          <path d="M12 23a10 10 0 1 1 16 0" />
+          <path d="M14 16c2-3 5-3 6 0 1-3 4-3 6 0" />
+          <path d="M15 22c3 3 7 3 10 0" />
         </>
       );
     case "surveyor":
@@ -142,6 +237,17 @@ function iconPath(name: ProfessionIconName) {
           <path d="M12 34c2-2 4-2 6 0s4 2 6 0 4-2 6 0" />
           <path d="M15 5c-2 2-2 4 0 6" />
           <path d="M25 5c2 2 2 4 0 6" />
+        </>
+      );
+    case "work-consultant":
+      return (
+        <>
+          <rect x="8" y="12" width="24" height="18" rx="3" />
+          <path d="M15 12V8h10v4" />
+          <path d="M8 20h24" />
+          <path d="M17 20v3h6v-3" />
+          <path d="M13 35h14" />
+          <path d="M20 30v5" />
         </>
       );
     case "generic":
