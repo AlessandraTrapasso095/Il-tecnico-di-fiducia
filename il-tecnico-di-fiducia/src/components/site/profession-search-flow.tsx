@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { FormEvent } from "react";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
@@ -13,9 +13,10 @@ import {
 import {
   CATEGORY_IMAGE_FALLBACK,
   findProfessionCategory,
-  mergeProfessionCategories,
+  normalizeProfessionCategories,
   professionCategoryKey,
   professionSearchText,
+  PROFESSION_CATEGORIES,
   type DbProfessionCategory,
   type ProfessionCategory,
   type ProfessionSubcategory,
@@ -27,7 +28,22 @@ type CategoriesResponse = { categories: DbProfessionCategory[] };
 type ProvincesResponse = { provinces: ItalianProvince[] };
 
 function isRenderableImage(url: string | null): url is string {
-  return Boolean(url && (url.startsWith("https://") || url.startsWith("/")));
+  if (!url) return false;
+  if (url.startsWith("/")) return true;
+  try {
+    const parsed = new URL(url);
+    const allowedHosts = [
+      "images.pexels.com",
+      "lh3.googleusercontent.com",
+      "weodeayzidjftyzxmzgb.supabase.co",
+    ];
+    return (
+      parsed.protocol === "https:" &&
+      allowedHosts.includes(parsed.hostname)
+    );
+  } catch {
+    return false;
+  }
 }
 
 function buildCustomerPath(input: {
@@ -56,16 +72,15 @@ export function ProfessionSearchFlow() {
   const router = useRouter();
   const formRef = useRef<HTMLDivElement | null>(null);
 
-  const [categories, setCategories] = useState<ProfessionCategory[]>(() =>
-    mergeProfessionCategories([]),
-  );
+  const [categories, setCategories] = useState<ProfessionCategory[]>([]);
+  const [categoriesLoading, setCategoriesLoading] = useState(true);
+  const [usingCategoryFallback, setUsingCategoryFallback] = useState(false);
   const [provinces, setProvinces] = useState<ItalianProvince[]>(ITALIAN_PROVINCES_BY_NAME);
   const [selectedCategoryKey, setSelectedCategoryKey] = useState("");
   const [selectedSubcategorySlug, setSelectedSubcategorySlug] = useState("");
   const [provinceCode, setProvinceCode] = useState("");
   const [remote, setRemote] = useState(false);
   const [travel, setTravel] = useState(false);
-  const [showAll, setShowAll] = useState(false);
 
   useEffect(() => {
     let alive = true;
@@ -78,7 +93,11 @@ export function ProfessionSearchFlow() {
       if (!alive) return;
 
       if (categoriesResult.status === "fulfilled") {
-        setCategories(mergeProfessionCategories(categoriesResult.value.categories ?? []));
+        setCategories(normalizeProfessionCategories(categoriesResult.value.categories ?? []));
+        setUsingCategoryFallback(false);
+      } else {
+        setCategories(PROFESSION_CATEGORIES);
+        setUsingCategoryFallback(true);
       }
 
       if (
@@ -88,6 +107,8 @@ export function ProfessionSearchFlow() {
       ) {
         setProvinces(provincesResult.value.provinces);
       }
+
+      setCategoriesLoading(false);
     }
 
     void loadOptions();
@@ -96,11 +117,6 @@ export function ProfessionSearchFlow() {
       alive = false;
     };
   }, []);
-
-  const visibleCategories = useMemo(
-    () => (showAll ? categories : categories.slice(0, 6)),
-    [categories, showAll],
-  );
 
   const currentCategory = findProfessionCategory(categories, selectedCategoryKey);
   const currentSubcategories = currentCategory?.subcategories ?? [];
@@ -146,8 +162,24 @@ export function ProfessionSearchFlow() {
         </p>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-        {visibleCategories.map((category) => {
+      <div className="grid grid-cols-2 gap-3 sm:gap-6 md:grid-cols-3 xl:grid-cols-4">
+        {categoriesLoading
+          ? Array.from({ length: 8 }).map((_, index) => (
+              <div
+                key={index}
+                className="h-[168px] animate-pulse rounded-[22px] border border-outline-variant/30 bg-surface-container-low sm:h-[230px] sm:rounded-[26px]"
+                aria-hidden
+              />
+            ))
+          : null}
+
+        {!categoriesLoading && categories.length === 0 ? (
+          <div className="col-span-2 rounded-[24px] border border-outline-variant/40 bg-surface-container-lowest p-6 text-center text-on-surface-variant shadow-sm md:col-span-3 xl:col-span-4">
+            Nessuna professione disponibile al momento.
+          </div>
+        ) : null}
+
+        {!categoriesLoading ? categories.map((category) => {
           const selected = professionCategoryKey(category) === selectedCategoryKey;
           const imageUrl = isRenderableImage(category.image_url)
             ? category.image_url
@@ -158,53 +190,46 @@ export function ProfessionSearchFlow() {
               key={professionCategoryKey(category)}
               type="button"
               className={[
-                "group relative h-[220px] overflow-hidden rounded-[26px] text-left shadow-[0_10px_32px_rgba(8,43,95,0.12)] sm:h-[230px]",
+                "group relative h-[168px] overflow-hidden rounded-[22px] text-left shadow-[0_10px_32px_rgba(8,43,95,0.12)] sm:h-[230px] sm:rounded-[26px]",
                 "border border-white/40 transition-all duration-300 hover:-translate-y-1 hover:shadow-[0_16px_42px_rgba(8,43,95,0.18)]",
                 "focus:outline-none focus:ring-4 focus:ring-on-tertiary-container/30",
                 selected ? "ring-4 ring-on-tertiary-container" : "",
               ].join(" ")}
               onClick={() => selectCategory(category)}
+              aria-pressed={selected}
             >
               <Image
                 src={imageUrl}
                 alt={category.name}
                 fill
-                sizes="(min-width: 1024px) 33vw, (min-width: 640px) 50vw, 100vw"
+                sizes="(min-width: 1280px) 25vw, (min-width: 768px) 33vw, 50vw"
                 className="object-cover saturate-[1.04] transition-transform duration-500 group-hover:scale-110"
               />
               <div className="absolute inset-0 bg-gradient-to-t from-[#001b3e]/95 via-[#001b3e]/48 to-[#001b3e]/12" />
               <div className="absolute inset-0 bg-[radial-gradient(circle_at_20%_10%,rgba(255,255,255,0.16),transparent_32%),linear-gradient(120deg,rgba(255,255,255,0.08)_0%,transparent_36%,rgba(255,255,255,0.06)_74%,transparent_100%)]" />
-              <div className="absolute right-4 top-4 flex h-12 w-12 items-center justify-center rounded-[18px] border border-white/28 bg-white/14 text-white shadow-[0_10px_30px_rgba(0,0,0,0.18)] backdrop-blur-md transition-transform duration-300 group-hover:scale-105">
+              <div className="absolute right-3 top-3 flex h-10 w-10 items-center justify-center rounded-[16px] border border-white/28 bg-white/14 text-white shadow-[0_10px_30px_rgba(0,0,0,0.18)] backdrop-blur-md transition-transform duration-300 group-hover:scale-105 sm:right-4 sm:top-4 sm:h-12 sm:w-12 sm:rounded-[18px]">
                 <ProfessionCardIcon
                   name={category.icon}
-                  className="h-7 w-7 drop-shadow-[0_4px_14px_rgba(0,0,0,0.35)]"
+                  className="h-6 w-6 drop-shadow-[0_4px_14px_rgba(0,0,0,0.35)] sm:h-7 sm:w-7"
                 />
               </div>
-              <div className="absolute bottom-5 left-5 right-5">
-                <div className="inline-flex rounded-full bg-[#FF8500] px-3 py-1 text-[11px] font-bold uppercase tracking-[0.14em] text-white shadow-sm">
+              <div className="absolute bottom-4 left-4 right-4 sm:bottom-5 sm:left-5 sm:right-5">
+                <div className="inline-flex rounded-full bg-[#FF8500] px-2.5 py-1 text-[9px] font-bold uppercase tracking-[0.12em] text-white shadow-sm sm:px-3 sm:text-[11px] sm:tracking-[0.14em]">
                   Professione
                 </div>
-                <div className="mt-3 font-headline-sm text-[25px] leading-tight text-white drop-shadow-[0_3px_10px_rgba(0,0,0,0.45)] sm:text-[28px]">
+                <div className="mt-2 font-headline-sm text-[18px] leading-tight text-white drop-shadow-[0_3px_10px_rgba(0,0,0,0.45)] [overflow-wrap:anywhere] sm:mt-3 sm:text-[28px]">
                   {category.name}
                 </div>
               </div>
             </button>
           );
-        })}
+        }) : null}
       </div>
 
-      {categories.length > 6 ? (
-        <div className="mt-10 text-center">
-          <button
-            type="button"
-            className="inline-flex items-center justify-center font-button text-button border-2 border-primary text-primary px-8 py-3 rounded-full hover:bg-primary hover:text-white transition-colors"
-            onClick={() => setShowAll((value) => !value)}
-          >
-            {showAll
-              ? "Mostra meno categorie"
-              : `Visualizza tutte le categorie (${categories.length})`}
-          </button>
-        </div>
+      {usingCategoryFallback ? (
+        <p className="mt-5 text-center text-sm text-on-surface-variant">
+          Catalogo temporaneamente caricato dal fallback locale.
+        </p>
       ) : null}
 
       <div

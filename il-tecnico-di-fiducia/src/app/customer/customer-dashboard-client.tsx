@@ -22,8 +22,9 @@ import { logRealtimeDev } from "@/lib/realtime-dev-logger";
 import { createClient } from "@/lib/supabase/client";
 import type { ConversationRow, MeResponse } from "@/lib/types/chat";
 import {
-  mergeProfessionCategories,
+  normalizeProfessionCategories,
   professionCategoryKey,
+  PROFESSION_CATEGORIES,
   type DbProfessionCategory,
   type ProfessionCategory,
 } from "@/lib/professions/taxonomy";
@@ -371,9 +372,7 @@ export default function CustomerDashboardClient({
   const [notificationsOpen, setNotificationsOpen] = useState(false);
 
   const [provinces, setProvinces] = useState<Province[]>([]);
-  const [categories, setCategories] = useState<ProfessionCategory[]>(() =>
-    mergeProfessionCategories([]),
-  );
+  const [categories, setCategories] = useState<ProfessionCategory[]>([]);
 
   const [professionals, setProfessionals] = useState<ProfessionalRow[]>([]);
   const [professionalsTotal, setProfessionalsTotal] = useState(0);
@@ -444,16 +443,21 @@ export default function CustomerDashboardClient({
   const isSearchNavActive = !isMessagesNavActive;
 
   async function loadFilters() {
-    try {
-      const [prov, cat] = await Promise.all([
-        fetchJson<ProvincesResponse>("/api/provinces", { method: "GET" }),
-        fetchJson<CategoriesResponse>("/api/categories", { method: "GET" }),
-      ]);
-      setProvinces(prov.provinces ?? []);
-      setCategories(mergeProfessionCategories(cat.categories ?? []));
-    } catch {
-      setCategories(mergeProfessionCategories([]));
+    const [prov, cat] = await Promise.allSettled([
+      fetchJson<ProvincesResponse>("/api/provinces", { method: "GET" }),
+      fetchJson<CategoriesResponse>("/api/categories", { method: "GET" }),
+    ]);
+
+    if (prov.status === "fulfilled") {
+      setProvinces(prov.value.provinces ?? []);
     }
+
+    if (cat.status === "fulfilled") {
+      setCategories(normalizeProfessionCategories(cat.value.categories ?? []));
+      return;
+    }
+
+    setCategories(PROFESSION_CATEGORIES);
   }
 
   async function loadSaved() {

@@ -39,7 +39,10 @@ export async function GET() {
           query: "categories fallback select id, name, slug, image_url order name",
           error: fallback.error,
         });
-        return NextResponse.json({ categories: [] });
+        return NextResponse.json(
+          { categories: [], error: "Non è stato possibile caricare le categorie." },
+          { status: 503 },
+        );
       }
 
       return NextResponse.json({ categories: fallback.data ?? [] });
@@ -84,6 +87,9 @@ export async function GET() {
       query: "GET /api/categories",
       error,
     });
-    return NextResponse.json({ categories: [] });
+    return NextResponse.json(
+      { categories: [], error: "Non è stato possibile caricare le categorie." },
+      { status: 503 },
+    );
   }
 }

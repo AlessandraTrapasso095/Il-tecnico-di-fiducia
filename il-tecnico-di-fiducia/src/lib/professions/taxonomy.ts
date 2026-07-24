@@ -63,6 +63,21 @@ const categoryImages = {
 
 export const CATEGORY_IMAGE_FALLBACK = categoryImages.generic;
 
+const PROFESSION_ICON_NAMES = new Set<ProfessionIconName>([
+  "architect",
+  "blacksmith",
+  "electrician",
+  "engineering",
+  "generic",
+  "informatics",
+  "law",
+  "mason",
+  "plumber",
+  "solar",
+  "surveyor",
+  "thermotechnic",
+]);
+
 export const PROFESSION_CATEGORIES: ProfessionCategory[] = [
   {
     id: null,
@@ -263,6 +278,38 @@ export function mergeProfessionCategories(categories: DbProfessionCategory[]) {
     }));
 
   return [...merged, ...extraCategories];
+}
+
+export function normalizeProfessionCategories(categories: DbProfessionCategory[]) {
+  return categories
+    .filter((category) => category.is_active !== false && category.name && category.slug)
+    .map<ProfessionCategory>((category) => ({
+      ...category,
+      image_url: category.image_url || CATEGORY_IMAGE_FALLBACK,
+      icon: PROFESSION_ICON_NAMES.has(category.icon as ProfessionIconName)
+        ? (category.icon as ProfessionIconName)
+        : "generic",
+      source: "database",
+      subcategories: (category.subcategories ?? [])
+        .filter(
+          (subcategory) =>
+            subcategory.is_active !== false && subcategory.name && subcategory.slug,
+        )
+        .sort(
+          (left, right) =>
+            (left.sort_order ?? 0) - (right.sort_order ?? 0) ||
+            left.name.localeCompare(right.name, "it"),
+        )
+        .map((subcategory) => ({
+          name: subcategory.name,
+          slug: subcategory.slug,
+        })),
+    }))
+    .sort(
+      (left, right) =>
+        (left.sort_order ?? 0) - (right.sort_order ?? 0) ||
+        left.name.localeCompare(right.name, "it"),
+    );
 }
 
 export function findProfessionCategory(categories: ProfessionCategory[], selectedKey: string) {
