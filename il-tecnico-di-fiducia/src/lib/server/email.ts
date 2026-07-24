@@ -32,6 +32,42 @@ type EmailResult =
       response?: string | null;
     };
 
+type SmtpDiagnosticInput = {
+  to: string;
+  subject: string;
+  text: string;
+};
+
+type SmtpDiagnosticResult = {
+  verify: {
+    attempted: boolean;
+    succeeded: boolean;
+  };
+  sendMail: {
+    attempted: boolean;
+    succeeded: boolean;
+    messageId: string | null;
+    accepted: string[];
+    rejected: string[];
+    pending: string[];
+    envelope: SanitizedEnvelope | null;
+    response: string | null;
+    responseCode: string | number | null;
+    command: string | null;
+  };
+  error: SmtpErrorDetails | null;
+  phase: string | null;
+  config: {
+    smtp_host_present: boolean;
+    smtp_port: number | null;
+    smtp_secure: boolean | null;
+    smtp_user_present: boolean;
+    email_from_present: boolean;
+    support_admin_email_present: boolean;
+    recipient_present: boolean;
+  };
+};
+
 type SmtpConfig =
   | {
       ok: true;
@@ -150,6 +186,11 @@ export function maskEmailForLog(value: unknown) {
 function sanitizeMailList(value: unknown) {
   const list = Array.isArray(value) ? value : typeof value === "string" ? [value] : [];
   return list.map(maskEmailForLog).filter((email): email is string => Boolean(email));
+}
+
+function rawMailList(value: unknown) {
+  const list = Array.isArray(value) ? value : typeof value === "string" ? [value] : [];
+  return list.filter((email): email is string => typeof email === "string");
 }
 
 function sanitizeEnvelope(value: unknown): SanitizedEnvelope | null {
@@ -380,5 +421,143 @@ export async function sendTransactionalEmail({
       error: details,
     });
     throw error;
+  }
+}
+
+export async function sendSmtpDiagnosticEmail({
+  to,
+  subject,
+  text,
+}: SmtpDiagnosticInput): Promise<SmtpDiagnosticResult> {
+  const recipient = to.trim();
+  const replyToAddress = supportAdminEmail();
+  const configSummary = smtpEnvSummary(Boolean(recipient));
+  const emptySendMail = {
+    attempted: false,
+    succeeded: false,
+    messageId: null,
+    accepted: [],
+    rejected: [],
+    pending: [],
+    envelope: null,
+    response: null,
+    responseCode: null,
+    command: null,
+  };
+
+  if (!recipient) {
+    return {
+      verify: { attempted: false, succeeded: false },
+      sendMail: emptySendMail,
+      error: {
+        name: "ValidationError",
+        message: "Recipient missing",
+        code: null,
+        command: null,
+        responseCode: null,
+        response: null,
+      },
+      phase: "validazione",
+      config: configSummary,
+    };
+  }
+
+  if (!replyToAddress) {
+    return {
+      verify: { attempted: false, succeeded: false },
+      sendMail: emptySendMail,
+      error: {
+        name: "ConfigurationError",
+        message: "Missing env: SUPPORT_ADMIN_EMAIL",
+        code: null,
+        command: null,
+        responseCode: null,
+        response: null,
+      },
+      phase: "configurazione",
+      config: configSummary,
+    };
+  }
+
+  const config = smtpConfig();
+  if (!config.ok) {
+    return {
+      verify: { attempted: false, succeeded: false },
+      sendMail: emptySendMail,
+      error: {
+        name: "ConfigurationError",
+        message: `Missing or invalid SMTP env: ${config.missing.join(", ")}`,
+        code: null,
+        command: null,
+        responseCode: null,
+        response: null,
+      },
+      phase: "configurazione",
+      config: configSummary,
+    };
+  }
+
+  const transporter = nodemailer.createTransport({
+    host: config.host,
+    port: config.port,
+    secure: config.secure,
+    auth: {
+      user: config.user,
+      pass: config.pass,
+    },
+  });
+
+  try {
+    await transporter.verify();
+  } catch (error) {
+    const details = smtpErrorDetails(error);
+    return {
+      verify: { attempted: true, succeeded: false },
+      sendMail: emptySendMail,
+      error: details,
+      phase: smtpFailurePhase(details),
+      config: configSummary,
+    };
+  }
+
+  try {
+    const result = (await transporter.sendMail({
+      from: config.from,
+      replyTo: replyToAddress,
+      to: recipient,
+      subject,
+      text,
+    })) as unknown as Record<string, unknown>;
+
+    return {
+      verify: { attempted: true, succeeded: true },
+      sendMail: {
+        attempted: true,
+        succeeded: true,
+        messageId: typeof result.messageId === "string" ? result.messageId : null,
+        accepted: rawMailList(result.accepted),
+        rejected: rawMailList(result.rejected),
+        pending: rawMailList(result.pending),
+        envelope: sanitizeEnvelope(result.envelope),
+        response: typeof result.response === "string" ? result.response : null,
+        responseCode: null,
+        command: null,
+      },
+      error: null,
+      phase: null,
+      config: configSummary,
+    };
+  } catch (error) {
+    const details = smtpErrorDetails(error);
+    return {
+      verify: { attempted: true, succeeded: true },
+      sendMail: {
+        ...emptySendMail,
+        attempted: true,
+      },
+      error: details,
+      phase: smtpFailurePhase(details),
+      config: configSummary,
+    };
   }
 }
