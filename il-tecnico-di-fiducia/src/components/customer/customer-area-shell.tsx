@@ -25,7 +25,7 @@ function customerNavTextClass(active: boolean) {
 
 function customerIconClass(active: boolean) {
   return [
-    "inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full transition-all hover:bg-surface-container-high sm:h-11 sm:w-11",
+    "inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full transition-all hover:bg-surface-container-high sm:h-11 sm:w-11 lg:h-14 lg:w-14 lg:[&_.material-symbols-outlined]:text-[27px]",
     active ? "bg-[#FF8500]/10 text-[#FF8500]" : "text-primary",
   ].join(" ");
 }
@@ -128,7 +128,7 @@ export function CustomerAreaShell({ children }: CustomerAreaShellProps) {
               </span>
             </Link>
             <SignOutButton
-              className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-error transition-all hover:bg-error-container/30 sm:h-11 sm:w-11"
+              className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-error transition-all hover:bg-error-container/30 sm:h-11 sm:w-11 lg:h-14 lg:w-14 lg:[&_.material-symbols-outlined]:text-[27px]"
               aria-label="Logout"
             >
               <span className="material-symbols-outlined" aria-hidden>

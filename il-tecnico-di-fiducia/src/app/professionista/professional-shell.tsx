@@ -112,10 +112,13 @@ function isProfessionalNavActive(pathname: string, href: string) {
 
 function professionalHeaderIconClass(active: boolean) {
   return [
-    "rounded-full transition hover:scale-95",
+    "flex h-11 w-11 shrink-0 items-center justify-center rounded-full transition hover:scale-95 lg:h-14 lg:w-14",
     active ? "ring-2 ring-[#FF8500] ring-offset-2 ring-offset-surface-container-lowest" : "",
   ].join(" ");
 }
+
+const professionalHeaderButtonClass =
+  "flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-primary transition hover:bg-surface-container-high lg:h-14 lg:w-14 lg:[&_.material-symbols-outlined]:text-[27px]";
 
 function fullName(person: { first_name: string; last_name: string } | null | undefined) {
   if (!person) return "Utente";
@@ -592,7 +595,7 @@ export default function ProfessionalShell({ profile, children }: ProfessionalShe
             <div ref={searchRef} className="relative">
               <button
                 type="button"
-                className="flex h-11 w-11 items-center justify-center rounded-full text-primary transition hover:bg-surface-container-high"
+                className={professionalHeaderButtonClass}
                 aria-label="Cerca professionisti"
                 onClick={() => {
                   setSearchOpen((value) => !value);
@@ -683,7 +686,7 @@ export default function ProfessionalShell({ profile, children }: ProfessionalShe
             <div ref={notificationsRef} className="relative">
               <button
                 type="button"
-                className="relative flex h-11 w-11 items-center justify-center rounded-full text-primary transition hover:bg-surface-container-high"
+                className={["relative", professionalHeaderButtonClass].join(" ")}
                 aria-label="Notifiche"
                 onClick={() => {
                   setNotificationsOpen((value) => !value);
@@ -754,7 +757,7 @@ export default function ProfessionalShell({ profile, children }: ProfessionalShe
             </div>
             <Link
               href="/professionista/impostazioni"
-              className="flex h-11 w-11 items-center justify-center rounded-full text-primary transition hover:bg-surface-container-high"
+              className={professionalHeaderButtonClass}
               aria-label="Apri impostazioni account"
               title="Impostazioni"
             >
@@ -767,7 +770,7 @@ export default function ProfessionalShell({ profile, children }: ProfessionalShe
               )}
               aria-label="Vai al profilo professionista"
             >
-              <Avatar person={shellProfile} />
+              <Avatar person={shellProfile} size="md" />
             </Link>
           </div>
         </div>
