@@ -41,7 +41,7 @@ export function TopNav() {
       <div className="mx-auto flex h-full w-full max-w-[1280px] items-center justify-between gap-3 px-3 sm:px-6 lg:px-8">
         <Link
           href="/"
-          className="group flex min-w-0 items-center gap-2 sm:gap-2.5 rounded-full pr-2 transition-transform hover:scale-[0.99]"
+          className="group flex min-w-0 items-center gap-2 rounded-full pr-2 transition-transform hover:scale-[0.99] sm:gap-2.5 xl:-ml-4 xl:mr-10 2xl:-ml-12 2xl:mr-16"
           aria-label="Torna alla landing"
         >
           <Image

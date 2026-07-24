@@ -931,7 +931,7 @@ export default function CustomerDashboardClient({
       >
       <header className="fixed top-0 z-50 h-20 w-full bg-surface-container-lowest/88 shadow-sm backdrop-blur-md sm:h-[92px]">
         <div className="mx-auto flex h-full w-full max-w-[1280px] items-center justify-between gap-2 px-3 sm:gap-3 sm:px-6">
-          <div className="flex min-w-0 flex-1 items-center gap-1.5 sm:gap-2 lg:-ml-3 xl:-ml-6 2xl:-ml-8">
+          <div className="flex min-w-0 flex-1 items-center gap-1.5 sm:gap-2 lg:-ml-4 xl:-ml-8 2xl:-ml-12">
             <HeaderBackButton
               fallbackHref="/customer"
               hiddenPathnames={["/customer", "/cliente"]}

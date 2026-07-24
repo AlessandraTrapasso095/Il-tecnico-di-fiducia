@@ -572,7 +572,7 @@ export default function ProfessionalShell({ profile, children }: ProfessionalShe
       >
       <header className="fixed left-0 right-0 top-0 z-50 h-20 border-b border-outline-variant/30 bg-surface-container-lowest/90 backdrop-blur-md">
         <div className="mx-auto flex h-full max-w-[1440px] items-center justify-between gap-2 px-3 sm:gap-4 sm:px-6 lg:px-8">
-          <div className="flex min-w-0 items-center gap-1.5 sm:gap-3 lg:-ml-3 xl:-ml-6 2xl:-ml-8">
+          <div className="flex min-w-0 items-center gap-1.5 sm:gap-3 lg:-ml-4 xl:-ml-8 2xl:-ml-12">
             <button
               type="button"
               className="rounded-full p-2 text-primary hover:bg-surface-container-high lg:hidden"
