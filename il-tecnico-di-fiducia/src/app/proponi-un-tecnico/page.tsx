@@ -93,8 +93,9 @@ export default function SuggestTechnicianPage() {
               </p>
             </div>
             <div className="mt-6 rounded-2xl bg-surface-container-low p-4 text-sm leading-6 text-primary">
-              Il checkout non è ancora attivo in questa fase: il pulsante è predisposto
-              per il prossimo collegamento server-side a Stripe.
+              Il checkout usa un flusso separato dall’abbonamento professionista e
+              applica esclusivamente il prezzo una tantum configurato per questa
+              proposta.
             </div>
           </section>
 

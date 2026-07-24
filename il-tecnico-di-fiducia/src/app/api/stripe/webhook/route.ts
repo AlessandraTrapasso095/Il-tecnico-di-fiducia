@@ -8,6 +8,10 @@ import {
   getStripeWebhookSecret,
 } from "@/lib/server/stripe";
 import {
+  isProfessionSuggestionCheckoutSession,
+  recordProfessionSuggestionFromCheckout,
+} from "@/lib/server/profession-suggestions";
+import {
   resolveProfessionalIdForStripeSubscription,
   upsertProfessionalSubscriptionFromStripe,
 } from "@/lib/server/stripe-subscriptions";
@@ -51,6 +55,17 @@ export async function POST(request: Request) {
     switch (event.type) {
       case "checkout.session.completed": {
         const session = event.data.object as Stripe.Checkout.Session;
+
+        if (isProfessionSuggestionCheckoutSession(session)) {
+          await recordProfessionSuggestionFromCheckout({
+            service,
+            session,
+            stripeEventId: event.id,
+            paidAt: new Date(event.created * 1000).toISOString(),
+          });
+          break;
+        }
+
         const professionalId =
           typeof session.client_reference_id === "string"
             ? session.client_reference_id
@@ -106,4 +121,3 @@ export async function POST(request: Request) {
 
   return NextResponse.json({ ok: true });
 }
-

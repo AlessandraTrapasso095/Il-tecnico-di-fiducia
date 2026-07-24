@@ -28,6 +28,14 @@ export function getStripeProfessionalPriceId() {
   return priceId;
 }
 
+export function getStripeProfessionSuggestionPriceId() {
+  const priceId = process.env.STRIPE_PROFESSION_SUGGESTION_PRICE_ID;
+  if (!priceId) {
+    throw new Error("Missing env: STRIPE_PROFESSION_SUGGESTION_PRICE_ID");
+  }
+  return priceId;
+}
+
 export function getStripeWebhookSecret() {
   const secret = process.env.STRIPE_WEBHOOK_SECRET;
   if (!secret) {
@@ -35,4 +43,3 @@ export function getStripeWebhookSecret() {
   }
   return secret;
 }
-
