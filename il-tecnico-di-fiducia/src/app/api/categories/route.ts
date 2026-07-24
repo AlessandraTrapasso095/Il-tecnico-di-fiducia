@@ -3,25 +3,82 @@ import { NextResponse } from "next/server";
 import { logApiError } from "@/lib/server/api-logger";
 import { createClient } from "@/lib/supabase/server";
 
+function isSchemaCompatibilityError(error: { code?: string | null; message?: string | null }) {
+  const message = error.message?.toLowerCase() ?? "";
+  return error.code === "42703" || error.code === "42P01" || message.includes("schema cache");
+}
+
 export async function GET() {
   try {
     const supabase = await createClient();
 
-    const query = "categories select id, name, slug, image_url order name";
+    const query =
+      "categories select id, name, slug, description, image_url, icon, sort_order, is_active order sort_order/name";
     const { data, error } = await supabase
       .from("categories")
-      .select("id, name, slug, image_url")
+      .select("id, name, slug, description, image_url, icon, sort_order, is_active")
+      .eq("is_active", true)
+      .order("sort_order", { ascending: true })
       .order("name", { ascending: true });
 
     if (error) {
-      logApiError("CATEGORIES ERROR", {
-        query,
-        error,
-      });
-      return NextResponse.json({ categories: [] });
+      if (!isSchemaCompatibilityError(error)) {
+        logApiError("CATEGORIES ERROR", {
+          query,
+          error,
+        });
+      }
+
+      const fallback = await supabase
+        .from("categories")
+        .select("id, name, slug, image_url")
+        .order("name", { ascending: true });
+
+      if (fallback.error) {
+        logApiError("CATEGORIES ERROR", {
+          query: "categories fallback select id, name, slug, image_url order name",
+          error: fallback.error,
+        });
+        return NextResponse.json({ categories: [] });
+      }
+
+      return NextResponse.json({ categories: fallback.data ?? [] });
     }
 
-    return NextResponse.json({ categories: data ?? [] });
+    const categoryIds = (data ?? []).map((category) => category.id).filter(Boolean);
+    const { data: subcategories, error: subcategoriesError } =
+      categoryIds.length > 0
+        ? await supabase
+            .from("subcategories")
+            .select("id, category_id, name, slug, sort_order, is_active")
+            .in("category_id", categoryIds)
+            .eq("is_active", true)
+            .order("sort_order", { ascending: true })
+            .order("name", { ascending: true })
+        : { data: [], error: null };
+
+    if (subcategoriesError) {
+      logApiError("CATEGORIES ERROR", {
+        query: "subcategories select active by category ids",
+        error: subcategoriesError,
+      });
+    }
+
+    const subcategoriesByCategory = new Map<string, unknown[]>();
+    for (const subcategory of subcategories ?? []) {
+      const record = subcategory as { category_id: unknown };
+      const key = String(record.category_id);
+      const current = subcategoriesByCategory.get(key) ?? [];
+      current.push(subcategory);
+      subcategoriesByCategory.set(key, current);
+    }
+
+    return NextResponse.json({
+      categories: (data ?? []).map((category) => ({
+        ...category,
+        subcategories: subcategoriesByCategory.get(String(category.id)) ?? [],
+      })),
+    });
   } catch (error) {
     logApiError("CATEGORIES ERROR", {
       query: "GET /api/categories",

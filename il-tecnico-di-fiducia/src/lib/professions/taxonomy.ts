@@ -3,11 +3,23 @@ export type ProfessionSubcategory = {
   slug: string;
 };
 
+export type DbProfessionSubcategory = ProfessionSubcategory & {
+  id?: string;
+  category_id?: number | string | null;
+  sort_order?: number | null;
+  is_active?: boolean | null;
+};
+
 export type DbProfessionCategory = {
-  id: number | null;
+  id: number | string | null;
   name: string;
   slug: string;
   image_url: string | null;
+  description?: string | null;
+  icon?: ProfessionIconName | string | null;
+  sort_order?: number | null;
+  is_active?: boolean | null;
+  subcategories?: DbProfessionSubcategory[];
 };
 
 export type ProfessionIconName =
@@ -247,7 +259,7 @@ export function mergeProfessionCategories(categories: DbProfessionCategory[]) {
       image_url: category.image_url || CATEGORY_IMAGE_FALLBACK,
       icon: "generic",
       source: "database",
-      subcategories: [],
+      subcategories: category.subcategories ?? [],
     }));
 
   return [...merged, ...extraCategories];

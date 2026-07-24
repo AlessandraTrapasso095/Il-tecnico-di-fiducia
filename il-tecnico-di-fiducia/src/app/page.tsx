@@ -113,8 +113,10 @@ export default async function Home() {
             <div className="grid grid-cols-1 gap-8 lg:grid-cols-2">
               <article className="rounded-[32px] border border-outline-variant/30 bg-surface-container-lowest p-6 shadow-[0_10px_32px_rgba(8,43,95,0.08)] sm:p-8">
                 <div className="mb-8 flex items-center justify-center gap-3 text-center sm:justify-start sm:text-left">
-                  <span className="material-symbols-outlined flex h-11 w-11 items-center justify-center rounded-full bg-[#FF8500] text-white" aria-hidden>
-                    search
+                  <span className="flex h-11 w-11 items-center justify-center rounded-full bg-[#FF8500] text-white" aria-hidden>
+                    <span className="material-symbols-outlined block text-[26px] leading-none">
+                      search
+                    </span>
                   </span>
                   <h3 className="font-headline-sm text-headline-sm text-primary">
                     Per chi cerca un professionista
@@ -139,8 +141,10 @@ export default async function Home() {
 
               <article className="rounded-[32px] border border-primary/10 bg-white p-6 shadow-[0_10px_32px_rgba(8,43,95,0.08)] sm:p-8">
                 <div className="mb-8 flex items-center justify-center gap-3 text-center sm:justify-start sm:text-left">
-                  <span className="material-symbols-outlined flex h-11 w-11 items-center justify-center rounded-full bg-primary text-white" aria-hidden>
-                    engineering
+                  <span className="flex h-11 w-11 items-center justify-center rounded-full bg-primary text-white" aria-hidden>
+                    <span className="material-symbols-outlined block text-[26px] leading-none">
+                      engineering
+                    </span>
                   </span>
                   <h3 className="font-headline-sm text-headline-sm text-primary">
                     Per i professionisti

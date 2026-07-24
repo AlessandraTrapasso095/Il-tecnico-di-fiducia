@@ -19,6 +19,7 @@ const NAV_ITEMS = [
   { href: "/admin", label: "Dashboard", icon: "dashboard" },
   { href: "/admin/clienti", label: "Clienti", icon: "groups" },
   { href: "/admin/professionisti", label: "Professionisti", icon: "engineering" },
+  { href: "/admin/categorie", label: "Categorie", icon: "category" },
   { href: "/admin/scontistiche", label: "Scontistiche", icon: "percent" },
   { href: "/admin/admin", label: "Admin", icon: "shield_person" },
   { href: "/admin/supporto", label: "Supporto", icon: "support_agent" },

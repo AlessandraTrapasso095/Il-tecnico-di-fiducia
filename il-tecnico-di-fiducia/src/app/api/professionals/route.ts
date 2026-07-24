@@ -27,10 +27,11 @@ type ProfessionalDirectoryRow = {
 };
 
 type RatedProfessionalDirectoryRow = ProfessionalWithRating<ProfessionalDirectoryRow>;
-type CategoryRow = { id: number | null; name: string; slug: string };
+type CategoryId = number | string;
+type CategoryRow = { id: CategoryId | null; name: string; slug: string };
 type ProfessionalCategoryMappingRow = {
   professional_id: string;
-  category_id: number;
+  category_id: CategoryId;
 };
 
 const MAX_LOCAL_SEARCH_CANDIDATES = 1_000;
@@ -198,7 +199,7 @@ async function loadProfessionalCategoryLookup(
 ) {
   const empty = {
     categoriesByProfessionalId: new Map<string, CategoryRow[]>(),
-    allCategoriesById: new Map<number, CategoryRow>(),
+    allCategoriesById: new Map<CategoryId, CategoryRow>(),
     mappedProfessionalIds: new Set<string>(),
   };
 
@@ -281,8 +282,10 @@ export async function GET(request: NextRequest) {
     let selectedCategory: CategoryRow | null = null;
     let professionalIdsFromCategory: string[] | null = null;
     if (categoryIdRaw) {
-      const categoryId = Number.parseInt(categoryIdRaw, 10);
-      if (!Number.isFinite(categoryId)) {
+      const categoryId = /^\d+$/.test(categoryIdRaw)
+        ? Number.parseInt(categoryIdRaw, 10)
+        : categoryIdRaw.trim();
+      if (!categoryId) {
         return NextResponse.json({ error: "Invalid category_id" }, { status: 400 });
       }
 

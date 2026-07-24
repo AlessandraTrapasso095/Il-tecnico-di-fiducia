@@ -67,9 +67,10 @@ export default async function AdminPage() {
     loginPath: "/admin/login",
   });
 
-  const [clients, professionals, admins, tickets] = await Promise.all([
+  const [clients, professionals, categories, admins, tickets] = await Promise.all([
     countRows(supabase, "profiles", [["role", "eq", "customer"]]),
     countRows(supabase, "profiles", [["role", "eq", "professional"]]),
+    countRows(supabase, "categories"),
     countRows(supabase, "profiles", [["role", "eq", "admin"]]),
     countRows(supabase, "support_tickets", [["status", "in", ["open", "waiting"]]]),
   ]);
@@ -80,13 +81,20 @@ export default async function AdminPage() {
       subtitle="Panoramica reale della piattaforma."
       adminName={profile.first_name || profile.email}
     >
-      <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+      <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
         <MetricCard icon="group" label="Clienti" value={clients} href="/admin/clienti" />
         <MetricCard
           icon="engineering"
           label="Professionisti"
           value={professionals}
           href="/admin/professionisti"
+        />
+        <MetricCard
+          icon="category"
+          label="Categorie"
+          value={categories}
+          tone="green"
+          href="/admin/categorie"
         />
         <MetricCard icon="shield_person" label="Admin" value={admins} href="/admin/admin" />
         <MetricCard
