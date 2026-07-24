@@ -30,6 +30,22 @@ function metadataValue(value: string, maxLength = 500) {
   return value.slice(0, maxLength);
 }
 
+function checkoutEnvErrorMessage(error: Error) {
+  if (error.message === "Missing env: STRIPE_PROFESSION_SUGGESTION_PRICE_ID") {
+    return "Pagamento temporaneamente non configurato: manca STRIPE_PROFESSION_SUGGESTION_PRICE_ID.";
+  }
+
+  if (error.message === "Missing env: STRIPE_SECRET_KEY") {
+    return "Pagamento temporaneamente non configurato: manca STRIPE_SECRET_KEY.";
+  }
+
+  return "Pagamento temporaneamente non configurato. Riprova più tardi.";
+}
+
+function maskStripeId(value: string) {
+  return value.length > 12 ? `${value.slice(0, 8)}…${value.slice(-4)}` : value;
+}
+
 export async function POST(request: Request) {
   let payload: ProfessionSuggestionCheckoutPayload;
 
@@ -97,8 +113,20 @@ export async function POST(request: Request) {
       payment_intent_data: {
         metadata,
       },
-      success_url: `${baseUrl}/proponi-un-tecnico/successo?session_id={CHECKOUT_SESSION_ID}`,
+      success_url: `${baseUrl}/proponi-un-tecnico?checkout=success&session_id={CHECKOUT_SESSION_ID}`,
       cancel_url: `${baseUrl}/proponi-un-tecnico?checkout=cancelled`,
+    });
+
+    console.info("[profession-suggestion-checkout] Stripe session created", {
+      session_id: maskStripeId(session.id),
+      mode: session.mode,
+      has_url: Boolean(session.url),
+      payment_status: session.payment_status,
+      price_env_present: Boolean(process.env.STRIPE_PROFESSION_SUGGESTION_PRICE_ID),
+      email_present: Boolean(email),
+      profession_name_present: Boolean(professionName),
+      success_url_path: "/proponi-un-tecnico?checkout=success",
+      cancel_url_path: "/proponi-un-tecnico?checkout=cancelled",
     });
 
     if (!session.url) {
@@ -124,7 +152,7 @@ export async function POST(request: Request) {
     return NextResponse.json(
       {
         error: missingStripeEnv
-          ? "Pagamento temporaneamente non configurato. Riprova più tardi."
+          ? checkoutEnvErrorMessage(error)
           : "Non è stato possibile avviare il pagamento. Riprova.",
       },
       { status: missingStripeEnv ? 503 : 500 },

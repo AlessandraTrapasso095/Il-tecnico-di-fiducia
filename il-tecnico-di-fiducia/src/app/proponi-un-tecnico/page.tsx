@@ -92,11 +92,6 @@ export default function SuggestTechnicianPage() {
                 professionale con la piattaforma.
               </p>
             </div>
-            <div className="mt-6 rounded-2xl bg-surface-container-low p-4 text-sm leading-6 text-primary">
-              Il checkout usa un flusso separato dall’abbonamento professionista e
-              applica esclusivamente il prezzo una tantum configurato per questa
-              proposta.
-            </div>
           </section>
 
           <ProposeTechnicianCta />
