@@ -6,6 +6,7 @@ import {
   isProfessionalVisibleToCustomers,
   loadCustomerVisibleProfessionalIds,
 } from "@/lib/server/professional-visibility";
+import { createServiceClient } from "@/lib/supabase/service";
 
 type SavePayload = {
   professional_id: string;
@@ -18,10 +19,100 @@ type SavedProfessionalRow = {
   province_code: string | null;
   headline: string | null;
   specializations: string[] | null;
+  subcategory_id?: string | null;
   avatar_url: string | null;
   available_remote: boolean | null;
   available_travel: boolean | null;
 };
+
+type CategoryId = string | number;
+
+type SavedProfessionalCategory = {
+  id: CategoryId | null;
+  name: string;
+  slug: string;
+};
+
+type SavedProfessionalSubcategory = {
+  id: string;
+  category_id: CategoryId;
+  name: string;
+  slug: string;
+};
+
+type SavedProfessionalWithTaxonomy = SavedProfessionalRow & {
+  categories?: SavedProfessionalCategory[];
+  subcategory?: SavedProfessionalSubcategory | null;
+};
+
+async function attachTaxonomy(professionals: SavedProfessionalRow[]) {
+  if (professionals.length === 0) return [] as SavedProfessionalWithTaxonomy[];
+
+  const service = createServiceClient();
+  const professionalIds = professionals.map((professional) => professional.id);
+  const { data: mappings } = await service
+    .from("professional_categories")
+    .select("professional_id, category_id")
+    .in("professional_id", professionalIds);
+
+  const categoryIds = Array.from(
+    new Set((mappings ?? []).map((mapping) => mapping.category_id).filter(Boolean)),
+  );
+  const { data: categories } =
+    categoryIds.length > 0
+      ? await service
+          .from("categories")
+          .select("id, name, slug")
+          .in("id", categoryIds)
+          .eq("is_active", true)
+      : { data: [] };
+
+  const subcategoryIds = Array.from(
+    new Set(
+      professionals
+        .map((professional) => professional.subcategory_id)
+        .filter((id): id is string => Boolean(id)),
+    ),
+  );
+  const { data: subcategories } =
+    subcategoryIds.length > 0
+      ? await service
+          .from("subcategories")
+          .select("id, category_id, name, slug")
+          .in("id", subcategoryIds)
+          .eq("is_active", true)
+      : { data: [] };
+
+  const categoryById = new Map(
+    ((categories ?? []) as SavedProfessionalCategory[]).map((category) => [
+      String(category.id),
+      category,
+    ]),
+  );
+  const subcategoryById = new Map(
+    ((subcategories ?? []) as SavedProfessionalSubcategory[]).map((subcategory) => [
+      subcategory.id,
+      subcategory,
+    ]),
+  );
+  const categoriesByProfessionalId = new Map<string, SavedProfessionalCategory[]>();
+
+  for (const mapping of mappings ?? []) {
+    const category = categoryById.get(String(mapping.category_id));
+    if (!category) continue;
+    const current = categoriesByProfessionalId.get(mapping.professional_id) ?? [];
+    current.push(category);
+    categoriesByProfessionalId.set(mapping.professional_id, current);
+  }
+
+  return professionals.map((professional) => ({
+    ...professional,
+    categories: categoriesByProfessionalId.get(professional.id) ?? [],
+    subcategory: professional.subcategory_id
+      ? (subcategoryById.get(professional.subcategory_id) ?? null)
+      : null,
+  }));
+}
 
 export async function GET() {
   const auth = await requireAuth({ allowedRoles: ["customer"] });
@@ -56,7 +147,7 @@ export async function GET() {
   const { data: professionals, error: professionalsError } = await supabase
     .from("professional_directory")
     .select(
-      "id, first_name, last_name, province_code, headline, specializations, avatar_url, available_remote, available_travel",
+      "id, first_name, last_name, province_code, headline, specializations, subcategory_id, avatar_url, available_remote, available_travel",
     )
     .in("id", visibleOrderedIds);
 
@@ -76,9 +167,10 @@ export async function GET() {
   const orderedProfessionals = visibleOrderedIds
     .map((id) => byId.get(id))
     .filter((professional): professional is SavedProfessionalRow => Boolean(professional));
+  const professionalsWithTaxonomy = await attachTaxonomy(orderedProfessionals);
 
   return NextResponse.json({
-    professionals: await attachProfessionalRatings(supabase, orderedProfessionals),
+    professionals: await attachProfessionalRatings(supabase, professionalsWithTaxonomy),
   });
 }
 

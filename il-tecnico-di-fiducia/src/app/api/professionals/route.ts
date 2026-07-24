@@ -20,14 +20,25 @@ type ProfessionalDirectoryRow = {
   headline: string | null;
   bio: string | null;
   specializations: string[] | null;
+  subcategory_id?: string | null;
   avatar_url: string | null;
   available_remote: boolean | null;
   available_travel: boolean | null;
 };
 
-type RatedProfessionalDirectoryRow = ProfessionalWithRating<ProfessionalDirectoryRow>;
 type CategoryId = number | string;
 type CategoryRow = { id: CategoryId | null; name: string; slug: string };
+type SubcategoryRow = {
+  id: string;
+  category_id: CategoryId;
+  name: string;
+  slug: string;
+};
+type ProfessionalDirectoryRowWithTaxonomy = ProfessionalDirectoryRow & {
+  categories?: CategoryRow[];
+  subcategory?: SubcategoryRow | null;
+};
+type RatedProfessionalDirectoryRow = ProfessionalWithRating<ProfessionalDirectoryRowWithTaxonomy>;
 type ProfessionalCategoryMappingRow = {
   professional_id: string;
   category_id: CategoryId;
@@ -126,6 +137,7 @@ function expandedSearchNeedles(rawNeedle: string) {
 function rowSearchText(
   row: ProfessionalDirectoryRow,
   categories: CategoryRow[],
+  subcategory?: SubcategoryRow | null,
 ) {
   const categoryTerms = categories.flatMap(categoryAliases);
   return normalizeSearchText(
@@ -134,10 +146,10 @@ function rowSearchText(
       row.last_name,
       row.province_code,
       row.province_code ? PROVINCE_NAME_BY_CODE.get(row.province_code) : null,
-      row.headline,
       row.bio,
-      ...(row.specializations ?? []),
       ...categoryTerms,
+      subcategory?.name,
+      subcategory?.slug,
     ]
       .filter((value): value is string => Boolean(value))
       .join(" "),
@@ -202,6 +214,66 @@ async function loadProfessionalCategoryLookup(
   return { categoriesByProfessionalId };
 }
 
+async function loadProfessionalSubcategoryLookup(
+  supabase: SupabaseClient,
+  professionals: ProfessionalDirectoryRow[],
+) {
+  const subcategoryIds = [
+    ...new Set(
+      professionals
+        .map((professional) => professional.subcategory_id)
+        .filter((id): id is string => Boolean(id)),
+    ),
+  ];
+  const subcategoriesByProfessionalId = new Map<string, SubcategoryRow | null>();
+
+  if (subcategoryIds.length === 0) return { subcategoriesByProfessionalId };
+
+  const { data: subcategories, error } = await supabase
+    .from("subcategories")
+    .select("id, category_id, name, slug")
+    .in("id", subcategoryIds)
+    .eq("is_active", true);
+
+  if (error) {
+    logApiError("PROFESSIONALS ERROR", {
+      query: "subcategories select active by professional subcategory ids",
+      error,
+    });
+    return { subcategoriesByProfessionalId };
+  }
+
+  const subcategoriesById = new Map(
+    ((subcategories ?? []) as SubcategoryRow[]).map((subcategory) => [
+      subcategory.id,
+      subcategory,
+    ]),
+  );
+
+  for (const professional of professionals) {
+    subcategoriesByProfessionalId.set(
+      professional.id,
+      professional.subcategory_id
+        ? (subcategoriesById.get(professional.subcategory_id) ?? null)
+        : null,
+    );
+  }
+
+  return { subcategoriesByProfessionalId };
+}
+
+function attachTaxonomyToProfessionals(
+  professionals: ProfessionalDirectoryRow[],
+  categoriesByProfessionalId: Map<string, CategoryRow[]>,
+  subcategoriesByProfessionalId: Map<string, SubcategoryRow | null>,
+): ProfessionalDirectoryRowWithTaxonomy[] {
+  return professionals.map((professional) => ({
+    ...professional,
+    categories: categoriesByProfessionalId.get(professional.id) ?? [],
+    subcategory: subcategoriesByProfessionalId.get(professional.id) ?? null,
+  }));
+}
+
 async function loadProfessionalIdsForCategory(
   supabase: SupabaseClient,
   categoryId: CategoryId,
@@ -223,6 +295,27 @@ async function loadProfessionalIdsForCategory(
   return (data ?? []).map((mapping) => mapping.professional_id);
 }
 
+async function loadProfessionalIdsForSubcategory(
+  supabase: SupabaseClient,
+  subcategoryId: string,
+) {
+  const { data, error } = await supabase
+    .from("professional_profiles")
+    .select("id")
+    .eq("subcategory_id", subcategoryId);
+
+  if (error) {
+    logApiError("PROFESSIONALS ERROR", {
+      query: "professional_profiles select id by active subcategory",
+      subcategory_id: subcategoryId,
+      error,
+    });
+    throw error;
+  }
+
+  return (data ?? []).map((professional) => professional.id);
+}
+
 export async function GET(request: NextRequest) {
   try {
     const auth = await requireAuth();
@@ -238,6 +331,7 @@ export async function GET(request: NextRequest) {
     const query = searchParams.get("q");
     const categoryIdRaw = searchParams.get("category_id");
     const categorySlugRaw = searchParams.get("category_slug");
+    const subcategoryIdRaw = searchParams.get("subcategory_id");
     const subcategory = sanitizeSpecialization(searchParams.get("subcategory"));
     const availableRemote = parseBoolean(searchParams.get("remote"));
     const availableTravel = parseBoolean(searchParams.get("travel"));
@@ -266,6 +360,8 @@ export async function GET(request: NextRequest) {
 
     let selectedCategory: CategoryRow | null = null;
     let professionalIdsFromCategory: string[] | null = null;
+    let selectedSubcategory: SubcategoryRow | null = null;
+    let professionalIdsFromSubcategory: string[] | null = null;
     if (categoryIdRaw) {
       const categoryId = /^\d+$/.test(categoryIdRaw)
         ? Number.parseInt(categoryIdRaw, 10)
@@ -364,14 +460,111 @@ export async function GET(request: NextRequest) {
       }
     }
 
+    if (subcategoryIdRaw) {
+      const subcategoryId = subcategoryIdRaw.trim();
+      if (!subcategoryId) {
+        return NextResponse.json({ error: "Invalid subcategory_id" }, { status: 400 });
+      }
+
+      const { data: subcategoryData, error: subcategoryError } = await dataClient
+        .from("subcategories")
+        .select("id, category_id, name, slug")
+        .eq("id", subcategoryId)
+        .eq("is_active", true)
+        .maybeSingle();
+
+      if (subcategoryError) {
+        logApiError("PROFESSIONALS ERROR", {
+          user_id: auth.ctx.user.id,
+          role: profile.role,
+          query: "subcategories select active id, category_id, name, slug by id",
+          subcategory_id: subcategoryId,
+          error: subcategoryError,
+        });
+        return NextResponse.json(
+          { error: "Non è stato possibile caricare la sottocategoria." },
+          { status: 500 },
+        );
+      }
+
+      selectedSubcategory = (subcategoryData as SubcategoryRow | null) ?? null;
+      if (!selectedSubcategory) {
+        return NextResponse.json(emptyResponse);
+      }
+
+      if (!selectedCategory) {
+        const { data: parentCategory, error: parentCategoryError } = await dataClient
+          .from("categories")
+          .select("id, name, slug")
+          .eq("id", selectedSubcategory.category_id)
+          .eq("is_active", true)
+          .maybeSingle();
+
+        if (parentCategoryError) {
+          logApiError("PROFESSIONALS ERROR", {
+            user_id: auth.ctx.user.id,
+            role: profile.role,
+            query: "categories select active parent by subcategory",
+            subcategory_id: selectedSubcategory.id,
+            error: parentCategoryError,
+          });
+          return NextResponse.json(
+            { error: "Non è stato possibile caricare la categoria." },
+            { status: 500 },
+          );
+        }
+
+        selectedCategory = (parentCategory as CategoryRow | null) ?? null;
+        if (!selectedCategory) {
+          return NextResponse.json(emptyResponse);
+        }
+      }
+
+      if (
+        selectedCategory &&
+        String(selectedSubcategory.category_id) !== String(selectedCategory.id)
+      ) {
+        return NextResponse.json(emptyResponse);
+      }
+
+      try {
+        professionalIdsFromSubcategory = await loadProfessionalIdsForSubcategory(
+          dataClient,
+          selectedSubcategory.id,
+        );
+      } catch {
+        return NextResponse.json(
+          { error: "Non è stato possibile filtrare per sottocategoria." },
+          { status: 500 },
+        );
+      }
+
+      if (professionalIdsFromCategory) {
+        const categorySet = new Set(professionalIdsFromCategory);
+        professionalIdsFromSubcategory = professionalIdsFromSubcategory.filter((id) =>
+          categorySet.has(id),
+        );
+      }
+
+      if (customerVisibleProfessionalIds) {
+        professionalIdsFromSubcategory = professionalIdsFromSubcategory.filter((id) =>
+          customerVisibleProfessionalIds.has(id),
+        );
+      }
+    }
+
     if (professionalIdsFromCategory && professionalIdsFromCategory.length === 0) {
+      return NextResponse.json(emptyResponse);
+    }
+
+    if (professionalIdsFromSubcategory && professionalIdsFromSubcategory.length === 0) {
       return NextResponse.json(emptyResponse);
     }
 
     let queryBuilder = dataClient
       .from("professional_directory")
       .select(
-        "id, first_name, last_name, province_code, headline, bio, specializations, avatar_url, available_remote, available_travel",
+        "id, first_name, last_name, province_code, headline, bio, specializations, subcategory_id, avatar_url, available_remote, available_travel",
         { count: "exact" },
       );
 
@@ -389,7 +582,9 @@ export async function GET(request: NextRequest) {
 
     if (customerVisibleProfessionalIds) {
       const idsForQuery =
-        professionalIdsFromCategory && professionalIdsFromCategory.length > 0
+        professionalIdsFromSubcategory && professionalIdsFromSubcategory.length > 0
+          ? professionalIdsFromSubcategory
+          : professionalIdsFromCategory && professionalIdsFromCategory.length > 0
           ? professionalIdsFromCategory
           : [...customerVisibleProfessionalIds];
       if (idsForQuery.length === 0) {
@@ -399,14 +594,19 @@ export async function GET(request: NextRequest) {
     }
 
     const requiresLocalSearch =
-      q.length > 0 || selectedCategory !== null || subcategory.length > 0;
+      q.length > 0 ||
+      selectedCategory !== null ||
+      selectedSubcategory !== null ||
+      subcategory.length > 0;
 
-    if (!requiresLocalSearch && professionalIdsFromCategory) {
-      if (professionalIdsFromCategory.length === 0) {
+    const idsFromTaxonomy = professionalIdsFromSubcategory ?? professionalIdsFromCategory;
+
+    if (!requiresLocalSearch && idsFromTaxonomy) {
+      if (idsFromTaxonomy.length === 0) {
         return NextResponse.json(emptyResponse);
       }
       if (!customerVisibleProfessionalIds) {
-        queryBuilder = queryBuilder.in("id", professionalIdsFromCategory);
+        queryBuilder = queryBuilder.in("id", idsFromTaxonomy);
       }
     }
 
@@ -433,25 +633,38 @@ export async function GET(request: NextRequest) {
       const candidateIds = candidates.map((professional) => professional.id);
       const { categoriesByProfessionalId } =
         await loadProfessionalCategoryLookup(dataClient, candidateIds);
+      const { subcategoriesByProfessionalId } =
+        await loadProfessionalSubcategoryLookup(dataClient, candidates);
       const categoryIdSet = new Set(professionalIdsFromCategory ?? []);
+      const subcategoryIdSet = new Set(professionalIdsFromSubcategory ?? []);
 
       const filtered = candidates.filter((professional) => {
         const categories = categoriesByProfessionalId.get(professional.id) ?? [];
-        const searchable = rowSearchText(professional, categories);
+        const professionalSubcategory =
+          subcategoriesByProfessionalId.get(professional.id) ?? null;
+        const searchable = rowSearchText(professional, categories, professionalSubcategory);
         const matchesQuery = q.length === 0 || matchesSearchText(searchable, q);
         const matchesCategory =
           !selectedCategory ||
           categoryIdSet.has(professional.id) ||
           categoryAliases(selectedCategory).some((alias) =>
-            matchesSearchText(searchable, alias),
+              matchesSearchText(searchable, alias),
           );
         const matchesSubcategory =
-          subcategory.length === 0 || matchesSubcategoryText(searchable, subcategory);
+          (!selectedSubcategory || subcategoryIdSet.has(professional.id)) &&
+          (subcategory.length === 0 || matchesSubcategoryText(searchable, subcategory));
 
         return matchesQuery && matchesCategory && matchesSubcategory;
       });
 
-      const professionals = await attachProfessionalRatings(dataClient, filtered);
+      const professionals = await attachProfessionalRatings(
+        dataClient,
+        attachTaxonomyToProfessionals(
+          filtered,
+          categoriesByProfessionalId,
+          subcategoriesByProfessionalId,
+        ),
+      );
       const sorted = professionals.sort(
         (a: RatedProfessionalDirectoryRow, b: RatedProfessionalDirectoryRow) => {
           if (recommended) {
@@ -512,9 +725,19 @@ export async function GET(request: NextRequest) {
         );
       }
 
+      const recommendedRows = (data ?? []) as ProfessionalDirectoryRow[];
+      const recommendedIds = recommendedRows.map((professional) => professional.id);
+      const { categoriesByProfessionalId } =
+        await loadProfessionalCategoryLookup(dataClient, recommendedIds);
+      const { subcategoriesByProfessionalId } =
+        await loadProfessionalSubcategoryLookup(dataClient, recommendedRows);
       const professionals = await attachProfessionalRatings(
         dataClient,
-        ((data ?? []) as ProfessionalDirectoryRow[]),
+        attachTaxonomyToProfessionals(
+          recommendedRows,
+          categoriesByProfessionalId,
+          subcategoriesByProfessionalId,
+        ),
       );
 
       const sorted = professionals.sort(
@@ -572,13 +795,24 @@ export async function GET(request: NextRequest) {
       );
     }
 
+    const paginatedRows = (data ?? []) as ProfessionalDirectoryRow[];
+    const paginatedIds = paginatedRows.map((professional) => professional.id);
+    const { categoriesByProfessionalId } =
+      await loadProfessionalCategoryLookup(dataClient, paginatedIds);
+    const { subcategoriesByProfessionalId } =
+      await loadProfessionalSubcategoryLookup(dataClient, paginatedRows);
+
     return NextResponse.json({
       page,
       page_size: pageSize,
       total: count ?? 0,
       professionals: await attachProfessionalRatings(
         dataClient,
-        ((data ?? []) as ProfessionalDirectoryRow[]),
+        attachTaxonomyToProfessionals(
+          paginatedRows,
+          categoriesByProfessionalId,
+          subcategoriesByProfessionalId,
+        ),
       ),
     });
   } catch (error) {

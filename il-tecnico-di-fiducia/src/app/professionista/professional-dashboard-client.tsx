@@ -23,6 +23,7 @@ type ProfessionalProfileLite = {
   province_code: string | null;
   phone: string | null;
   avatar_url: string | null;
+  has_category: boolean;
 };
 
 type SubscriptionStatus = "none" | "stripe_active" | "admin_forced_active" | "suspended";
@@ -449,6 +450,26 @@ export default function ProfessionalDashboardClient({
       {dashboardError ? (
         <div className="mb-6 rounded-[24px] border border-error/20 bg-error-container p-5 text-on-error-container">
           {dashboardError}
+        </div>
+      ) : null}
+
+      {!profile.has_category ? (
+        <div className="mb-6 rounded-[24px] border border-[#FF8500]/30 bg-[#FFF4E5] p-5 text-primary shadow-[0_4px_20px_rgba(8,43,95,0.06)]">
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <div className="font-headline-sm text-[22px]">Completa la tua categoria</div>
+              <p className="mt-1 max-w-2xl text-sm text-on-surface-variant">
+                Seleziona Categoria e, se utile, Sottocategoria per rendere il profilo coerente
+                con ricerca e consigliati.
+              </p>
+            </div>
+            <Link
+              href="/professionista/profilo"
+              className="inline-flex min-h-11 items-center justify-center rounded-full bg-[#FF8500] px-5 py-3 font-button text-sm text-white shadow-md transition hover:bg-[#FF9A2B]"
+            >
+              Aggiorna profilo
+            </Link>
+          </div>
         </div>
       ) : null}
 

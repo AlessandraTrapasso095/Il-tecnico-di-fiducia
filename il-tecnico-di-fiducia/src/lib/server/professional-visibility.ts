@@ -4,7 +4,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 
 import { createServiceClient } from "@/lib/supabase/service";
 
-const CUSTOMER_VISIBLE_SUBSCRIPTION_STATUSES = new Set([
+export const CUSTOMER_VISIBLE_SUBSCRIPTION_STATUSES = new Set([
   "stripe_active",
   "admin_forced_active",
 ]);
@@ -22,7 +22,7 @@ type ProfileStatusRow = {
   suspended_until: string | null;
 };
 
-function isSubscriptionActive(row: SubscriptionRow, nowMs = Date.now()) {
+export function isProfessionalSubscriptionActive(row: SubscriptionRow, nowMs = Date.now()) {
   if (!CUSTOMER_VISIBLE_SUBSCRIPTION_STATUSES.has(row.status)) return false;
   if (!row.current_period_end) return true;
   return new Date(row.current_period_end).getTime() > nowMs;
@@ -60,7 +60,7 @@ export async function loadCustomerVisibleProfessionalIds(
   const subscribedIds = Array.from(
     new Set(
       (subscriptions as SubscriptionRow[])
-        .filter((subscription) => isSubscriptionActive(subscription, nowMs))
+        .filter((subscription) => isProfessionalSubscriptionActive(subscription, nowMs))
         .map((subscription) => subscription.professional_id),
     ),
   );

@@ -29,11 +29,10 @@ import { ProfileAvatar } from "@/components/ui/profile-avatar";
 import { fetchJson } from "@/lib/api/fetch-json";
 import { ITALIAN_PROVINCES } from "@/lib/locations/italian-provinces";
 import {
-  findProfessionCategory,
   normalizeProfessionCategories,
-  professionCategoryKey,
   type DbProfessionCategory,
   type ProfessionCategory,
+  type ProfessionSubcategory,
 } from "@/lib/professions/taxonomy";
 import type {
   ProfessionalProfileAccess,
@@ -138,6 +137,22 @@ type ProfessionalProfileClientProps = {
 
 const EMPTY_COVER =
   "linear-gradient(135deg, rgba(0,38,84,0.96), rgba(11,60,120,0.72)), radial-gradient(circle at 70% 30%, rgba(255,136,20,0.22), transparent 30%)";
+
+function categoryOptionValue(category: Pick<ProfessionCategory, "id" | "slug">) {
+  return category.id !== null && category.id !== undefined ? `id:${category.id}` : `slug:${category.slug}`;
+}
+
+function categoryIdFromOption(value: string) {
+  return value.startsWith("id:") ? value.slice(3) : "";
+}
+
+function subcategoryOptionValue(subcategory: ProfessionSubcategory) {
+  return subcategory.id ? `id:${subcategory.id}` : `slug:${subcategory.slug}`;
+}
+
+function subcategoryIdFromOption(value: string) {
+  return value.startsWith("id:") ? value.slice(3) : "";
+}
 
 function fullName(person: { first_name: string; last_name: string }) {
   return `${person.first_name ?? ""} ${person.last_name ?? ""}`.trim() || "Professionista";
@@ -352,8 +367,8 @@ export default function ProfessionalProfileClient({
   const [catalogCategories, setCatalogCategories] = useState<ProfessionCategory[]>([]);
   const [catalogLoading, setCatalogLoading] = useState(false);
   const [catalogError, setCatalogError] = useState<string | null>(null);
-  const [selectedCategoryKeys, setSelectedCategoryKeys] = useState<string[]>([]);
-  const [selectedSubcategoryNames, setSelectedSubcategoryNames] = useState<string[]>([]);
+  const [selectedCategoryKey, setSelectedCategoryKey] = useState("");
+  const [selectedSubcategoryKey, setSelectedSubcategoryKey] = useState("");
 
   const [posts, setPosts] = useState<PostRow[]>([]);
   const [postsLoading, setPostsLoading] = useState(false);
@@ -407,6 +422,12 @@ export default function ProfessionalProfileClient({
   const averageRatingLabel = profile.rating_average
     ? profile.rating_average.toFixed(1)
     : "—";
+  const primaryCategory = profile.categories[0] ?? null;
+  const categoryLabel =
+    primaryCategory?.name ?? profile.headline ?? "Categoria da completare";
+  const profileSubtitle = profile.subcategory
+    ? `${categoryLabel} · ${profile.subcategory.name}`
+    : categoryLabel;
 
   const loadPosts = useCallback(
     async () => {
@@ -510,7 +531,7 @@ export default function ProfessionalProfileClient({
   }, [mediaMenu]);
 
   useEffect(() => {
-    if (editSection !== "services") return;
+    if (editSection !== "intro") return;
     if (catalogCategories.length > 0 || catalogLoading) return;
     void loadCatalogCategories();
   }, [catalogCategories.length, catalogLoading, editSection, loadCatalogCategories]);
@@ -519,21 +540,13 @@ export default function ProfessionalProfileClient({
     setEditSection(section);
     setProfileError(null);
     setCatalogError(null);
-    if (section === "services") {
-      setSelectedCategoryKeys(
-        profile.categories.map((category) =>
-          professionCategoryKey({
-            ...category,
-            image_url: null,
-          }),
-        ),
-      );
-      setSelectedSubcategoryNames(profile.specializations);
+    if (section === "intro") {
+      setSelectedCategoryKey(primaryCategory ? categoryOptionValue(primaryCategory) : "");
+      setSelectedSubcategoryKey(profile.subcategory ? `id:${profile.subcategory.id}` : "");
     }
     setEditDraft({
       first_name: profile.first_name,
       last_name: profile.last_name,
-      headline: profile.headline ?? "",
       bio: profile.bio ?? "",
       province_code: profile.province_code ?? "",
       phone: profile.phone ?? "",
@@ -557,28 +570,23 @@ export default function ProfessionalProfileClient({
     try {
       const payload: Record<string, unknown> = {};
       if (editSection === "intro") {
+        const selectedCategoryId = categoryIdFromOption(selectedCategoryKey);
+        if (!selectedCategoryId) {
+          throw new Error("Seleziona una categoria");
+        }
         payload.first_name = editDraft.first_name;
         payload.last_name = editDraft.last_name;
-        payload.headline = editDraft.headline;
         payload.bio = editDraft.bio;
         payload.province_code = editDraft.province_code || null;
+        payload.category_id = selectedCategoryId;
+        payload.subcategory_id = selectedSubcategoryKey
+          ? subcategoryIdFromOption(selectedSubcategoryKey) || null
+          : null;
         payload.available_remote = Boolean(editDraft.available_remote);
         payload.available_travel = Boolean(editDraft.available_travel);
       }
       if (editSection === "services") {
-        const catalogReady = catalogCategories.length > 0 && !catalogError;
         payload.services_offered = splitLines(String(editDraft.services_offered ?? ""));
-        payload.specializations = catalogReady
-          ? selectedSubcategoryNames
-          : splitLines(String(editDraft.specializations ?? ""));
-        if (catalogReady) {
-          const selectedCategories = selectedCategoryKeys
-            .map((key) => findProfessionCategory(catalogCategories, key))
-            .filter((category): category is ProfessionCategory => category !== null);
-          payload.category_ids = selectedCategories
-            .map((category) => category.id)
-            .filter((id): id is string | number => id !== null);
-        }
       }
       if (editSection === "contact") {
         payload.phone = editDraft.phone || null;
@@ -601,6 +609,7 @@ export default function ProfessionalProfileClient({
       const response = await fetchJson<{
         professional: unknown;
         categories?: ProfessionalProfileDetails["categories"];
+        subcategory?: ProfessionalProfileDetails["subcategory"];
       }>(`/api/professionals/${profile.id}`, {
         method: "PATCH",
         body: JSON.stringify(payload),
@@ -610,8 +619,6 @@ export default function ProfessionalProfileClient({
         ...current,
         first_name: String(payload.first_name ?? current.first_name),
         last_name: String(payload.last_name ?? current.last_name),
-        headline:
-          "headline" in payload ? (payload.headline as string | null) : current.headline,
         bio: "bio" in payload ? (payload.bio as string | null) : current.bio,
         province_code:
           "province_code" in payload
@@ -631,6 +638,10 @@ export default function ProfessionalProfileClient({
         services_offered:
           (payload.services_offered as string[] | undefined) ?? current.services_offered,
         categories: response.categories ?? current.categories,
+        subcategory:
+          "subcategory_id" in payload
+            ? (response.subcategory ?? null)
+            : current.subcategory,
         education: (payload.education as unknown[] | undefined) ?? current.education,
         work_experiences:
           (payload.work_experiences as unknown[] | undefined) ?? current.work_experiences,
@@ -1096,7 +1107,7 @@ export default function ProfessionalProfileClient({
                     {fullName(profile)}
                   </h1>
                   <p className="mt-1 text-base font-semibold text-on-surface-variant sm:text-lg">
-                    {profile.headline || "Professione non ancora indicata"}
+                    {profileSubtitle}
                   </p>
                   <div className="mt-2 flex flex-wrap gap-3 text-sm text-on-surface-variant">
                     <span className="inline-flex items-center gap-1">
@@ -1206,9 +1217,16 @@ export default function ProfessionalProfileClient({
                       <InfoPill icon="badge" label="Cognome" value={profile.last_name || "Non indicato"} />
                       <InfoPill
                         icon="engineering"
-                        label="Professione"
-                        value={profile.headline || "Non indicato"}
+                        label="Categoria"
+                        value={primaryCategory?.name ?? "Da completare"}
                       />
+                      {profile.subcategory ? (
+                        <InfoPill
+                          icon="subdirectory_arrow_right"
+                          label="Sottocategoria"
+                          value={profile.subcategory.name}
+                        />
+                      ) : null}
                       <InfoPill
                         icon="place"
                         label="Provincia"
@@ -1510,10 +1528,10 @@ export default function ProfessionalProfileClient({
           catalogCategories={catalogCategories}
           catalogLoading={catalogLoading}
           catalogError={catalogError}
-          selectedCategoryKeys={selectedCategoryKeys}
-          setSelectedCategoryKeys={setSelectedCategoryKeys}
-          selectedSubcategoryNames={selectedSubcategoryNames}
-          setSelectedSubcategoryNames={setSelectedSubcategoryNames}
+          selectedCategoryKey={selectedCategoryKey}
+          setSelectedCategoryKey={setSelectedCategoryKey}
+          selectedSubcategoryKey={selectedSubcategoryKey}
+          setSelectedSubcategoryKey={setSelectedSubcategoryKey}
           onReloadCatalog={() => void loadCatalogCategories()}
           onCancel={() => setEditSection(null)}
           onSave={() => void saveEdit()}
@@ -1777,61 +1795,28 @@ function ListOrEmpty({ items }: { items: string[] }) {
   );
 }
 
-function CategorySpecializationSelector({
+function CategorySubcategorySelector({
   categories,
   loading,
   error,
-  selectedCategoryKeys,
-  setSelectedCategoryKeys,
-  selectedSubcategoryNames,
-  setSelectedSubcategoryNames,
+  selectedCategoryKey,
+  setSelectedCategoryKey,
+  selectedSubcategoryKey,
+  setSelectedSubcategoryKey,
   onReload,
 }: {
   categories: ProfessionCategory[];
   loading: boolean;
   error: string | null;
-  selectedCategoryKeys: string[];
-  setSelectedCategoryKeys: Dispatch<SetStateAction<string[]>>;
-  selectedSubcategoryNames: string[];
-  setSelectedSubcategoryNames: Dispatch<SetStateAction<string[]>>;
+  selectedCategoryKey: string;
+  setSelectedCategoryKey: Dispatch<SetStateAction<string>>;
+  selectedSubcategoryKey: string;
+  setSelectedSubcategoryKey: Dispatch<SetStateAction<string>>;
   onReload: () => void;
 }) {
-  const selectedCategories = selectedCategoryKeys
-    .map((key) => findProfessionCategory(categories, key))
-    .filter((category): category is ProfessionCategory => category !== null);
-  const availableSubcategories = selectedCategories.flatMap((category) =>
-    category.subcategories.map((subcategory) => ({
-      ...subcategory,
-      categoryName: category.name,
-    })),
-  );
-
-  function toggleCategory(category: ProfessionCategory) {
-    const key = professionCategoryKey(category);
-    setSelectedCategoryKeys((current) => {
-      const next = current.includes(key)
-        ? current.filter((item) => item !== key)
-        : [...current, key];
-      const nextCategoryKeys = new Set(next);
-      const allowedSubcategories = new Set(
-        categories
-          .filter((item) => nextCategoryKeys.has(professionCategoryKey(item)))
-          .flatMap((item) => item.subcategories.map((subcategory) => subcategory.name)),
-      );
-      setSelectedSubcategoryNames((currentNames) =>
-        currentNames.filter((name) => allowedSubcategories.has(name)),
-      );
-      return next;
-    });
-  }
-
-  function toggleSubcategory(name: string) {
-    setSelectedSubcategoryNames((current) =>
-      current.includes(name)
-        ? current.filter((item) => item !== name)
-        : [...current, name],
-    );
-  }
+  const selectedCategory =
+    categories.find((category) => categoryOptionValue(category) === selectedCategoryKey) ?? null;
+  const availableSubcategories = selectedCategory?.subcategories ?? [];
 
   if (loading) {
     return (
@@ -1865,62 +1850,56 @@ function CategorySpecializationSelector({
   }
 
   return (
-    <div className="space-y-4">
-      <div>
-        <h3 className="font-label-md text-primary">Categorie professionali</h3>
-        <div className="mt-3 grid gap-2 sm:grid-cols-2">
-          {categories.map((category) => {
-            const key = professionCategoryKey(category);
-            return (
-              <label
-                key={key}
-                className="flex min-h-12 items-center gap-3 rounded-2xl border border-outline-variant/50 bg-surface-container-low px-3 py-2 text-sm font-semibold text-primary"
-              >
-                <input
-                  type="checkbox"
-                  checked={selectedCategoryKeys.includes(key)}
-                  onChange={() => toggleCategory(category)}
-                />
-                <span>{category.name}</span>
-              </label>
-            );
-          })}
-        </div>
-      </div>
+    <div className="grid gap-4 sm:grid-cols-2">
+      <label className="space-y-2">
+        <span className="font-label-md text-label-md text-on-surface-variant">
+          Categoria
+        </span>
+        <select
+          className="w-full rounded-xl border border-outline-variant bg-surface-container-lowest px-4 py-3 font-body-md text-body-md outline-none transition-all focus:border-primary focus:ring-2 focus:ring-primary"
+          value={selectedCategoryKey}
+          onChange={(event) => {
+            setSelectedCategoryKey(event.target.value);
+            setSelectedSubcategoryKey("");
+          }}
+          required
+        >
+          <option value="">Seleziona una categoria</option>
+          {categories.map((category) => (
+            <option key={categoryOptionValue(category)} value={categoryOptionValue(category)}>
+              {category.name}
+            </option>
+          ))}
+        </select>
+      </label>
 
-      <div>
-        <h3 className="font-label-md text-primary">Sottocategorie attive</h3>
-        {selectedCategories.length === 0 ? (
-          <p className="mt-2 rounded-2xl bg-surface-container-low p-4 text-sm text-on-surface-variant">
-            Seleziona almeno una categoria per visualizzare le sottocategorie.
-          </p>
-        ) : availableSubcategories.length === 0 ? (
-          <p className="mt-2 rounded-2xl bg-surface-container-low p-4 text-sm text-on-surface-variant">
-            Le categorie selezionate non hanno sottocategorie attive.
-          </p>
-        ) : (
-          <div className="mt-3 max-h-[280px] space-y-2 overflow-y-auto rounded-2xl border border-outline-variant/40 bg-surface-container-low p-3">
-            {availableSubcategories.map((subcategory) => (
-              <label
-                key={`${subcategory.categoryName}-${subcategory.slug}`}
-                className="flex min-h-11 items-center gap-3 rounded-xl bg-white px-3 py-2 text-sm text-primary"
-              >
-                <input
-                  type="checkbox"
-                  checked={selectedSubcategoryNames.includes(subcategory.name)}
-                  onChange={() => toggleSubcategory(subcategory.name)}
-                />
-                <span className="min-w-0">
-                  <span className="block font-semibold">{subcategory.name}</span>
-                  <span className="block text-xs text-on-surface-variant">
-                    {subcategory.categoryName}
-                  </span>
-                </span>
-              </label>
-            ))}
-          </div>
-        )}
-      </div>
+      <label className="space-y-2">
+        <span className="font-label-md text-label-md text-on-surface-variant">
+          Sottocategoria (facoltativa)
+        </span>
+        <select
+          className="w-full rounded-xl border border-outline-variant bg-surface-container-lowest px-4 py-3 font-body-md text-body-md outline-none transition-all focus:border-primary focus:ring-2 focus:ring-primary disabled:bg-surface-container-low disabled:text-outline"
+          value={selectedSubcategoryKey}
+          onChange={(event) => setSelectedSubcategoryKey(event.target.value)}
+          disabled={!selectedCategory || availableSubcategories.length === 0}
+        >
+          <option value="">
+            {!selectedCategory
+              ? "Seleziona prima una categoria"
+              : availableSubcategories.length === 0
+                ? "Nessuna sottocategoria disponibile"
+                : "Seleziona una sottocategoria"}
+          </option>
+          {availableSubcategories.map((subcategory) => (
+            <option
+              key={subcategoryOptionValue(subcategory)}
+              value={subcategoryOptionValue(subcategory)}
+            >
+              {subcategory.name}
+            </option>
+          ))}
+        </select>
+      </label>
     </div>
   );
 }
@@ -1934,10 +1913,10 @@ function EditModal({
   catalogCategories,
   catalogLoading,
   catalogError,
-  selectedCategoryKeys,
-  setSelectedCategoryKeys,
-  selectedSubcategoryNames,
-  setSelectedSubcategoryNames,
+  selectedCategoryKey,
+  setSelectedCategoryKey,
+  selectedSubcategoryKey,
+  setSelectedSubcategoryKey,
   onReloadCatalog,
   onCancel,
   onSave,
@@ -1950,17 +1929,17 @@ function EditModal({
   catalogCategories: ProfessionCategory[];
   catalogLoading: boolean;
   catalogError: string | null;
-  selectedCategoryKeys: string[];
-  setSelectedCategoryKeys: Dispatch<SetStateAction<string[]>>;
-  selectedSubcategoryNames: string[];
-  setSelectedSubcategoryNames: Dispatch<SetStateAction<string[]>>;
+  selectedCategoryKey: string;
+  setSelectedCategoryKey: Dispatch<SetStateAction<string>>;
+  selectedSubcategoryKey: string;
+  setSelectedSubcategoryKey: Dispatch<SetStateAction<string>>;
   onReloadCatalog: () => void;
   onCancel: () => void;
   onSave: () => void;
 }) {
   const titleBySection: Record<EditSection, string> = {
-    intro: "Informazioni personali/professionali",
-    services: "Servizi, professione e sottocategorie",
+    intro: "Informazioni personali e professionali",
+    services: "Servizi offerti",
     contact: "Dati di contatto",
     education: "Studi/Formazione",
     work: "Esperienze lavorative",
@@ -1983,7 +1962,16 @@ function EditModal({
                 <TextInput label="Nome" value={String(draft.first_name ?? "")} onChange={(v) => setValue("first_name", v)} />
                 <TextInput label="Cognome" value={String(draft.last_name ?? "")} onChange={(v) => setValue("last_name", v)} />
               </div>
-              <TextInput label="Titolo professionale" value={String(draft.headline ?? "")} onChange={(v) => setValue("headline", v)} />
+              <CategorySubcategorySelector
+                categories={catalogCategories}
+                loading={catalogLoading}
+                error={catalogError}
+                selectedCategoryKey={selectedCategoryKey}
+                setSelectedCategoryKey={setSelectedCategoryKey}
+                selectedSubcategoryKey={selectedSubcategoryKey}
+                setSelectedSubcategoryKey={setSelectedSubcategoryKey}
+                onReload={onReloadCatalog}
+              />
               <ProvinceSelect
                 label="Provincia"
                 value={String(draft.province_code ?? "")}
@@ -2011,19 +1999,6 @@ function EditModal({
           {section === "services" ? (
             <>
               <TextArea label="Servizi offerti (uno per riga)" value={String(draft.services_offered ?? "")} onChange={(v) => setValue("services_offered", v)} />
-              <CategorySpecializationSelector
-                categories={catalogCategories}
-                loading={catalogLoading}
-                error={catalogError}
-                selectedCategoryKeys={selectedCategoryKeys}
-                setSelectedCategoryKeys={setSelectedCategoryKeys}
-                selectedSubcategoryNames={selectedSubcategoryNames}
-                setSelectedSubcategoryNames={setSelectedSubcategoryNames}
-                onReload={onReloadCatalog}
-              />
-              {catalogError ? (
-                <TextArea label="Sottocategorie fallback (una per riga)" value={String(draft.specializations ?? "")} onChange={(v) => setValue("specializations", v)} />
-              ) : null}
             </>
           ) : null}
           {section === "contact" ? (

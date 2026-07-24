@@ -11,6 +11,11 @@ export default async function ProfessionalHomePage() {
     .select("avatar_url")
     .eq("id", profile.id)
     .maybeSingle();
+  const { data: categoryLinks } = await supabase
+    .from("professional_categories")
+    .select("category_id")
+    .eq("professional_id", profile.id)
+    .limit(1);
 
   return (
     <ProfessionalDashboardClient
@@ -22,6 +27,7 @@ export default async function ProfessionalHomePage() {
         province_code: profile.province_code,
         phone: profile.phone,
         avatar_url: professionalProfile?.avatar_url ?? null,
+        has_category: Boolean(categoryLinks?.length),
       }}
     />
   );

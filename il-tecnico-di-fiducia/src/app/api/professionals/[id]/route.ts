@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { requireAuth } from "@/lib/api/auth";
 import { isNonEmptyString } from "@/lib/api/validation";
 import { normalizeItalianProvinceCode } from "@/lib/locations/italian-provinces";
+import { validateProfessionalTaxonomySelection } from "@/lib/server/professional-taxonomy";
 import { isProfessionalVisibleToCustomers } from "@/lib/server/professional-visibility";
 import { createServiceClient } from "@/lib/supabase/service";
 import { normalizeWebsiteUrl } from "@/lib/validation/website-url";
@@ -18,6 +19,8 @@ type UpdateProfessionalPayload = {
   bio?: string | null;
   public_email?: string | null;
   website_url?: string | null;
+  category_id?: CategoryId | null;
+  subcategory_id?: string | null;
   category_ids?: CategoryId[];
   specializations?: string[];
   services_offered?: string[];
@@ -98,7 +101,7 @@ export async function GET(
   const { data: professional, error: professionalError } = await supabase
     .from("professional_directory")
     .select(
-      "id, first_name, last_name, province_code, headline, bio, specializations, avatar_url, cover_url, available_remote, available_travel, created_at, updated_at",
+      "id, first_name, last_name, province_code, headline, bio, specializations, avatar_url, cover_url, subcategory_id, available_remote, available_travel, created_at, updated_at",
     )
     .eq("id", id)
     .maybeSingle();
@@ -141,6 +144,21 @@ export async function GET(
     );
   }
 
+  const { data: subcategory, error: subcategoryError } = professional.subcategory_id
+    ? await supabase
+        .from("subcategories")
+        .select("id, category_id, name, slug")
+        .eq("id", professional.subcategory_id)
+        .maybeSingle()
+    : { data: null, error: null };
+
+  if (subcategoryError) {
+    return NextResponse.json(
+      { error: "Failed to load subcategory" },
+      { status: 500 },
+    );
+  }
+
   let contactRequest: { id: string; status: string; created_at: string } | null = null;
   let isFollowing: boolean | null = null;
   let isSaved: boolean | null = null;
@@ -179,6 +197,7 @@ export async function GET(
   return NextResponse.json({
     professional,
     categories: categories ?? [],
+    subcategory: subcategory ?? null,
     viewer: {
       role: profile.role,
       contact_request: contactRequest,
@@ -247,6 +266,8 @@ export async function PATCH(
   const publicEmail = optionalText(payload.public_email, 160);
   const hasWebsiteUrl = Object.prototype.hasOwnProperty.call(payload, "website_url");
   const websiteUrl = normalizeWebsiteUrl(payload.website_url);
+  const hasCategoryId = Object.prototype.hasOwnProperty.call(payload, "category_id");
+  const hasSubcategoryId = Object.prototype.hasOwnProperty.call(payload, "subcategory_id");
   const categoryIds = optionalCategoryIds(payload.category_ids);
   const specializations = optionalStringArray(payload.specializations);
   const servicesOffered = optionalStringArray(payload.services_offered);
@@ -288,10 +309,62 @@ export async function PATCH(
     professionalUpdates.available_travel = payload.available_travel;
   }
 
-  const service = categoryIds !== undefined ? createServiceClient() : null;
+  const service =
+    categoryIds !== undefined || hasCategoryId || hasSubcategoryId
+      ? createServiceClient()
+      : null;
   let savedCategories: { id: CategoryId; name: string; slug: string }[] | null = null;
+  let savedSubcategory:
+    | { id: string; category_id: CategoryId; name: string; slug: string }
+    | null
+    | undefined;
 
-  if (categoryIds !== undefined) {
+  if (!hasCategoryId && hasSubcategoryId) {
+    return NextResponse.json({ error: "Seleziona una categoria" }, { status: 400 });
+  }
+
+  if (hasCategoryId) {
+    const taxonomy = await validateProfessionalTaxonomySelection(service!, {
+      category_id: payload.category_id,
+      subcategory_id: payload.subcategory_id,
+    });
+
+    if (!taxonomy.ok) {
+      return NextResponse.json({ error: taxonomy.error }, { status: taxonomy.status });
+    }
+
+    const { error: deleteCategoryLinksError } = await service!
+      .from("professional_categories")
+      .delete()
+      .eq("professional_id", id);
+
+    if (deleteCategoryLinksError) {
+      return NextResponse.json(
+        { error: "Non è stato possibile aggiornare la categoria professionale." },
+        { status: 400 },
+      );
+    }
+
+    const { error: insertCategoryLinkError } = await service!
+      .from("professional_categories")
+      .insert({
+        professional_id: id,
+        category_id: taxonomy.selection.category.id,
+      });
+
+    if (insertCategoryLinkError) {
+      return NextResponse.json(
+        { error: "Non è stato possibile salvare la categoria professionale." },
+        { status: 400 },
+      );
+    }
+
+    professionalUpdates.subcategory_id = taxonomy.selection.subcategory?.id ?? null;
+    savedCategories = [taxonomy.selection.category];
+    savedSubcategory = taxonomy.selection.subcategory;
+  }
+
+  if (!hasCategoryId && categoryIds !== undefined) {
     const { data: validCategories, error: validCategoriesError } = categoryIds.length
       ? await service!
           .from("categories")
@@ -373,10 +446,14 @@ export async function PATCH(
   const { data: professional } = await supabase
     .from("professional_profiles")
     .select(
-      "id, headline, bio, specializations, avatar_url, cover_url, public_email, website_url, education, work_experiences, certifications, services_offered, operational_provinces, available_remote, available_travel, updated_at",
+      "id, headline, bio, specializations, avatar_url, cover_url, public_email, website_url, subcategory_id, education, work_experiences, certifications, services_offered, operational_provinces, available_remote, available_travel, updated_at",
     )
     .eq("id", id)
     .maybeSingle();
 
-  return NextResponse.json({ professional, categories: savedCategories ?? undefined });
+  return NextResponse.json({
+    professional,
+    categories: savedCategories ?? undefined,
+    subcategory: savedSubcategory,
+  });
 }

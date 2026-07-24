@@ -11,11 +11,19 @@ import {
   normalizeItalianProvinceCode,
   type ItalianProvince,
 } from "@/lib/locations/italian-provinces";
+import {
+  normalizeProfessionCategories,
+  professionCategoryKey,
+  type DbProfessionCategory,
+  type ProfessionCategory,
+  type ProfessionSubcategory,
+} from "@/lib/professions/taxonomy";
 import { nextPathByRole } from "@/lib/routes/role-paths";
 
 type Role = "customer" | "professional";
 
 type ProvincesResponse = { provinces: ItalianProvince[] };
+type CategoriesResponse = { categories: DbProfessionCategory[] };
 
 type SignUpResponse = {
   ok: true;
@@ -36,6 +44,24 @@ function normalizeOtp(raw: string) {
   return raw.replace(/\s+/g, "").trim();
 }
 
+function categoryOptionValue(category: ProfessionCategory) {
+  return category.id !== null && category.id !== undefined
+    ? `id:${category.id}`
+    : professionCategoryKey(category);
+}
+
+function categoryIdFromOption(value: string) {
+  return value.startsWith("id:") ? value.slice(3) : "";
+}
+
+function subcategoryOptionValue(subcategory: ProfessionSubcategory) {
+  return subcategory.id ? `id:${subcategory.id}` : `slug:${subcategory.slug}`;
+}
+
+function subcategoryIdFromOption(value: string) {
+  return value.startsWith("id:") ? value.slice(3) : "";
+}
+
 type RegisterClientProps = {
   initialRole: Role;
 };
@@ -50,6 +76,8 @@ export default function RegisterClient({ initialRole }: RegisterClientProps) {
   const [lastName, setLastName] = useState("");
   const [provinceCode, setProvinceCode] = useState<string>("");
   const [phone, setPhone] = useState("");
+  const [categoryKey, setCategoryKey] = useState("");
+  const [subcategoryKey, setSubcategoryKey] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [acceptTerms, setAcceptTerms] = useState(false);
@@ -57,12 +85,31 @@ export default function RegisterClient({ initialRole }: RegisterClientProps) {
   const [otp, setOtp] = useState("");
 
   const [provinces, setProvinces] = useState<ItalianProvince[]>(ITALIAN_PROVINCES_BY_NAME);
+  const [categories, setCategories] = useState<ProfessionCategory[]>([]);
+  const [categoriesLoading, setCategoriesLoading] = useState(false);
+  const [categoriesError, setCategoriesError] = useState<string | null>(null);
+  const [categoriesReloadKey, setCategoriesReloadKey] = useState(0);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [otpError, setOtpError] = useState<string | null>(null);
   const [otpInfo, setOtpInfo] = useState<string | null>(null);
 
   const emailValue = useMemo(() => normalizeEmail(email), [email]);
+  const currentCategory = useMemo(
+    () => categories.find((category) => categoryOptionValue(category) === categoryKey) ?? null,
+    [categories, categoryKey],
+  );
+  const currentSubcategories = useMemo(
+    () => currentCategory?.subcategories ?? [],
+    [currentCategory],
+  );
+  const currentSubcategory = useMemo(
+    () =>
+      currentSubcategories.find(
+        (subcategory) => subcategoryOptionValue(subcategory) === subcategoryKey,
+      ) ?? null,
+    [currentSubcategories, subcategoryKey],
+  );
 
   useEffect(() => {
     let mounted = true;
@@ -81,6 +128,39 @@ export default function RegisterClient({ initialRole }: RegisterClientProps) {
     };
   }, []);
 
+  useEffect(() => {
+    if (role !== "professional" || categories.length > 0 || categoriesLoading) return;
+
+    let mounted = true;
+    Promise.resolve()
+      .then(() => {
+        if (!mounted) return null;
+        setCategoriesLoading(true);
+        setCategoriesError(null);
+        return fetchJson<CategoriesResponse>("/api/categories", { method: "GET" });
+      })
+      .then((res) => {
+        if (!mounted || !res) return;
+        const nextCategories = normalizeProfessionCategories(res.categories ?? []);
+        setCategories(nextCategories);
+        if (nextCategories.length === 0) {
+          setCategoriesError("Nessuna categoria attiva disponibile al momento.");
+        }
+      })
+      .catch(() => {
+        if (!mounted) return;
+        setCategories([]);
+        setCategoriesError("Non è stato possibile caricare le categorie. Riprova.");
+      })
+      .finally(() => {
+        if (mounted) setCategoriesLoading(false);
+      });
+
+    return () => {
+      mounted = false;
+    };
+  }, [categories.length, categoriesLoading, categoriesReloadKey, role]);
+
   async function onSignUp(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
@@ -90,6 +170,12 @@ export default function RegisterClient({ initialRole }: RegisterClientProps) {
     const normalizedProvinceCode = normalizeItalianProvinceCode(provinceCode);
     if (!normalizedProvinceCode) {
       setError("Seleziona la tua provincia.");
+      return;
+    }
+
+    const selectedCategoryId = categoryIdFromOption(categoryKey);
+    if (role === "professional" && !selectedCategoryId) {
+      setError("Seleziona una categoria");
       return;
     }
 
@@ -106,6 +192,11 @@ export default function RegisterClient({ initialRole }: RegisterClientProps) {
           last_name: lastName,
           province_code: normalizedProvinceCode,
           phone: phone || null,
+          category_id: role === "professional" ? selectedCategoryId : null,
+          subcategory_id:
+            role === "professional" && currentSubcategory
+              ? subcategoryIdFromOption(subcategoryOptionValue(currentSubcategory)) || null
+              : null,
           accept_terms: acceptTerms,
         }),
       });
@@ -295,6 +386,79 @@ export default function RegisterClient({ initialRole }: RegisterClientProps) {
                 />
               </div>
             </div>
+
+            {role === "professional" ? (
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                <div className="space-y-2">
+                  <label className="font-label-md text-label-md text-on-surface-variant">
+                    Categoria
+                  </label>
+                  <select
+                    className="w-full px-4 py-3 bg-surface-container-lowest border border-outline-variant rounded-xl focus:ring-2 focus:ring-primary focus:border-primary outline-none transition-all font-body-md text-body-md disabled:bg-surface-container-low disabled:text-outline"
+                    value={categoryKey}
+                    onChange={(e) => {
+                      setCategoryKey(e.target.value);
+                      setSubcategoryKey("");
+                    }}
+                    required
+                    disabled={categoriesLoading || Boolean(categoriesError)}
+                  >
+                    <option value="">
+                      {categoriesLoading ? "Caricamento categorie…" : "Seleziona una categoria"}
+                    </option>
+                    {categories.map((category) => (
+                      <option key={categoryOptionValue(category)} value={categoryOptionValue(category)}>
+                        {category.name}
+                      </option>
+                    ))}
+                  </select>
+                  {categoriesError ? (
+                    <div className="flex flex-wrap items-center gap-2 text-sm text-error">
+                      <span>{categoriesError}</span>
+                      <button
+                        type="button"
+                        className="font-label-md text-label-md underline underline-offset-4"
+                        onClick={() => {
+                          setCategories([]);
+                          setCategoriesError(null);
+                          setCategoriesReloadKey((value) => value + 1);
+                        }}
+                      >
+                        Riprova
+                      </button>
+                    </div>
+                  ) : null}
+                </div>
+
+                <div className="space-y-2">
+                  <label className="font-label-md text-label-md text-on-surface-variant">
+                    Sottocategoria (facoltativa)
+                  </label>
+                  <select
+                    className="w-full px-4 py-3 bg-surface-container-lowest border border-outline-variant rounded-xl focus:ring-2 focus:ring-primary focus:border-primary outline-none transition-all font-body-md text-body-md disabled:bg-surface-container-low disabled:text-outline"
+                    value={subcategoryKey}
+                    onChange={(e) => setSubcategoryKey(e.target.value)}
+                    disabled={!currentCategory || currentSubcategories.length === 0}
+                  >
+                    <option value="">
+                      {!currentCategory
+                        ? "Seleziona prima una categoria"
+                        : currentSubcategories.length === 0
+                          ? "Nessuna sottocategoria disponibile"
+                          : "Seleziona una sottocategoria"}
+                    </option>
+                    {currentSubcategories.map((subcategory) => (
+                      <option
+                        key={subcategoryOptionValue(subcategory)}
+                        value={subcategoryOptionValue(subcategory)}
+                      >
+                        {subcategory.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+            ) : null}
 
             <PasswordField
               label="Password"

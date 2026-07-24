@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 
 import { requireAuth } from "@/lib/api/auth";
 import { ensureSocialNotification } from "@/lib/server/social-notifications";
+import { createServiceClient } from "@/lib/supabase/service";
 
 type FollowPayload = {
   followed_id: string;
@@ -13,8 +14,95 @@ type FollowedProfessionalRow = {
   last_name: string;
   avatar_url: string | null;
   headline: string | null;
+  subcategory_id?: string | null;
   province_code: string | null;
+  categories?: FollowedProfessionalCategory[];
+  subcategory?: FollowedProfessionalSubcategory | null;
 };
+
+type CategoryId = string | number;
+
+type FollowedProfessionalCategory = {
+  id: CategoryId | null;
+  name: string;
+  slug: string;
+};
+
+type FollowedProfessionalSubcategory = {
+  id: string;
+  category_id: CategoryId;
+  name: string;
+  slug: string;
+};
+
+async function attachTaxonomy(professionals: FollowedProfessionalRow[]) {
+  if (professionals.length === 0) return professionals;
+
+  const service = createServiceClient();
+  const professionalIds = professionals.map((professional) => professional.id);
+  const { data: mappings } = await service
+    .from("professional_categories")
+    .select("professional_id, category_id")
+    .in("professional_id", professionalIds);
+
+  const categoryIds = Array.from(
+    new Set((mappings ?? []).map((mapping) => mapping.category_id).filter(Boolean)),
+  );
+  const { data: categories } =
+    categoryIds.length > 0
+      ? await service
+          .from("categories")
+          .select("id, name, slug")
+          .in("id", categoryIds)
+          .eq("is_active", true)
+      : { data: [] };
+
+  const subcategoryIds = Array.from(
+    new Set(
+      professionals
+        .map((professional) => professional.subcategory_id)
+        .filter((id): id is string => Boolean(id)),
+    ),
+  );
+  const { data: subcategories } =
+    subcategoryIds.length > 0
+      ? await service
+          .from("subcategories")
+          .select("id, category_id, name, slug")
+          .in("id", subcategoryIds)
+          .eq("is_active", true)
+      : { data: [] };
+
+  const categoryById = new Map(
+    ((categories ?? []) as FollowedProfessionalCategory[]).map((category) => [
+      String(category.id),
+      category,
+    ]),
+  );
+  const subcategoryById = new Map(
+    ((subcategories ?? []) as FollowedProfessionalSubcategory[]).map((subcategory) => [
+      subcategory.id,
+      subcategory,
+    ]),
+  );
+  const categoriesByProfessionalId = new Map<string, FollowedProfessionalCategory[]>();
+
+  for (const mapping of mappings ?? []) {
+    const category = categoryById.get(String(mapping.category_id));
+    if (!category) continue;
+    const current = categoriesByProfessionalId.get(mapping.professional_id) ?? [];
+    current.push(category);
+    categoriesByProfessionalId.set(mapping.professional_id, current);
+  }
+
+  return professionals.map((professional) => ({
+    ...professional,
+    categories: categoriesByProfessionalId.get(professional.id) ?? [],
+    subcategory: professional.subcategory_id
+      ? (subcategoryById.get(professional.subcategory_id) ?? null)
+      : null,
+  }));
+}
 
 export async function GET() {
   const auth = await requireAuth({ allowedRoles: ["professional"] });
@@ -37,7 +125,7 @@ export async function GET() {
     followedIds.length > 0
       ? await supabase
           .from("professional_directory")
-          .select("id, first_name, last_name, avatar_url, headline, province_code")
+          .select("id, first_name, last_name, avatar_url, headline, subcategory_id, province_code")
           .in("id", followedIds)
       : { data: [], error: null };
 
@@ -53,9 +141,9 @@ export async function GET() {
   );
 
   return NextResponse.json({
-    followed: followedIds
+    followed: await attachTaxonomy(followedIds
       .map((id) => professionalsById.get(id))
-      .filter(Boolean) as FollowedProfessionalRow[],
+      .filter(Boolean) as FollowedProfessionalRow[]),
   });
 }
 

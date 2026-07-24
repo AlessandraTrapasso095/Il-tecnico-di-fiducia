@@ -66,6 +66,7 @@ export default async function CustomerDashboardPage({
       initialFilters={{
         q: readParam(sp, "q"),
         categoryId: readParam(sp, "category_id"),
+        subcategoryId: readParam(sp, "subcategory_id"),
         provinceCode: readParam(sp, "province_code"),
         remote: readBooleanParam(sp, "remote"),
         travel: readBooleanParam(sp, "travel"),

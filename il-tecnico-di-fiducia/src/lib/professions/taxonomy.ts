@@ -1,11 +1,11 @@
 export type ProfessionSubcategory = {
+  id?: string;
+  category_id?: number | string | null;
   name: string;
   slug: string;
 };
 
 export type DbProfessionSubcategory = ProfessionSubcategory & {
-  id?: string;
-  category_id?: number | string | null;
   sort_order?: number | null;
   is_active?: boolean | null;
 };
@@ -681,6 +681,8 @@ export function normalizeProfessionCategories(categories: DbProfessionCategory[]
             left.name.localeCompare(right.name, "it"),
         )
         .map((subcategory) => ({
+          id: subcategory.id,
+          category_id: subcategory.category_id,
           name: subcategory.name,
           slug: subcategory.slug,
         })),

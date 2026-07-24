@@ -27,6 +27,7 @@ import {
   professionCategoryKey,
   type DbProfessionCategory,
   type ProfessionCategory,
+  type ProfessionSubcategory,
 } from "@/lib/professions/taxonomy";
 
 import MessagesClient from "../messages/messages-client";
@@ -51,6 +52,8 @@ type ProfessionalRow = {
   available_travel: boolean | null;
   rating_average: number | null;
   reviews_count: number;
+  categories?: { id: string | number | null; name: string; slug: string }[];
+  subcategory?: { id: string; category_id: string | number; name: string; slug: string } | null;
 };
 
 type ProfessionalsResponse = {
@@ -146,6 +149,7 @@ type CustomerDashboardClientProps = {
     q?: string;
     provinceCode?: string;
     categoryId?: string;
+    subcategoryId?: string;
     remote?: boolean;
     travel?: boolean;
   };
@@ -274,6 +278,22 @@ function splitCategoryId(value: string) {
   return value.startsWith("id:") ? value.slice(3) : "";
 }
 
+function subcategoryOptionValue(subcategory: ProfessionSubcategory) {
+  return subcategory.id ? `id:${subcategory.id}` : `slug:${subcategory.slug}`;
+}
+
+function splitSubcategoryId(value: string) {
+  return value.startsWith("id:") ? value.slice(3) : "";
+}
+
+function professionalCategoryLabel(professional: ProfessionalRow) {
+  const categoryName = professional.categories?.[0]?.name;
+  if (!categoryName) return professional.headline ?? "Categoria da completare";
+  return professional.subcategory?.name
+    ? `${categoryName} · ${professional.subcategory.name}`
+    : categoryName;
+}
+
 function RatingStars({
   average,
   count,
@@ -364,7 +384,9 @@ export default function CustomerDashboardClient({
   const [categoryKey, setCategoryKey] = useState<string>(() =>
     initialFilters?.categoryId ? `id:${initialFilters.categoryId}` : "",
   );
-  const [subcategorySlug, setSubcategorySlug] = useState("");
+  const [subcategoryKey, setSubcategoryKey] = useState<string>(() =>
+    initialFilters?.subcategoryId ? `id:${initialFilters.subcategoryId}` : "",
+  );
   const [remote, setRemote] = useState(() => initialFilters?.remote ?? false);
   const [travel, setTravel] = useState(() => initialFilters?.travel ?? false);
   const [filterOpen, setFilterOpen] = useState(false);
@@ -422,12 +444,14 @@ export default function CustomerDashboardClient({
   );
   const currentSubcategories = currentCategory?.subcategories ?? [];
   const currentSubcategory =
-    currentSubcategories.find((subcategory) => subcategory.slug === subcategorySlug) ?? null;
+    currentSubcategories.find(
+      (subcategory) => subcategoryOptionValue(subcategory) === subcategoryKey,
+    ) ?? null;
   const hasActiveSearch =
     Boolean(sanitizeQuery(q)) ||
     Boolean(provinceCode) ||
     Boolean(categoryKey) ||
-    Boolean(subcategorySlug) ||
+    Boolean(subcategoryKey) ||
     remote ||
     travel;
   const unreadNotifications = useMemo(
@@ -519,11 +543,13 @@ export default function CustomerDashboardClient({
 
     const qq = sanitizeQuery(q);
     const categoryId = splitCategoryId(categoryKey);
+    const subcategoryId = splitSubcategoryId(subcategoryKey);
     if (qq) params.set("q", qq);
     if (provinceCode) params.set("province_code", provinceCode);
     if (categoryId) params.set("category_id", categoryId);
     if (currentCategory && !categoryId) params.set("category_slug", currentCategory.slug);
-    if (currentSubcategory) params.set("subcategory", currentSubcategory.name);
+    if (subcategoryId) params.set("subcategory_id", subcategoryId);
+    if (currentSubcategory && !subcategoryId) params.set("subcategory", currentSubcategory.name);
     if (remote) params.set("remote", "true");
     if (travel) params.set("travel", "true");
     if (!hasActiveSearch) {
@@ -596,14 +622,14 @@ export default function CustomerDashboardClient({
 
   function updateCategory(nextKey: string) {
     setCategoryKey(nextKey);
-    setSubcategorySlug("");
+    setSubcategoryKey("");
   }
 
   function resetFilters() {
     setQ("");
     setProvinceCode("");
     setCategoryKey("");
-    setSubcategorySlug("");
+    setSubcategoryKey("");
     setRemote(false);
     setTravel(false);
   }
@@ -747,7 +773,7 @@ export default function CustomerDashboardClient({
       if (searchDebounce.current) window.clearTimeout(searchDebounce.current);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [q, provinceCode, categoryKey, subcategorySlug, remote, travel, categories.length]);
+  }, [q, provinceCode, categoryKey, subcategoryKey, remote, travel, categories.length]);
 
   useEffect(() => {
     if (!filterOpen) return;
@@ -1058,7 +1084,7 @@ export default function CustomerDashboardClient({
                               {fullName(professional)}
                             </div>
                             <div className="truncate text-xs text-on-surface-variant">
-                              {professional.headline ?? "Professione non indicata"}
+                              {professionalCategoryLabel(professional)}
                             </div>
                             <div className="mt-1 truncate text-xs text-on-surface-variant">
                               {professional.province_code
@@ -1384,8 +1410,8 @@ export default function CustomerDashboardClient({
                             </span>
                             <select
                               className="w-full rounded-xl border border-outline-variant bg-surface-container-lowest px-4 py-3 font-body-md text-body-md outline-none transition-all focus:border-primary focus:ring-2 focus:ring-primary disabled:bg-surface-container-low disabled:text-outline"
-                              value={subcategorySlug}
-                              onChange={(e) => setSubcategorySlug(e.target.value)}
+                              value={subcategoryKey}
+                              onChange={(e) => setSubcategoryKey(e.target.value)}
                               disabled={!currentCategory || currentSubcategories.length === 0}
                             >
                               <option value="">
@@ -1394,7 +1420,10 @@ export default function CustomerDashboardClient({
                                   : "Seleziona prima una categoria"}
                               </option>
                               {currentSubcategories.map((subcategory) => (
-                                <option key={subcategory.slug} value={subcategory.slug}>
+                                <option
+                                  key={subcategoryOptionValue(subcategory)}
+                                  value={subcategoryOptionValue(subcategory)}
+                                >
                                   {subcategory.name}
                                 </option>
                               ))}
@@ -1550,7 +1579,7 @@ export default function CustomerDashboardClient({
                               {fullName(p)}
                             </div>
                             <div className="mt-1 line-clamp-2 text-sm text-on-surface-variant">
-                              {p.headline ?? "Professione non indicata"}
+                              {professionalCategoryLabel(p)}
                             </div>
                             <div className="mt-3 flex flex-wrap gap-2">
                               {p.province_code ? (

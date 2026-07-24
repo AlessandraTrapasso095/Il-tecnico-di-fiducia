@@ -58,6 +58,9 @@ function buildCustomerPath(input: {
   if (input.category?.id !== null && input.category?.id !== undefined) {
     params.set("category_id", String(input.category.id));
   }
+  if (input.subcategory?.id) {
+    params.set("subcategory_id", input.subcategory.id);
+  }
   if (q) params.set("q", q);
   if (input.provinceCode) params.set("province_code", input.provinceCode);
   if (input.remote) params.set("remote", "true");
@@ -65,6 +68,10 @@ function buildCustomerPath(input: {
 
   const queryString = params.toString();
   return `/customer${queryString ? `?${queryString}` : ""}`;
+}
+
+function subcategoryOptionValue(subcategory: ProfessionSubcategory) {
+  return subcategory.id ? `id:${subcategory.id}` : `slug:${subcategory.slug}`;
 }
 
 export function ProfessionSearchFlow() {
@@ -77,7 +84,7 @@ export function ProfessionSearchFlow() {
   const [reloadKey, setReloadKey] = useState(0);
   const [provinces, setProvinces] = useState<ItalianProvince[]>(ITALIAN_PROVINCES_BY_NAME);
   const [selectedCategoryKey, setSelectedCategoryKey] = useState("");
-  const [selectedSubcategorySlug, setSelectedSubcategorySlug] = useState("");
+  const [selectedSubcategoryKey, setSelectedSubcategoryKey] = useState("");
   const [provinceCode, setProvinceCode] = useState("");
   const [remote, setRemote] = useState(false);
   const [travel, setTravel] = useState(false);
@@ -122,13 +129,15 @@ export function ProfessionSearchFlow() {
   const currentCategory = findProfessionCategory(categories, selectedCategoryKey);
   const currentSubcategories = currentCategory?.subcategories ?? [];
   const currentSubcategory =
-    currentSubcategories.find((subcategory) => subcategory.slug === selectedSubcategorySlug) ??
+    currentSubcategories.find(
+      (subcategory) => subcategoryOptionValue(subcategory) === selectedSubcategoryKey,
+    ) ??
     null;
   const categoryLabel = currentCategory?.name ?? "";
 
   function selectCategory(nextCategory: ProfessionCategory) {
     setSelectedCategoryKey(professionCategoryKey(nextCategory));
-    setSelectedSubcategorySlug("");
+    setSelectedSubcategoryKey("");
     window.requestAnimationFrame(() => {
       formRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
     });
@@ -136,7 +145,7 @@ export function ProfessionSearchFlow() {
 
   function changeCategory(nextKey: string) {
     setSelectedCategoryKey(nextKey);
-    setSelectedSubcategorySlug("");
+    setSelectedSubcategoryKey("");
   }
 
   function submitSearch(event: FormEvent<HTMLFormElement>) {
@@ -265,15 +274,18 @@ export function ProfessionSearchFlow() {
             </span>
             <select
               className="w-full px-4 py-3 bg-surface-container-lowest border border-outline-variant rounded-xl focus:ring-2 focus:ring-primary focus:border-primary outline-none transition-all font-body-md text-body-md disabled:bg-surface-container-low disabled:text-outline"
-              value={selectedSubcategorySlug}
-              onChange={(event) => setSelectedSubcategorySlug(event.target.value)}
+              value={selectedSubcategoryKey}
+              onChange={(event) => setSelectedSubcategoryKey(event.target.value)}
               disabled={!currentCategory || currentSubcategories.length === 0}
             >
               <option value="">
                 {currentCategory ? "Tutte le sottocategorie" : "Seleziona prima una categoria"}
               </option>
               {currentSubcategories.map((subcategory) => (
-                <option key={subcategory.slug} value={subcategory.slug}>
+                <option
+                  key={subcategoryOptionValue(subcategory)}
+                  value={subcategoryOptionValue(subcategory)}
+                >
                   {subcategory.name}
                 </option>
               ))}

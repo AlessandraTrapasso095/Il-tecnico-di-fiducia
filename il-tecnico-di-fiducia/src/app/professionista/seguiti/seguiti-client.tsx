@@ -13,6 +13,8 @@ type FollowedProfessional = {
   avatar_url: string | null;
   headline: string | null;
   province_code: string | null;
+  categories?: { id: string | number | null; name: string; slug: string }[];
+  subcategory?: { id: string; category_id: string | number; name: string; slug: string } | null;
 };
 
 type FollowsResponse = {
@@ -21,6 +23,14 @@ type FollowsResponse = {
 
 function fullName(person: Pick<FollowedProfessional, "first_name" | "last_name">) {
   return `${person.first_name ?? ""} ${person.last_name ?? ""}`.trim() || "Professionista";
+}
+
+function professionalCategoryLabel(professional: FollowedProfessional) {
+  const categoryName = professional.categories?.[0]?.name;
+  if (!categoryName) return professional.headline ?? "Categoria da completare";
+  return professional.subcategory?.name
+    ? `${categoryName} · ${professional.subcategory.name}`
+    : categoryName;
 }
 
 export default function FollowedProfessionalsClient() {
@@ -115,7 +125,7 @@ export default function FollowedProfessionalsClient() {
                     {fullName(professional)}
                   </h2>
                   <p className="mt-1 line-clamp-2 text-on-surface-variant">
-                    {professional.headline ?? "Professionista"}
+                    {professionalCategoryLabel(professional)}
                   </p>
                   <div className="mt-3 flex flex-wrap gap-2">
                     <span className="rounded-full bg-primary-fixed px-3 py-1 text-[12px] font-bold uppercase tracking-[0.08em] text-on-primary-fixed-variant">
