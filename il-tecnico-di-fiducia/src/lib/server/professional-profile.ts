@@ -29,7 +29,7 @@ export type ProfessionalProfileDetails = {
   available_travel: boolean;
   rating_average: number | null;
   reviews_count: number;
-  categories: { id: number; name: string; slug: string }[];
+  categories: { id: string | number; name: string; slug: string }[];
 };
 
 export type ProfessionalProfileAccess = {
@@ -192,7 +192,7 @@ export async function loadProfessionalProfile({
     available_travel: Boolean(professional.available_travel),
     rating_average: ratingAverage,
     reviews_count: reviewsCount,
-    categories: (categories ?? []) as { id: number; name: string; slug: string }[],
+    categories: (categories ?? []) as { id: string | number; name: string; slug: string }[],
   };
 
   const access: ProfessionalProfileAccess = {

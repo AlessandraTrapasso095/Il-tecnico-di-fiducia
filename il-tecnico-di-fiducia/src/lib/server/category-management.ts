@@ -1,7 +1,7 @@
 import "server-only";
 
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { revalidatePath } from "next/cache";
+import { revalidatePath, revalidateTag } from "next/cache";
 
 import { PROFESSION_CATEGORIES } from "@/lib/professions/taxonomy";
 
@@ -29,6 +29,7 @@ export type ManagedCategory = {
   is_active: boolean;
   created_at: string;
   updated_at: string;
+  professional_count?: number;
   subcategories?: ManagedSubcategory[];
 };
 
@@ -96,6 +97,7 @@ export function parseSortOrder(value: unknown) {
 }
 
 export function revalidateCategoryCatalog() {
+  revalidateTag("profession-categories", { expire: 0 });
   [
     "/",
     "/api/categories",

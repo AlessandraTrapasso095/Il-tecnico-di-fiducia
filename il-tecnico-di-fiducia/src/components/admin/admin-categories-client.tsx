@@ -28,6 +28,7 @@ type ManagedCategory = {
   is_active: boolean;
   created_at: string;
   updated_at: string;
+  professional_count: number;
   subcategories: ManagedSubcategory[];
 };
 
@@ -126,14 +127,15 @@ function formatDateTime(value: string) {
   }).format(date);
 }
 
-function subcategoryPreview(subcategories: ManagedSubcategory[]) {
-  if (subcategories.length === 0) return "Nessuna sottocategoria";
-  const names = [...subcategories]
-    .sort((first, second) => first.sort_order - second.sort_order || first.name.localeCompare(second.name, "it"))
-    .slice(0, 5)
-    .map((subcategory) => subcategory.name);
-  const suffix = subcategories.length > names.length ? ` +${subcategories.length - names.length}` : "";
-  return `${names.join(", ")}${suffix}`;
+function orderedSubcategories(subcategories: ManagedSubcategory[]) {
+  return [...subcategories].sort(
+    (first, second) =>
+      first.sort_order - second.sort_order || first.name.localeCompare(second.name, "it"),
+  );
+}
+
+function compactNumber(value: number | null | undefined) {
+  return new Intl.NumberFormat("it-IT").format(value ?? 0);
 }
 
 async function removeCategoryImage(imageUrl: string | null) {
@@ -572,21 +574,106 @@ export function AdminCategoriesClient() {
     }
   }
 
+  async function moveCategory(category: ManagedCategory, direction: -1 | 1) {
+    const currentIndex = sortedCategories.findIndex(
+      (currentCategory) => fullId(currentCategory.id) === fullId(category.id),
+    );
+    const targetIndex = currentIndex + direction;
+    if (currentIndex < 0 || targetIndex < 0 || targetIndex >= sortedCategories.length) return;
+
+    const nextCategories = [...sortedCategories];
+    [nextCategories[currentIndex], nextCategories[targetIndex]] = [
+      nextCategories[targetIndex],
+      nextCategories[currentIndex],
+    ];
+
+    setSaving(true);
+    setMessage(null);
+    setError(null);
+    try {
+      await fetchJson("/api/admin/categories/reorder", {
+        method: "PATCH",
+        body: JSON.stringify({
+          items: nextCategories.map((item, index) => ({
+            id: fullId(item.id),
+            sort_order: (index + 1) * 1000,
+          })),
+        }),
+      });
+      setMessage("Ordine categorie aggiornato.");
+      await loadCategories();
+    } catch (reorderError) {
+      setError(
+        reorderError instanceof Error
+          ? reorderError.message
+          : "Non è stato possibile riordinare le categorie.",
+      );
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function moveSubcategory(subcategory: ManagedSubcategory, direction: -1 | 1) {
+    if (!expandedCategory) return;
+    const sortedSubcategories = orderedSubcategories(expandedCategory.subcategories);
+    const currentIndex = sortedSubcategories.findIndex((item) => item.id === subcategory.id);
+    const targetIndex = currentIndex + direction;
+    if (currentIndex < 0 || targetIndex < 0 || targetIndex >= sortedSubcategories.length) return;
+
+    const nextSubcategories = [...sortedSubcategories];
+    [nextSubcategories[currentIndex], nextSubcategories[targetIndex]] = [
+      nextSubcategories[targetIndex],
+      nextSubcategories[currentIndex],
+    ];
+
+    setSaving(true);
+    setMessage(null);
+    setError(null);
+    try {
+      await fetchJson(
+        `/api/admin/categories/${encodeURIComponent(fullId(expandedCategory.id))}/subcategories/reorder`,
+        {
+          method: "PATCH",
+          body: JSON.stringify({
+            items: nextSubcategories.map((item, index) => ({
+              id: item.id,
+              sort_order: (index + 1) * 1000,
+            })),
+          }),
+        },
+      );
+      setMessage("Ordine sottocategorie aggiornato.");
+      await loadCategories();
+    } catch (reorderError) {
+      setError(
+        reorderError instanceof Error
+          ? reorderError.message
+          : "Non è stato possibile riordinare le sottocategorie.",
+      );
+    } finally {
+      setSaving(false);
+    }
+  }
+
   return (
-    <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_430px]">
+    <div className="grid min-w-0 gap-6 2xl:grid-cols-[minmax(0,1fr)_420px]">
       <section className="min-w-0 rounded-[28px] border border-outline-variant/30 bg-surface-container-lowest p-4 shadow-[0_4px_20px_rgba(8,43,95,0.08)] sm:p-6">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <h2 className="font-headline-sm text-[26px] text-primary">
-              Catalogo categorie
+        <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+          <div className="min-w-0">
+            <p className="font-label-md text-xs uppercase tracking-[0.16em] text-[#FF8500]">
+              Catalogo dinamico
+            </p>
+            <h2 className="mt-1 font-headline-sm text-[28px] leading-tight text-primary">
+              Categorie e professioni
             </h2>
-            <p className="mt-1 text-sm text-on-surface-variant">
-              Gestisci categorie e sottocategorie senza alterare i profili esistenti.
+            <p className="mt-2 max-w-3xl text-sm leading-6 text-on-surface-variant">
+              Gestisci il catalogo usato dal sito pubblico. Le categorie inattive restano
+              disponibili nell’admin, ma non vengono mostrate a clienti e visitatori.
             </p>
           </div>
           <button
             type="button"
-            className="inline-flex min-h-11 items-center justify-center gap-2 rounded-full bg-primary px-5 py-2 font-button text-white transition hover:bg-primary/90"
+            className="inline-flex min-h-11 shrink-0 items-center justify-center gap-2 rounded-full bg-primary px-5 py-2 font-button text-white transition hover:bg-primary/90 focus:outline-none focus:ring-4 focus:ring-primary/20"
             onClick={startCreateCategory}
           >
             <span className="material-symbols-outlined text-[20px]">add</span>
@@ -595,12 +682,12 @@ export function AdminCategoriesClient() {
         </div>
 
         {message ? (
-          <div className="mt-4 rounded-2xl bg-emerald-50 p-3 text-sm text-emerald-700">
+          <div className="mt-5 rounded-2xl bg-emerald-50 p-4 text-sm font-medium text-emerald-700">
             {message}
           </div>
         ) : null}
         {error ? (
-          <div className="mt-4 rounded-2xl bg-error-container p-3 text-sm text-on-error-container">
+          <div className="mt-5 rounded-2xl bg-error-container p-4 text-sm font-medium text-on-error-container">
             {error}
           </div>
         ) : null}
@@ -617,82 +704,125 @@ export function AdminCategoriesClient() {
           </div>
         ) : null}
 
-        <div className="mt-6 space-y-3">
-          {sortedCategories.map((category) => {
+        <div className="mt-6 space-y-4">
+          {sortedCategories.map((category, index) => {
             const expanded = fullId(category.id) === expandedCategoryId;
+            const subcategories = orderedSubcategories(category.subcategories);
+            const previewSubcategories = subcategories.slice(0, 5);
+            const canDelete =
+              category.subcategories.length === 0 && (category.professional_count ?? 0) === 0;
+
             return (
               <article
                 key={fullId(category.id)}
                 className={[
-                  "rounded-3xl border p-4 transition",
+                  "rounded-[26px] border p-4 transition sm:p-5",
                   expanded
-                    ? "border-primary/40 bg-primary-fixed/30"
-                    : "border-outline-variant/30 bg-white",
+                    ? "border-primary/45 bg-primary-fixed/25 shadow-[0_12px_30px_rgba(8,43,95,0.10)]"
+                    : "border-outline-variant/30 bg-white shadow-sm",
                 ].join(" ")}
               >
-                <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+                <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_auto]">
                   <button
                     type="button"
-                    className="flex min-w-0 flex-1 items-start gap-3 text-left"
+                    className="grid min-w-0 gap-4 rounded-3xl text-left focus:outline-none focus:ring-4 focus:ring-primary/20 sm:grid-cols-[88px_minmax(0,1fr)]"
                     onClick={() => setExpandedCategoryId(fullId(category.id))}
+                    aria-expanded={expanded}
                   >
                     {category.image_url && isPreviewableImage(category.image_url) ? (
                       <span
-                        className="h-14 w-14 shrink-0 rounded-2xl bg-cover bg-center"
+                        className="h-28 w-full shrink-0 rounded-[22px] bg-cover bg-center sm:h-24 sm:w-24"
                         style={{ backgroundImage: `url("${category.image_url}")` }}
                         aria-hidden
                       />
                     ) : (
-                      <span className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-primary-fixed text-primary">
-                        <span className="material-symbols-outlined">
+                      <span className="flex h-28 w-full shrink-0 items-center justify-center rounded-[22px] bg-primary-fixed text-primary sm:h-24 sm:w-24">
+                        <span className="material-symbols-outlined text-[34px]">
                           {category.icon || "category"}
                         </span>
                       </span>
                     )}
                     <span className="min-w-0">
                       <span className="flex flex-wrap items-center gap-2">
-                        <span className="font-headline-sm text-[22px] text-primary">
+                        <span className="font-headline-sm text-[23px] leading-tight text-primary">
                           {category.name}
                         </span>
                         <StatusPill active={category.is_active} />
                       </span>
-                      <span className="mt-1 block break-all text-sm text-on-surface-variant">
-                        slug: {category.slug} · ordine: {category.sort_order}
+                      <span className="mt-2 block max-w-full overflow-hidden text-ellipsis whitespace-nowrap rounded-full bg-surface-container-low px-3 py-1 text-xs font-bold text-on-surface-variant">
+                        slug: {category.slug}
                       </span>
-                      <span className="mt-2 block text-sm text-on-surface-variant">
-                        {category.subcategories.length} sottocategorie
+                      <span className="mt-3 grid gap-2 text-sm text-on-surface-variant sm:grid-cols-2 xl:grid-cols-4">
+                        <span>{compactNumber(category.subcategories.length)} sottocategorie</span>
+                        <span>{compactNumber(category.professional_count)} professionisti</span>
+                        <span>Ordine {category.sort_order}</span>
+                        <span>Agg. {formatDateTime(category.updated_at)}</span>
                       </span>
                       {category.description ? (
-                        <span className="mt-2 block text-sm text-on-surface">
+                        <span className="mt-3 block text-sm leading-6 text-on-surface">
                           {category.description}
                         </span>
                       ) : null}
-                      <span className="mt-2 block text-sm text-on-surface-variant">
-                        Anteprima sottocategorie: {subcategoryPreview(category.subcategories)}
-                      </span>
-                      <span className="mt-2 block text-xs text-on-surface-variant">
-                        Ultimo aggiornamento: {formatDateTime(category.updated_at)}
+                      <span className="mt-4 flex flex-wrap gap-2">
+                        {previewSubcategories.length > 0 ? (
+                          previewSubcategories.map((subcategory) => (
+                            <span
+                              key={subcategory.id}
+                              className="inline-flex max-w-full rounded-full bg-surface-container-low px-3 py-1 text-xs font-semibold text-on-surface-variant"
+                            >
+                              <span className="truncate">{subcategory.name}</span>
+                            </span>
+                          ))
+                        ) : (
+                          <span className="text-sm text-on-surface-variant">
+                            Nessuna sottocategoria configurata.
+                          </span>
+                        )}
+                        {subcategories.length > previewSubcategories.length ? (
+                          <span className="rounded-full bg-primary-fixed px-3 py-1 text-xs font-bold text-primary">
+                            +{subcategories.length - previewSubcategories.length}
+                          </span>
+                        ) : null}
                       </span>
                     </span>
                   </button>
-                  <div className="flex flex-wrap gap-2">
+
+                  <div className="grid gap-2 sm:grid-cols-2 lg:w-[230px] lg:grid-cols-1">
                     <button
                       type="button"
-                      className="rounded-full border border-outline-variant px-4 py-2 text-sm font-bold text-primary hover:bg-surface-container-high"
+                      className="inline-flex min-h-10 items-center justify-center rounded-full border border-outline-variant px-4 py-2 text-sm font-bold text-primary transition hover:bg-surface-container-high focus:outline-none focus:ring-4 focus:ring-primary/20"
                       onClick={() => startEditCategory(category)}
                     >
                       Modifica
                     </button>
                     <button
                       type="button"
-                      className="rounded-full border border-outline-variant px-4 py-2 text-sm font-bold text-primary hover:bg-surface-container-high"
+                      className="inline-flex min-h-10 items-center justify-center rounded-full border border-outline-variant px-4 py-2 text-sm font-bold text-primary transition hover:bg-surface-container-high focus:outline-none focus:ring-4 focus:ring-primary/20"
                       onClick={() => startCreateSubcategory(category)}
                     >
-                      Sottocategoria
+                      Gestisci sottocategorie
                     </button>
+                    <div className="grid grid-cols-2 gap-2">
+                      <button
+                        type="button"
+                        className="inline-flex min-h-10 items-center justify-center rounded-full border border-outline-variant px-3 py-2 text-sm font-bold text-on-surface-variant transition hover:bg-surface-container-high disabled:cursor-not-allowed disabled:opacity-40"
+                        disabled={saving || index === 0}
+                        onClick={() => void moveCategory(category, -1)}
+                      >
+                        Su
+                      </button>
+                      <button
+                        type="button"
+                        className="inline-flex min-h-10 items-center justify-center rounded-full border border-outline-variant px-3 py-2 text-sm font-bold text-on-surface-variant transition hover:bg-surface-container-high disabled:cursor-not-allowed disabled:opacity-40"
+                        disabled={saving || index === sortedCategories.length - 1}
+                        onClick={() => void moveCategory(category, 1)}
+                      >
+                        Giù
+                      </button>
+                    </div>
                     <button
                       type="button"
-                      className="rounded-full border border-outline-variant px-4 py-2 text-sm font-bold text-on-surface-variant hover:bg-surface-container-high"
+                      className="inline-flex min-h-10 items-center justify-center rounded-full border border-outline-variant px-4 py-2 text-sm font-bold text-on-surface-variant transition hover:bg-surface-container-high disabled:cursor-not-allowed disabled:opacity-50"
                       disabled={saving}
                       onClick={() => void toggleCategory(category)}
                     >
@@ -700,12 +830,12 @@ export function AdminCategoriesClient() {
                     </button>
                     <button
                       type="button"
-                      className="rounded-full border border-error/30 px-4 py-2 text-sm font-bold text-error hover:bg-error-container disabled:cursor-not-allowed disabled:opacity-50"
-                      disabled={saving || category.subcategories.length > 0}
+                      className="inline-flex min-h-10 items-center justify-center rounded-full border border-error/30 px-4 py-2 text-sm font-bold text-error transition hover:bg-error-container disabled:cursor-not-allowed disabled:opacity-50"
+                      disabled={saving || !canDelete}
                       title={
-                        category.subcategories.length > 0
-                          ? "Elimina disponibile solo per categorie senza sottocategorie."
-                          : "Elimina definitivamente la categoria"
+                        canDelete
+                          ? "Elimina definitivamente la categoria"
+                          : "Elimina disponibile solo senza professionisti e sottocategorie."
                       }
                       onClick={() => void deleteCategory(category)}
                     >
@@ -719,16 +849,25 @@ export function AdminCategoriesClient() {
         </div>
       </section>
 
-      <aside className="space-y-5 xl:sticky xl:top-28 xl:self-start">
+      <aside className="space-y-5 2xl:sticky 2xl:top-28 2xl:self-start">
         <form
           className="rounded-[28px] border border-outline-variant/30 bg-surface-container-lowest p-4 shadow-[0_4px_20px_rgba(8,43,95,0.08)] sm:p-6"
           onSubmit={saveCategory}
         >
-          <h2 className="font-headline-sm text-[24px] text-primary">
-            {editingCategoryId ? "Modifica categoria" : "Nuova categoria"}
-          </h2>
-          <p className="mt-1 text-sm text-on-surface-variant">
-            Lo slug delle categorie già usate dal catalogo pubblico viene bloccato per sicurezza.
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <p className="font-label-md text-xs uppercase tracking-[0.14em] text-[#FF8500]">
+                Categoria
+              </p>
+              <h2 className="mt-1 font-headline-sm text-[24px] leading-tight text-primary">
+                {editingCategoryId ? "Modifica categoria" : "Nuova categoria"}
+              </h2>
+            </div>
+            {editingCategoryId ? <StatusPill active={categoryForm.is_active} /> : null}
+          </div>
+          <p className="mt-3 text-sm leading-6 text-on-surface-variant">
+            Lo slug delle categorie già usate viene bloccato quando potrebbe rompere URL,
+            filtri o profili collegati.
           </p>
           <div className="mt-5 space-y-4">
             <Field
@@ -755,7 +894,7 @@ export function AdminCategoriesClient() {
                 Descrizione
               </span>
               <textarea
-                className="min-h-24 w-full rounded-xl border border-outline-variant bg-surface-container-lowest px-4 py-3 text-sm outline-none transition focus:border-primary focus:ring-2 focus:ring-primary"
+                className="min-h-28 w-full rounded-xl border border-outline-variant bg-surface-container-lowest px-4 py-3 text-sm leading-6 outline-none transition focus:border-primary focus:ring-2 focus:ring-primary"
                 value={categoryForm.description}
                 onChange={(event) =>
                   setCategoryForm((current) => ({
@@ -774,7 +913,7 @@ export function AdminCategoriesClient() {
               type="url"
               placeholder="https://…"
             />
-            <div className="rounded-2xl border border-dashed border-outline-variant bg-surface-container-low p-3">
+            <div className="rounded-2xl border border-dashed border-outline-variant bg-surface-container-low p-4">
               <input
                 ref={imageInputRef}
                 type="file"
@@ -782,15 +921,16 @@ export function AdminCategoriesClient() {
                 className="sr-only"
                 onChange={(event) => void uploadCategoryImage(event)}
               />
-              <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                <div className="text-sm text-on-surface-variant">
-                  Carica JPG, PNG o WebP fino a 5 MB. L’immagine viene salvata su Supabase Storage.
-                </div>
-                <div className="flex flex-wrap gap-2">
+              <div className="space-y-3">
+                <p className="text-sm leading-6 text-on-surface-variant">
+                  Carica JPG, PNG o WebP fino a 5 MB. L’immagine viene salvata su Supabase
+                  Storage e applicata al salvataggio.
+                </p>
+                <div className="grid gap-2 sm:grid-cols-2 2xl:grid-cols-1">
                   <button
                     type="button"
                     disabled={imageUploading || saving}
-                    className="inline-flex min-h-11 items-center justify-center gap-2 rounded-full border border-outline-variant bg-white px-4 py-2 text-sm font-bold text-primary hover:bg-surface-container-high disabled:opacity-60"
+                    className="inline-flex min-h-11 items-center justify-center gap-2 rounded-full border border-outline-variant bg-white px-4 py-2 text-sm font-bold text-primary transition hover:bg-surface-container-high disabled:opacity-60"
                     onClick={() => imageInputRef.current?.click()}
                   >
                     <span className="material-symbols-outlined text-[18px]">upload</span>
@@ -800,7 +940,7 @@ export function AdminCategoriesClient() {
                     <button
                       type="button"
                       disabled={imageUploading || saving}
-                      className="inline-flex min-h-11 items-center justify-center rounded-full border border-outline-variant bg-white px-4 py-2 text-sm font-bold text-on-surface-variant hover:bg-surface-container-high disabled:opacity-60"
+                      className="inline-flex min-h-11 items-center justify-center rounded-full border border-outline-variant bg-white px-4 py-2 text-sm font-bold text-on-surface-variant transition hover:bg-surface-container-high disabled:opacity-60"
                       onClick={() => {
                         setCategoryForm((current) => ({ ...current, image_url: "" }));
                         setImagePreviewUrl(null);
@@ -815,7 +955,7 @@ export function AdminCategoriesClient() {
             {(imagePreviewUrl || categoryForm.image_url) &&
             isPreviewableImage(imagePreviewUrl || categoryForm.image_url) ? (
               <span
-                className="block h-32 w-full rounded-2xl bg-cover bg-center"
+                className="block h-40 w-full rounded-2xl bg-cover bg-center"
                 style={{ backgroundImage: `url("${imagePreviewUrl || categoryForm.image_url}")` }}
                 aria-label="Anteprima immagine categoria"
                 role="img"
@@ -837,7 +977,7 @@ export function AdminCategoriesClient() {
                 type="number"
               />
             </div>
-            <label className="flex items-center gap-3 rounded-2xl bg-surface-container-low p-3 text-sm text-primary">
+            <label className="flex min-h-12 items-center gap-3 rounded-2xl bg-surface-container-low p-3 text-sm font-medium text-primary">
               <input
                 type="checkbox"
                 checked={categoryForm.is_active}
@@ -851,17 +991,17 @@ export function AdminCategoriesClient() {
               Categoria attiva e visibile pubblicamente
             </label>
           </div>
-          <div className="mt-5 flex flex-wrap gap-2">
+          <div className="mt-5 grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto]">
             <button
               type="submit"
               disabled={saving}
-              className="inline-flex min-h-11 flex-1 items-center justify-center rounded-full bg-[#FF8500] px-5 py-2 font-button text-white transition hover:bg-[#FF9A2B] disabled:opacity-60"
+              className="inline-flex min-h-11 items-center justify-center rounded-full bg-[#FF8500] px-5 py-2 font-button text-white transition hover:bg-[#FF9A2B] disabled:opacity-60"
             >
               {saving ? "Salvataggio…" : "Salva categoria"}
             </button>
             <button
               type="button"
-              className="inline-flex min-h-11 items-center justify-center rounded-full border border-outline-variant px-5 py-2 font-button text-primary"
+              className="inline-flex min-h-11 items-center justify-center rounded-full border border-outline-variant px-5 py-2 font-button text-primary transition hover:bg-surface-container-high"
               onClick={startCreateCategory}
             >
               Annulla
@@ -870,22 +1010,36 @@ export function AdminCategoriesClient() {
         </form>
 
         <section className="rounded-[28px] border border-outline-variant/30 bg-surface-container-lowest p-4 shadow-[0_4px_20px_rgba(8,43,95,0.08)] sm:p-6">
-          <h2 className="font-headline-sm text-[24px] text-primary">Sottocategorie</h2>
-          <p className="mt-1 text-sm text-on-surface-variant">
+          <div className="flex items-start justify-between gap-3">
+            <div className="min-w-0">
+              <p className="font-label-md text-xs uppercase tracking-[0.14em] text-[#FF8500]">
+                Sottocategorie
+              </p>
+              <h2 className="mt-1 font-headline-sm text-[24px] leading-tight text-primary">
+                {expandedCategory ? expandedCategory.name : "Seleziona una categoria"}
+              </h2>
+            </div>
+            {expandedCategory ? (
+              <span className="shrink-0 rounded-full bg-primary-fixed px-3 py-1 text-xs font-bold text-primary">
+                {expandedCategory.subcategories.length}
+              </span>
+            ) : null}
+          </div>
+          <p className="mt-3 text-sm leading-6 text-on-surface-variant">
             {expandedCategory
-              ? `Categoria selezionata: ${expandedCategory.name}`
-              : "Seleziona una categoria per gestire le sottocategorie."}
+              ? "Aggiungi, modifica, riordina o disattiva le specializzazioni della categoria."
+              : "Apri una categoria dall’elenco per gestire le relative sottocategorie."}
           </p>
 
           {expandedCategory ? (
             <>
-              <div className="mt-5 space-y-3">
+              <div className="mt-5 max-h-[520px] space-y-3 overflow-y-auto pr-1">
                 {expandedCategory.subcategories.length === 0 ? (
                   <div className="rounded-2xl bg-surface-container-low p-4 text-sm text-on-surface-variant">
                     Nessuna sottocategoria configurata.
                   </div>
                 ) : null}
-                {expandedCategory.subcategories.map((subcategory) => (
+                {orderedSubcategories(expandedCategory.subcategories).map((subcategory, index) => (
                   <div
                     key={subcategory.id}
                     className="rounded-2xl border border-outline-variant/30 bg-white p-3"
@@ -893,32 +1047,50 @@ export function AdminCategoriesClient() {
                     <div className="flex items-start justify-between gap-3">
                       <div className="min-w-0">
                         <div className="flex flex-wrap items-center gap-2">
-                          <h3 className="font-label-md text-primary">{subcategory.name}</h3>
+                          <h3 className="font-label-md leading-snug text-primary">
+                            {subcategory.name}
+                          </h3>
                           <StatusPill active={subcategory.is_active} />
                         </div>
-                        <p className="mt-1 break-all text-xs text-on-surface-variant">
-                          {subcategory.slug} · ordine: {subcategory.sort_order}
+                        <p className="mt-2 max-w-full overflow-hidden text-ellipsis whitespace-nowrap rounded-full bg-surface-container-low px-3 py-1 text-xs text-on-surface-variant">
+                          {subcategory.slug} · ordine {subcategory.sort_order}
                         </p>
                       </div>
                     </div>
-                    <div className="mt-3 flex flex-wrap gap-2">
+                    <div className="mt-3 grid grid-cols-2 gap-2">
                       <button
                         type="button"
-                        className="rounded-full border border-outline-variant px-3 py-1.5 text-xs font-bold text-primary"
+                        className="rounded-full border border-outline-variant px-3 py-2 text-xs font-bold text-primary transition hover:bg-surface-container-high"
                         onClick={() => startEditSubcategory(expandedCategory, subcategory)}
                       >
                         Modifica
                       </button>
                       <button
                         type="button"
-                        className="rounded-full border border-outline-variant px-3 py-1.5 text-xs font-bold text-on-surface-variant"
+                        className="rounded-full border border-outline-variant px-3 py-2 text-xs font-bold text-on-surface-variant transition hover:bg-surface-container-high"
                         onClick={() => void toggleSubcategory(subcategory)}
                       >
                         {subcategory.is_active ? "Disattiva" : "Riattiva"}
                       </button>
                       <button
                         type="button"
-                        className="rounded-full border border-error/30 px-3 py-1.5 text-xs font-bold text-error hover:bg-error-container"
+                        className="rounded-full border border-outline-variant px-3 py-2 text-xs font-bold text-on-surface-variant transition hover:bg-surface-container-high disabled:opacity-40"
+                        disabled={saving || index === 0}
+                        onClick={() => void moveSubcategory(subcategory, -1)}
+                      >
+                        Su
+                      </button>
+                      <button
+                        type="button"
+                        className="rounded-full border border-outline-variant px-3 py-2 text-xs font-bold text-on-surface-variant transition hover:bg-surface-container-high disabled:opacity-40"
+                        disabled={saving || index === expandedCategory.subcategories.length - 1}
+                        onClick={() => void moveSubcategory(subcategory, 1)}
+                      >
+                        Giù
+                      </button>
+                      <button
+                        type="button"
+                        className="col-span-2 rounded-full border border-error/30 px-3 py-2 text-xs font-bold text-error transition hover:bg-error-container disabled:opacity-50"
                         disabled={saving}
                         onClick={() => void deleteSubcategory(subcategory)}
                       >
@@ -929,7 +1101,10 @@ export function AdminCategoriesClient() {
                 ))}
               </div>
 
-              <form className="mt-5 space-y-4 border-t border-outline-variant/40 pt-5" onSubmit={saveSubcategory}>
+              <form
+                className="mt-5 space-y-4 border-t border-outline-variant/40 pt-5"
+                onSubmit={saveSubcategory}
+              >
                 <h3 className="font-headline-sm text-[20px] text-primary">
                   {editingSubcategoryId ? "Modifica sottocategoria" : "Nuova sottocategoria"}
                 </h3>
@@ -963,7 +1138,7 @@ export function AdminCategoriesClient() {
                   }
                   type="number"
                 />
-                <label className="flex items-center gap-3 rounded-2xl bg-surface-container-low p-3 text-sm text-primary">
+                <label className="flex min-h-12 items-center gap-3 rounded-2xl bg-surface-container-low p-3 text-sm font-medium text-primary">
                   <input
                     type="checkbox"
                     checked={subcategoryForm.is_active}
@@ -976,17 +1151,17 @@ export function AdminCategoriesClient() {
                   />
                   Sottocategoria attiva
                 </label>
-                <div className="flex flex-wrap gap-2">
+                <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto]">
                   <button
                     type="submit"
                     disabled={saving}
-                    className="inline-flex min-h-11 flex-1 items-center justify-center rounded-full bg-primary px-5 py-2 font-button text-white transition hover:bg-primary/90 disabled:opacity-60"
+                    className="inline-flex min-h-11 items-center justify-center rounded-full bg-primary px-5 py-2 font-button text-white transition hover:bg-primary/90 disabled:opacity-60"
                   >
                     {saving ? "Salvataggio…" : "Salva sottocategoria"}
                   </button>
                   <button
                     type="button"
-                    className="inline-flex min-h-11 items-center justify-center rounded-full border border-outline-variant px-5 py-2 font-button text-primary"
+                    className="inline-flex min-h-11 items-center justify-center rounded-full border border-outline-variant px-5 py-2 font-button text-primary transition hover:bg-surface-container-high"
                     onClick={() => startCreateSubcategory(expandedCategory)}
                   >
                     Annulla

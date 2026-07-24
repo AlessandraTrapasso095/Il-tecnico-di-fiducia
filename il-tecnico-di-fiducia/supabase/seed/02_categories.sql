@@ -1,38 +1,25 @@
--- Categories taxonomy for dropdowns / landing sections.
--- This is not "fake user content": it's a real, static list of professions.
+-- Bootstrap minimale del catalogo professioni.
+-- La tassonomia completa e le sottocategorie vengono mantenute da scripts/seed-profession-taxonomy.mjs.
 
-insert into public.categories (name, slug, image_url) values
-  (
-    'Ingegneri',
-    'ingegneri',
-    'https://lh3.googleusercontent.com/aida-public/AB6AXuCQq5eVwBnqFjCnN86gkFsD--RbpO8N_s6_TA8GUajyTqu6oCUaTiaYakGsIYitF-97_Uk2reoVX4o7Ng4T_MF88_bowkzm2cg9PS1J9iUrkKtX5eac3wL1W3xOqfUOopiVVwkf6Qys-QdMbxn0ya-kAXqG0hC5lqML96RMdvJwDkTcYRgEonQLxHro7pPizfQQbBcjo7XdkzM9baEGOBg3XOQ-oonbtWb9NJgHQjYmrdTpoSzSG9L5dPuzaczVjqWXc_OKVZUFfqfx'
-  ),
-  (
-    'Architetti',
-    'architetti',
-    'https://lh3.googleusercontent.com/aida-public/AB6AXuCemy7B9P1kpymYEeupmx-XbZJbor21lsR3jFt0_2O7LDdqTipkZj9HclMYQXbIf4EfDK3ZjzjlWMhoBy4v3s58dSSf84zDT6k_CteC29vdcmSihTjOgt0SlsdiRaomsvxuVx8wlcxpYK2UUrXSZSUL72A4XmJToxUa9BHiRK24fjI5IM3sgqVU6BvpsReK9Sdl0Px18LhmT3-SPjEzv4xRVPoHsHt2a0iPJKq7T6nMsDQXi51M67xvk0GzJZ-PfaI2k3wvOujvYL6N'
-  ),
-  (
-    'Geometri',
-    'geometri',
-    'https://lh3.googleusercontent.com/aida-public/AB6AXuCZjyAQrIYj9PpsLD914K3jCPsLWpvMEPfmR1DQm3cPuyzEi_e5YHYGDw9aY-mrabNjatIFzRTSD_yd02P2R_Sz26ensYbVkMIMXGbSn1LW9hNWy5fFHoiaIcMKarFyw604xQnP9NPfmpDA12FOLJmHKGmqT4Vc-Mbcrd4hnMFfMVV9mdsTGxUmgDbO_sllDG9HUso9vcBGhUQmsVMIEtv9nhG8NvZhBdOg6COtR_a37Yq8fyDyheKVzUILyWvF8b9ZZDDrvCUNM4_B'
-  ),
-  (
-    'Informatici',
-    'informatici',
-    'https://lh3.googleusercontent.com/aida-public/AB6AXuA0BRkP_kdLM5gmqNvA3ASa1eldNmGn217TsvbodTyYavS_zfg3ew2nMjLelsX4dZSAF5jDUOfttdhf6BtGMhVR13EoYshrJGSAmNeyRuboZaEEuEuFNyhnBoVMaRbWbanQr6mQG0HdfZxKmKeQS5FGprM89I3DvN2yAqZZATWRqUlsu9k8vkep6p36OVFp-Y3rlKRWwYoDdfHBl-PDnXt6PnXycSzDIh0ppOt87HJLYsykmPBS80ilw-liWpJ236AG6aNZNq0ozlWk'
-  ),
-  (
-    'Avvocati',
-    'avvocati',
-    'https://lh3.googleusercontent.com/aida-public/AB6AXuCpGguOIk8O9WjodNTRAptgdt5rbPdYg3BtA0ZgQ4KIjLPjI6eRlQO2jMlgnvj2ROIC6lx7LObwLac8BKaqBhjlc6UIxwGiSoZrVRfK69BZvUXUyLgGoACuFwmA9XLwKyNuscNkLMuUpsyh2fMWh6sy1OS6PkgpIll-QCsLiH3txOC9iG9mnEgb7l2H6BkDhQePlBqa4xROLfcpv-YaGBDMc3J5_rB1VY2YzOshgFAd1_x2K_h_g16uDVss5Uu_RQlkdl9NGAvyF2Do'
-  ),
-  (
-    'Elettricisti',
-    'elettricisti',
-    'https://lh3.googleusercontent.com/aida-public/AB6AXuCQpvXQFlipYZ48NEsT-LZTRmvyOBOHiT2ebEU7F4uwGA-83zTRC5t1RPGYtAMbxUFxkpdkiIvIBFs9WgwiMYxturHn2w2os0sVZPtG8ZlXLJv_zJHXeD3w9iA4H95VazOu-XaBenq4EaKtYqINoMtenPz2g0IEwx9wZ3Nj92ho-vFKnlbdtT_eqzd-rO-NAvGRINmeHwousj4xkHtHNbnJBQVtEw7y1RrfJJWSlNJHo8ay0JzD1qC1j0BZ6umhOGA6DDnRzqhj1_-f'
-  )
+insert into public.categories (name, slug, image_url, icon, sort_order, is_active) values
+  ('Ingegneri', 'ingegneri', 'https://images.pexels.com/photos/6285142/pexels-photo-6285142.jpeg?auto=compress&cs=tinysrgb&w=900&h=620&fit=crop', 'engineering', 1000, true),
+  ('Architetti', 'architetti', 'https://images.pexels.com/photos/6615294/pexels-photo-6615294.jpeg?auto=compress&cs=tinysrgb&w=900&h=620&fit=crop', 'architect', 2000, true),
+  ('Geometri', 'geometri', 'https://images.pexels.com/photos/5802822/pexels-photo-5802822.jpeg?auto=compress&cs=tinysrgb&w=900&h=620&fit=crop', 'surveyor', 3000, true),
+  ('Periti industriali', 'periti-industriali', 'https://images.pexels.com/photos/3862130/pexels-photo-3862130.jpeg?auto=compress&cs=tinysrgb&w=900&h=620&fit=crop', 'industrial', 4000, true),
+  ('Geologi', 'geologi', 'https://images.pexels.com/photos/5691622/pexels-photo-5691622.jpeg?auto=compress&cs=tinysrgb&w=900&h=620&fit=crop', 'geology', 5000, true),
+  ('Agronomi', 'agronomi', 'https://images.pexels.com/photos/2886937/pexels-photo-2886937.jpeg?auto=compress&cs=tinysrgb&w=900&h=620&fit=crop', 'agronomy', 6000, true),
+  ('Dietologi', 'dietologi', 'https://images.pexels.com/photos/1640777/pexels-photo-1640777.jpeg?auto=compress&cs=tinysrgb&w=900&h=620&fit=crop', 'nutrition', 7000, true),
+  ('Avvocati', 'avvocati', 'https://images.pexels.com/photos/6077123/pexels-photo-6077123.jpeg?auto=compress&cs=tinysrgb&w=900&h=620&fit=crop', 'law', 8000, true),
+  ('Commercialisti', 'commercialisti', 'https://images.pexels.com/photos/669615/pexels-photo-669615.jpeg?auto=compress&cs=tinysrgb&w=900&h=620&fit=crop', 'accounting', 9000, true),
+  ('Consulenti del lavoro', 'consulenti-del-lavoro', 'https://images.pexels.com/photos/3184465/pexels-photo-3184465.jpeg?auto=compress&cs=tinysrgb&w=900&h=620&fit=crop', 'work-consultant', 10000, true),
+  ('Notai', 'notai', 'https://images.pexels.com/photos/5668473/pexels-photo-5668473.jpeg?auto=compress&cs=tinysrgb&w=900&h=620&fit=crop', 'notary', 11000, true),
+  ('CTU - CTP', 'ctu-ctp', 'https://images.pexels.com/photos/5668858/pexels-photo-5668858.jpeg?auto=compress&cs=tinysrgb&w=900&h=620&fit=crop', 'ctu', 12000, true),
+  ('Psicologi', 'psicologi', 'https://images.pexels.com/photos/4101143/pexels-photo-4101143.jpeg?auto=compress&cs=tinysrgb&w=900&h=620&fit=crop', 'psychology', 13000, true),
+  ('Interior designer', 'interior-designer', 'https://images.pexels.com/photos/1571460/pexels-photo-1571460.jpeg?auto=compress&cs=tinysrgb&w=900&h=620&fit=crop', 'interior', 14000, true),
+  ('Informatici', 'informatici', 'https://images.pexels.com/photos/1181244/pexels-photo-1181244.jpeg?auto=compress&cs=tinysrgb&w=900&h=620&fit=crop', 'informatics', 15000, true)
 on conflict (slug) do update set
   name = excluded.name,
-  image_url = excluded.image_url;
-
+  image_url = excluded.image_url,
+  icon = excluded.icon,
+  sort_order = excluded.sort_order,
+  is_active = excluded.is_active;

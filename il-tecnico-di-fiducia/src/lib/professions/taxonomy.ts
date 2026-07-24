@@ -255,7 +255,7 @@ export const PROFESSION_CATEGORIES: ProfessionCategory[] = [
     slug: "informatici",
     image_url: categoryImages.informatici,
     icon: "informatics",
-    sort_order: 4500,
+    sort_order: 15000,
     source: "catalog",
     subcategories: subcategoriesFrom([
       "Sviluppo siti web",

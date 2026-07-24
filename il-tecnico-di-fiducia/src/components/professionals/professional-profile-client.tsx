@@ -28,6 +28,13 @@ import {
 import { ProfileAvatar } from "@/components/ui/profile-avatar";
 import { fetchJson } from "@/lib/api/fetch-json";
 import { ITALIAN_PROVINCES } from "@/lib/locations/italian-provinces";
+import {
+  findProfessionCategory,
+  normalizeProfessionCategories,
+  professionCategoryKey,
+  type DbProfessionCategory,
+  type ProfessionCategory,
+} from "@/lib/professions/taxonomy";
 import type {
   ProfessionalProfileAccess,
   ProfessionalProfileDetails,
@@ -93,6 +100,10 @@ type ReviewRow = {
 
 type ReviewsResponse = {
   reviews: ReviewRow[];
+};
+
+type CategoriesResponse = {
+  categories: DbProfessionCategory[];
 };
 
 type CommentRow = {
@@ -338,6 +349,11 @@ export default function ProfessionalProfileClient({
   const [savingProfile, setSavingProfile] = useState(false);
   const [profileError, setProfileError] = useState<string | null>(null);
   const [uploadingImage, setUploadingImage] = useState(false);
+  const [catalogCategories, setCatalogCategories] = useState<ProfessionCategory[]>([]);
+  const [catalogLoading, setCatalogLoading] = useState(false);
+  const [catalogError, setCatalogError] = useState<string | null>(null);
+  const [selectedCategoryKeys, setSelectedCategoryKeys] = useState<string[]>([]);
+  const [selectedSubcategoryNames, setSelectedSubcategoryNames] = useState<string[]>([]);
 
   const [posts, setPosts] = useState<PostRow[]>([]);
   const [postsLoading, setPostsLoading] = useState(false);
@@ -430,6 +446,26 @@ export default function ProfessionalProfileClient({
     [canViewFull, profile.id],
   );
 
+  const loadCatalogCategories = useCallback(async () => {
+    setCatalogLoading(true);
+    setCatalogError(null);
+    try {
+      const response = await fetchJson<CategoriesResponse>("/api/categories", {
+        method: "GET",
+      });
+      const nextCategories = normalizeProfessionCategories(response.categories ?? []);
+      setCatalogCategories(nextCategories);
+      if (nextCategories.length === 0) {
+        setCatalogError("Nessuna categoria attiva disponibile al momento.");
+      }
+    } catch {
+      setCatalogCategories([]);
+      setCatalogError("Non è stato possibile caricare categorie e sottocategorie.");
+    } finally {
+      setCatalogLoading(false);
+    }
+  }, []);
+
   useEffect(() => {
     const nextTab = tabFromSearchParam(requestedTabParam);
     if (nextTab) setTab(nextTab);
@@ -473,9 +509,27 @@ export default function ProfessionalProfileClient({
     return () => document.removeEventListener("pointerdown", onPointerDown);
   }, [mediaMenu]);
 
+  useEffect(() => {
+    if (editSection !== "services") return;
+    if (catalogCategories.length > 0 || catalogLoading) return;
+    void loadCatalogCategories();
+  }, [catalogCategories.length, catalogLoading, editSection, loadCatalogCategories]);
+
   function openEdit(section: EditSection) {
     setEditSection(section);
     setProfileError(null);
+    setCatalogError(null);
+    if (section === "services") {
+      setSelectedCategoryKeys(
+        profile.categories.map((category) =>
+          professionCategoryKey({
+            ...category,
+            image_url: null,
+          }),
+        ),
+      );
+      setSelectedSubcategoryNames(profile.specializations);
+    }
     setEditDraft({
       first_name: profile.first_name,
       last_name: profile.last_name,
@@ -512,8 +566,19 @@ export default function ProfessionalProfileClient({
         payload.available_travel = Boolean(editDraft.available_travel);
       }
       if (editSection === "services") {
+        const catalogReady = catalogCategories.length > 0 && !catalogError;
         payload.services_offered = splitLines(String(editDraft.services_offered ?? ""));
-        payload.specializations = splitLines(String(editDraft.specializations ?? ""));
+        payload.specializations = catalogReady
+          ? selectedSubcategoryNames
+          : splitLines(String(editDraft.specializations ?? ""));
+        if (catalogReady) {
+          const selectedCategories = selectedCategoryKeys
+            .map((key) => findProfessionCategory(catalogCategories, key))
+            .filter((category): category is ProfessionCategory => category !== null);
+          payload.category_ids = selectedCategories
+            .map((category) => category.id)
+            .filter((id): id is string | number => id !== null);
+        }
       }
       if (editSection === "contact") {
         payload.phone = editDraft.phone || null;
@@ -533,7 +598,10 @@ export default function ProfessionalProfileClient({
       if (editSection === "certifications") {
         payload.certifications = jsonFromLines(String(editDraft.certifications ?? ""));
       }
-      await fetchJson<{ professional: unknown }>(`/api/professionals/${profile.id}`, {
+      const response = await fetchJson<{
+        professional: unknown;
+        categories?: ProfessionalProfileDetails["categories"];
+      }>(`/api/professionals/${profile.id}`, {
         method: "PATCH",
         body: JSON.stringify(payload),
       });
@@ -562,6 +630,7 @@ export default function ProfessionalProfileClient({
           (payload.specializations as string[] | undefined) ?? current.specializations,
         services_offered:
           (payload.services_offered as string[] | undefined) ?? current.services_offered,
+        categories: response.categories ?? current.categories,
         education: (payload.education as unknown[] | undefined) ?? current.education,
         work_experiences:
           (payload.work_experiences as unknown[] | undefined) ?? current.work_experiences,
@@ -1178,16 +1247,42 @@ export default function ProfessionalProfileClient({
                   editable={isOwner}
                   onEdit={() => openEdit("services")}
                 >
-                  {services.length > 0 ? (
-                    <div className="flex flex-wrap gap-2">
-                      {services.map((service) => (
-                        <span
-                          key={service}
-                          className="rounded-full bg-primary-fixed px-4 py-2 text-sm font-bold text-on-primary-fixed-variant"
-                        >
-                          {service}
-                        </span>
-                      ))}
+                  {profile.categories.length > 0 || services.length > 0 ? (
+                    <div className="space-y-4">
+                      {profile.categories.length > 0 ? (
+                        <div>
+                          <h3 className="font-label-md text-sm text-primary">
+                            Categorie professionali
+                          </h3>
+                          <div className="mt-2 flex flex-wrap gap-2">
+                            {profile.categories.map((category) => (
+                              <span
+                                key={`${category.id}-${category.slug}`}
+                                className="rounded-full bg-primary px-4 py-2 text-sm font-bold text-white"
+                              >
+                                {category.name}
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+                      ) : null}
+                      {services.length > 0 ? (
+                        <div>
+                          <h3 className="font-label-md text-sm text-primary">
+                            Servizi e sottocategorie
+                          </h3>
+                          <div className="mt-2 flex flex-wrap gap-2">
+                            {services.map((service) => (
+                              <span
+                                key={service}
+                                className="rounded-full bg-primary-fixed px-4 py-2 text-sm font-bold text-on-primary-fixed-variant"
+                              >
+                                {service}
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+                      ) : null}
                     </div>
                   ) : (
                     <EmptyState
@@ -1412,6 +1507,14 @@ export default function ProfessionalProfileClient({
           setDraft={setEditDraft}
           saving={savingProfile}
           error={profileError}
+          catalogCategories={catalogCategories}
+          catalogLoading={catalogLoading}
+          catalogError={catalogError}
+          selectedCategoryKeys={selectedCategoryKeys}
+          setSelectedCategoryKeys={setSelectedCategoryKeys}
+          selectedSubcategoryNames={selectedSubcategoryNames}
+          setSelectedSubcategoryNames={setSelectedSubcategoryNames}
+          onReloadCatalog={() => void loadCatalogCategories()}
           onCancel={() => setEditSection(null)}
           onSave={() => void saveEdit()}
         />
@@ -1674,12 +1777,168 @@ function ListOrEmpty({ items }: { items: string[] }) {
   );
 }
 
+function CategorySpecializationSelector({
+  categories,
+  loading,
+  error,
+  selectedCategoryKeys,
+  setSelectedCategoryKeys,
+  selectedSubcategoryNames,
+  setSelectedSubcategoryNames,
+  onReload,
+}: {
+  categories: ProfessionCategory[];
+  loading: boolean;
+  error: string | null;
+  selectedCategoryKeys: string[];
+  setSelectedCategoryKeys: Dispatch<SetStateAction<string[]>>;
+  selectedSubcategoryNames: string[];
+  setSelectedSubcategoryNames: Dispatch<SetStateAction<string[]>>;
+  onReload: () => void;
+}) {
+  const selectedCategories = selectedCategoryKeys
+    .map((key) => findProfessionCategory(categories, key))
+    .filter((category): category is ProfessionCategory => category !== null);
+  const availableSubcategories = selectedCategories.flatMap((category) =>
+    category.subcategories.map((subcategory) => ({
+      ...subcategory,
+      categoryName: category.name,
+    })),
+  );
+
+  function toggleCategory(category: ProfessionCategory) {
+    const key = professionCategoryKey(category);
+    setSelectedCategoryKeys((current) => {
+      const next = current.includes(key)
+        ? current.filter((item) => item !== key)
+        : [...current, key];
+      const nextCategoryKeys = new Set(next);
+      const allowedSubcategories = new Set(
+        categories
+          .filter((item) => nextCategoryKeys.has(professionCategoryKey(item)))
+          .flatMap((item) => item.subcategories.map((subcategory) => subcategory.name)),
+      );
+      setSelectedSubcategoryNames((currentNames) =>
+        currentNames.filter((name) => allowedSubcategories.has(name)),
+      );
+      return next;
+    });
+  }
+
+  function toggleSubcategory(name: string) {
+    setSelectedSubcategoryNames((current) =>
+      current.includes(name)
+        ? current.filter((item) => item !== name)
+        : [...current, name],
+    );
+  }
+
+  if (loading) {
+    return (
+      <div className="rounded-2xl bg-surface-container-low p-4 text-sm text-on-surface-variant">
+        Caricamento categorie dal catalogo…
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="rounded-2xl bg-error-container p-4 text-sm text-on-error-container">
+        <p>{error}</p>
+        <button
+          type="button"
+          className="mt-3 rounded-full border border-on-error-container/30 px-4 py-2 font-button"
+          onClick={onReload}
+        >
+          Riprova
+        </button>
+      </div>
+    );
+  }
+
+  if (categories.length === 0) {
+    return (
+      <div className="rounded-2xl bg-surface-container-low p-4 text-sm text-on-surface-variant">
+        Nessuna categoria attiva configurata.
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-4">
+      <div>
+        <h3 className="font-label-md text-primary">Categorie professionali</h3>
+        <div className="mt-3 grid gap-2 sm:grid-cols-2">
+          {categories.map((category) => {
+            const key = professionCategoryKey(category);
+            return (
+              <label
+                key={key}
+                className="flex min-h-12 items-center gap-3 rounded-2xl border border-outline-variant/50 bg-surface-container-low px-3 py-2 text-sm font-semibold text-primary"
+              >
+                <input
+                  type="checkbox"
+                  checked={selectedCategoryKeys.includes(key)}
+                  onChange={() => toggleCategory(category)}
+                />
+                <span>{category.name}</span>
+              </label>
+            );
+          })}
+        </div>
+      </div>
+
+      <div>
+        <h3 className="font-label-md text-primary">Sottocategorie attive</h3>
+        {selectedCategories.length === 0 ? (
+          <p className="mt-2 rounded-2xl bg-surface-container-low p-4 text-sm text-on-surface-variant">
+            Seleziona almeno una categoria per visualizzare le sottocategorie.
+          </p>
+        ) : availableSubcategories.length === 0 ? (
+          <p className="mt-2 rounded-2xl bg-surface-container-low p-4 text-sm text-on-surface-variant">
+            Le categorie selezionate non hanno sottocategorie attive.
+          </p>
+        ) : (
+          <div className="mt-3 max-h-[280px] space-y-2 overflow-y-auto rounded-2xl border border-outline-variant/40 bg-surface-container-low p-3">
+            {availableSubcategories.map((subcategory) => (
+              <label
+                key={`${subcategory.categoryName}-${subcategory.slug}`}
+                className="flex min-h-11 items-center gap-3 rounded-xl bg-white px-3 py-2 text-sm text-primary"
+              >
+                <input
+                  type="checkbox"
+                  checked={selectedSubcategoryNames.includes(subcategory.name)}
+                  onChange={() => toggleSubcategory(subcategory.name)}
+                />
+                <span className="min-w-0">
+                  <span className="block font-semibold">{subcategory.name}</span>
+                  <span className="block text-xs text-on-surface-variant">
+                    {subcategory.categoryName}
+                  </span>
+                </span>
+              </label>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function EditModal({
   section,
   draft,
   setDraft,
   saving,
   error,
+  catalogCategories,
+  catalogLoading,
+  catalogError,
+  selectedCategoryKeys,
+  setSelectedCategoryKeys,
+  selectedSubcategoryNames,
+  setSelectedSubcategoryNames,
+  onReloadCatalog,
   onCancel,
   onSave,
 }: {
@@ -1688,6 +1947,14 @@ function EditModal({
   setDraft: Dispatch<SetStateAction<Record<string, string | boolean>>>;
   saving: boolean;
   error: string | null;
+  catalogCategories: ProfessionCategory[];
+  catalogLoading: boolean;
+  catalogError: string | null;
+  selectedCategoryKeys: string[];
+  setSelectedCategoryKeys: Dispatch<SetStateAction<string[]>>;
+  selectedSubcategoryNames: string[];
+  setSelectedSubcategoryNames: Dispatch<SetStateAction<string[]>>;
+  onReloadCatalog: () => void;
   onCancel: () => void;
   onSave: () => void;
 }) {
@@ -1744,7 +2011,19 @@ function EditModal({
           {section === "services" ? (
             <>
               <TextArea label="Servizi offerti (uno per riga)" value={String(draft.services_offered ?? "")} onChange={(v) => setValue("services_offered", v)} />
-              <TextArea label="Professione / sottocategorie (una per riga)" value={String(draft.specializations ?? "")} onChange={(v) => setValue("specializations", v)} />
+              <CategorySpecializationSelector
+                categories={catalogCategories}
+                loading={catalogLoading}
+                error={catalogError}
+                selectedCategoryKeys={selectedCategoryKeys}
+                setSelectedCategoryKeys={setSelectedCategoryKeys}
+                selectedSubcategoryNames={selectedSubcategoryNames}
+                setSelectedSubcategoryNames={setSelectedSubcategoryNames}
+                onReload={onReloadCatalog}
+              />
+              {catalogError ? (
+                <TextArea label="Sottocategorie fallback (una per riga)" value={String(draft.specializations ?? "")} onChange={(v) => setValue("specializations", v)} />
+              ) : null}
             </>
           ) : null}
           {section === "contact" ? (

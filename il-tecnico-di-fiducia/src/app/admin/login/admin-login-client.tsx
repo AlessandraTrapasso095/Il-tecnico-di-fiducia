@@ -57,9 +57,9 @@ export default function AdminLoginClient({
   }
 
   return (
-    <main className="min-h-dvh bg-background px-3 py-6 text-on-surface sm:px-4 sm:py-8">
+    <main className="min-h-dvh bg-background px-4 py-[max(1.5rem,env(safe-area-inset-top))] pb-[max(1.5rem,env(safe-area-inset-bottom))] text-on-surface sm:px-6 sm:py-8">
       <div className="mx-auto flex min-h-[calc(100dvh-3rem)] w-full max-w-[1180px] items-center justify-center">
-        <div className="grid w-full overflow-hidden rounded-[24px] border border-outline-variant/30 bg-surface-container-lowest shadow-[0_18px_60px_rgba(8,43,95,0.14)] sm:rounded-[32px] lg:grid-cols-[0.95fr_1.05fr]">
+        <div className="grid w-full max-w-[520px] overflow-hidden rounded-[24px] border border-outline-variant/30 bg-surface-container-lowest shadow-[0_18px_60px_rgba(8,43,95,0.14)] sm:rounded-[32px] lg:max-w-none lg:grid-cols-[0.95fr_1.05fr]">
           <section className="relative hidden overflow-hidden bg-primary p-10 text-white lg:block">
             <div className="absolute inset-0 bg-[radial-gradient(circle_at_25%_25%,rgba(255,133,0,0.22),transparent_28%),linear-gradient(135deg,#002654,#0b3c78)]" />
             <div className="relative z-10 flex min-h-[620px] flex-col justify-between">
@@ -99,8 +99,13 @@ export default function AdminLoginClient({
           <section className="flex items-center justify-center px-4 py-8 sm:px-10 sm:py-10">
             <div className="w-full max-w-[460px]">
               <div className="mb-8 lg:hidden">
-                <Link href="/" className="font-headline-sm text-[24px] text-primary">
-                  Il Tecnico <span className="text-[#FF8500]">di Fiducia</span>
+                <Link href="/" className="inline-flex items-center gap-3 rounded-2xl focus:outline-none focus:ring-4 focus:ring-primary/20">
+                  <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-primary text-white shadow-lg">
+                    <span className="material-symbols-outlined">admin_panel_settings</span>
+                  </span>
+                  <span className="font-headline-sm text-[23px] leading-none text-primary">
+                    Il Tecnico <span className="text-[#FF8500]">di Fiducia</span>
+                  </span>
                 </Link>
               </div>
 
@@ -126,7 +131,7 @@ export default function AdminLoginClient({
                 <label className="block font-label-md text-on-surface-variant">
                   Email admin
                   <input
-                    className="mt-2 w-full rounded-2xl border border-outline-variant bg-white px-4 py-3 outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/20"
+                    className="mt-2 min-h-12 w-full rounded-2xl border border-outline-variant bg-white px-4 py-3 text-base outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/20"
                     type="email"
                     value={email}
                     onChange={(event) => setEmail(event.target.value)}

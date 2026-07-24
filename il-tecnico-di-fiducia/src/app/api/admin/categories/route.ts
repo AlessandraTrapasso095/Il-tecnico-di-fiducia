@@ -23,7 +23,11 @@ export async function GET() {
   if (!auth.ok) return auth.response;
 
   const service = createServiceClient();
-  const [{ data: categories, error: categoriesError }, { data: subcategories, error: subcategoriesError }] =
+  const [
+    { data: categories, error: categoriesError },
+    { data: subcategories, error: subcategoriesError },
+    { data: professionalCategories, error: professionalCategoriesError },
+  ] =
     await Promise.all([
       service.from("categories").select(CATEGORY_SELECT).order("sort_order", { ascending: true }).order("name"),
       service
@@ -31,12 +35,13 @@ export async function GET() {
         .select(SUBCATEGORY_SELECT)
         .order("sort_order", { ascending: true })
         .order("name"),
+      service.from("professional_categories").select("category_id"),
     ]);
 
-  if (categoriesError || subcategoriesError) {
+  if (categoriesError || subcategoriesError || professionalCategoriesError) {
     logApiError("ADMIN CATEGORIES ERROR", {
       query: "GET /api/admin/categories",
-      error: categoriesError ?? subcategoriesError,
+      error: categoriesError ?? subcategoriesError ?? professionalCategoriesError,
     });
     return NextResponse.json(
       { error: "Non è stato possibile caricare categorie e sottocategorie." },
@@ -52,8 +57,15 @@ export async function GET() {
     subcategoriesByCategory.set(key, current);
   }
 
+  const professionalCountByCategory = new Map<string, number>();
+  for (const categoryLink of professionalCategories ?? []) {
+    const key = String(categoryLink.category_id);
+    professionalCountByCategory.set(key, (professionalCountByCategory.get(key) ?? 0) + 1);
+  }
+
   const result = ((categories ?? []) as ManagedCategory[]).map((category) => ({
     ...category,
+    professional_count: professionalCountByCategory.get(String(category.id)) ?? 0,
     subcategories: subcategoriesByCategory.get(String(category.id)) ?? [],
   }));
 

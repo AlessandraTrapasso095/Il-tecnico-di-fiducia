@@ -4,7 +4,10 @@ import { requireAuth } from "@/lib/api/auth";
 import { isNonEmptyString } from "@/lib/api/validation";
 import { normalizeItalianProvinceCode } from "@/lib/locations/italian-provinces";
 import { isProfessionalVisibleToCustomers } from "@/lib/server/professional-visibility";
+import { createServiceClient } from "@/lib/supabase/service";
 import { normalizeWebsiteUrl } from "@/lib/validation/website-url";
+
+type CategoryId = string | number;
 
 type UpdateProfessionalPayload = {
   first_name?: string;
@@ -15,6 +18,7 @@ type UpdateProfessionalPayload = {
   bio?: string | null;
   public_email?: string | null;
   website_url?: string | null;
+  category_ids?: CategoryId[];
   specializations?: string[];
   services_offered?: string[];
   operational_provinces?: string[];
@@ -47,6 +51,19 @@ function optionalStringArray(value: unknown, maxItems = 30, maxLength = 80) {
     .filter(Boolean)
     .slice(0, maxItems)
     .map((item) => (item.length > maxLength ? item.slice(0, maxLength) : item));
+}
+
+function optionalCategoryIds(value: unknown) {
+  if (!Array.isArray(value)) return undefined;
+  const ids = value
+    .filter(
+      (item): item is CategoryId =>
+        (typeof item === "string" && item.trim().length > 0) ||
+        (typeof item === "number" && Number.isFinite(item)),
+    )
+    .map((item) => (typeof item === "string" ? item.trim() : item));
+
+  return [...new Set(ids.map(String))].slice(0, 10);
 }
 
 function optionalJsonList(value: unknown, maxItems = 30) {
@@ -230,6 +247,7 @@ export async function PATCH(
   const publicEmail = optionalText(payload.public_email, 160);
   const hasWebsiteUrl = Object.prototype.hasOwnProperty.call(payload, "website_url");
   const websiteUrl = normalizeWebsiteUrl(payload.website_url);
+  const categoryIds = optionalCategoryIds(payload.category_ids);
   const specializations = optionalStringArray(payload.specializations);
   const servicesOffered = optionalStringArray(payload.services_offered);
   const operationalProvinces = optionalStringArray(payload.operational_provinces, 110, 2);
@@ -270,6 +288,71 @@ export async function PATCH(
     professionalUpdates.available_travel = payload.available_travel;
   }
 
+  const service = categoryIds !== undefined ? createServiceClient() : null;
+  let savedCategories: { id: CategoryId; name: string; slug: string }[] | null = null;
+
+  if (categoryIds !== undefined) {
+    const { data: validCategories, error: validCategoriesError } = categoryIds.length
+      ? await service!
+          .from("categories")
+          .select("id, name, slug")
+          .in("id", categoryIds)
+          .eq("is_active", true)
+      : { data: [], error: null };
+
+    if (validCategoriesError) {
+      return NextResponse.json(
+        { error: "Non è stato possibile verificare le categorie." },
+        { status: 500 },
+      );
+    }
+
+    const validCategoryIds = new Set((validCategories ?? []).map((category) => String(category.id)));
+    const hasInvalidCategory = categoryIds.some((categoryId) => !validCategoryIds.has(String(categoryId)));
+    if (hasInvalidCategory) {
+      return NextResponse.json(
+        { error: "Una o più categorie selezionate non sono valide o non sono attive." },
+        { status: 400 },
+      );
+    }
+
+    const { error: deleteCategoryLinksError } = await service!
+      .from("professional_categories")
+      .delete()
+      .eq("professional_id", id);
+
+    if (deleteCategoryLinksError) {
+      return NextResponse.json(
+        { error: "Non è stato possibile aggiornare le categorie professionali." },
+        { status: 400 },
+      );
+    }
+
+    if (validCategories?.length) {
+      const { error: insertCategoryLinksError } = await service!
+        .from("professional_categories")
+        .insert(
+          validCategories.map((category) => ({
+            professional_id: id,
+            category_id: category.id,
+          })),
+        );
+
+      if (insertCategoryLinksError) {
+        return NextResponse.json(
+          { error: "Non è stato possibile salvare le categorie professionali." },
+          { status: 400 },
+        );
+      }
+    }
+
+    savedCategories = (validCategories ?? []) as {
+      id: CategoryId;
+      name: string;
+      slug: string;
+    }[];
+  }
+
   if (Object.keys(profileUpdates).length > 0) {
     const { error } = await supabase.from("profiles").update(profileUpdates).eq("id", id);
     if (error) {
@@ -295,5 +378,5 @@ export async function PATCH(
     .eq("id", id)
     .maybeSingle();
 
-  return NextResponse.json({ professional });
+  return NextResponse.json({ professional, categories: savedCategories ?? undefined });
 }
