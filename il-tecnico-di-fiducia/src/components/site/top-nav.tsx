@@ -5,10 +5,12 @@ import Image from "next/image";
 import Link from "next/link";
 
 const navLinks = [
-  { id: "explore", href: "#professioni", label: "Esplora" },
-  { id: "how-it-works", href: "#come-funziona", label: "Come funziona" },
-  { id: "professions", href: "#professioni", label: "Professioni" },
-  { id: "support", href: "#supporto", label: "Supporto" },
+  { id: "home", href: "/", label: "Home" },
+  { id: "about", href: "/chi-siamo", label: "Chi siamo" },
+  { id: "search", href: "/#professioni", label: "Cerca un tecnico" },
+  { id: "become", href: "/auth/register?role=professional", label: "Diventa un tecnico" },
+  { id: "suggest", href: "/proponi-un-tecnico", label: "Proponi un tecnico" },
+  { id: "support", href: "/contattaci", label: "Segnala un problema" },
 ];
 
 export function TopNav() {
@@ -60,19 +62,19 @@ export function TopNav() {
           </span>
         </Link>
 
-        <nav className="hidden items-center gap-8 lg:flex">
+        <nav className="hidden items-center gap-4 xl:flex xl:gap-6">
           {navLinks.map((l) => (
-            <a
+            <Link
               key={l.id}
               href={l.href}
-              className="font-label-md text-label-md text-on-surface-variant hover:text-on-tertiary-container transition-colors"
+              className="font-label-md text-[13px] text-on-surface-variant transition-colors hover:text-on-tertiary-container xl:text-label-md"
             >
               {l.label}
-            </a>
+            </Link>
           ))}
         </nav>
 
-        <div className="hidden items-center gap-3 lg:flex">
+        <div className="hidden items-center gap-3 xl:flex">
           <Link
             href="/auth/login"
             className="font-button text-button text-primary px-4 py-2 rounded-full hover:bg-surface-container-high transition-colors"
@@ -89,7 +91,7 @@ export function TopNav() {
 
         <button
           type="button"
-          className="flex h-11 w-11 shrink-0 cursor-pointer touch-manipulation items-center justify-center rounded-full border border-outline-variant/40 text-primary transition-colors hover:bg-surface-container-high lg:hidden"
+          className="flex h-11 w-11 shrink-0 cursor-pointer touch-manipulation items-center justify-center rounded-full border border-outline-variant/40 text-primary transition-colors hover:bg-surface-container-high xl:hidden"
           aria-label="Apri menu"
           aria-controls={mobileMenuId}
           aria-expanded={open}
@@ -102,7 +104,7 @@ export function TopNav() {
       </div>
 
       {open ? (
-        <div className="fixed inset-0 z-[200] lg:hidden" id={mobileMenuId}>
+        <div className="fixed inset-0 z-[200] xl:hidden" id={mobileMenuId}>
           <button
             type="button"
             className="absolute inset-0 h-full w-full bg-inverse-surface/45 backdrop-blur-sm"
@@ -130,14 +132,14 @@ export function TopNav() {
             </div>
             <div className="flex flex-1 flex-col gap-2 pb-[max(1rem,env(safe-area-inset-bottom))]">
               {navLinks.map((l) => (
-                <a
+                <Link
                   key={`mobile-${l.id}`}
                   href={l.href}
                   className="min-h-11 rounded-xl px-3 py-3 font-label-md text-label-md text-on-surface-variant transition-colors hover:bg-surface-container-low"
                   onClick={() => setOpen(false)}
                 >
                   {l.label}
-                </a>
+                </Link>
               ))}
 
               <div className="mt-2 flex flex-col gap-2 border-t border-outline-variant/30 pt-2">
