@@ -96,7 +96,7 @@ export default async function Home() {
               </div>
               <div className="flex items-center gap-2">
                 <span className="text-on-tertiary-container">●</span>
-                <span className="font-label-md text-label-md">Ricerca gratuita</span>
+                <span className="font-label-md text-label-md">Preventivi gratuiti</span>
               </div>
             </div>
           </Container>

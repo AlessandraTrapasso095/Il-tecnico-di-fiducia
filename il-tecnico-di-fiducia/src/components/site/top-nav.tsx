@@ -38,10 +38,10 @@ export function TopNav() {
 
   return (
     <header className="fixed left-0 right-0 top-0 z-50 h-20 bg-surface-container-lowest/80 shadow-sm backdrop-blur-md sm:h-[100px]">
-      <div className="mx-auto flex h-full w-full max-w-[1280px] items-center justify-between gap-3 px-3 sm:px-6 lg:px-8">
+      <div className="mx-auto flex h-full w-full max-w-[1280px] flex-nowrap items-center justify-between gap-2 px-3 sm:px-6 lg:px-4 xl:gap-3 xl:px-6">
         <Link
           href="/"
-          className="group flex min-w-0 items-center gap-2 rounded-full pr-2 transition-transform hover:scale-[0.99] sm:gap-2.5 xl:-ml-4 xl:mr-10 2xl:-ml-12 2xl:mr-16"
+          className="group flex shrink-0 items-center gap-2 rounded-full pr-2 transition-transform hover:scale-[0.99] sm:gap-2.5 xl:-ml-4 2xl:-ml-12"
           aria-label="Torna alla landing"
         >
           <Image
@@ -62,28 +62,28 @@ export function TopNav() {
           </span>
         </Link>
 
-        <nav className="hidden items-center gap-4 xl:flex xl:gap-6">
+        <nav className="hidden shrink-0 flex-nowrap items-center gap-2 lg:flex xl:gap-4 2xl:gap-6">
           {navLinks.map((l) => (
             <Link
               key={l.id}
               href={l.href}
-              className="font-label-md text-[13px] text-on-surface-variant transition-colors hover:text-on-tertiary-container xl:text-label-md"
+              className="shrink-0 whitespace-nowrap break-normal font-label-md text-[12px] text-on-surface-variant transition-colors hover:text-on-tertiary-container [overflow-wrap:normal] [hyphens:none] xl:text-[13px] 2xl:text-label-md"
             >
               {l.label}
             </Link>
           ))}
         </nav>
 
-        <div className="hidden items-center gap-3 xl:flex">
+        <div className="hidden shrink-0 flex-nowrap items-center gap-2 lg:flex xl:gap-3">
           <Link
             href="/auth/login"
-            className="font-button text-button bg-primary text-white px-6 py-3 rounded-full shadow-md hover:bg-primary-container transition-colors active:scale-[0.99]"
+            className="shrink-0 whitespace-nowrap break-normal rounded-full bg-primary px-4 py-3 font-button text-[12px] text-white shadow-md transition-colors hover:bg-primary-container active:scale-[0.99] [overflow-wrap:normal] [hyphens:none] xl:px-6 xl:text-button"
           >
             Log In
           </Link>
           <Link
             href="/auth/register"
-            className="font-button text-button bg-[#FF8500] text-white px-6 py-3 rounded-full shadow-md hover:bg-[#FF9A2B] transition-colors active:scale-[0.99]"
+            className="shrink-0 whitespace-nowrap break-normal rounded-full bg-[#FF8500] px-4 py-3 font-button text-[12px] text-white shadow-md transition-colors hover:bg-[#FF9A2B] active:scale-[0.99] [overflow-wrap:normal] [hyphens:none] xl:px-6 xl:text-button"
           >
             Inizia ora
           </Link>
@@ -91,7 +91,7 @@ export function TopNav() {
 
         <button
           type="button"
-          className="flex h-11 w-11 shrink-0 cursor-pointer touch-manipulation items-center justify-center rounded-full border border-outline-variant/40 text-primary transition-colors hover:bg-surface-container-high xl:hidden"
+          className="flex h-11 w-11 shrink-0 cursor-pointer touch-manipulation items-center justify-center rounded-full border border-outline-variant/40 text-primary transition-colors hover:bg-surface-container-high lg:hidden"
           aria-label="Apri menu"
           aria-controls={mobileMenuId}
           aria-expanded={open}
@@ -104,7 +104,7 @@ export function TopNav() {
       </div>
 
       {open ? (
-        <div className="fixed inset-0 z-[200] xl:hidden" id={mobileMenuId}>
+        <div className="fixed inset-0 z-[200] lg:hidden" id={mobileMenuId}>
           <button
             type="button"
             className="absolute inset-0 h-full w-full bg-inverse-surface/45 backdrop-blur-sm"
