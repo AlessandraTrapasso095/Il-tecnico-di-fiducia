@@ -3,6 +3,7 @@
 import { type CSSProperties, useEffect, useId, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 
 const navLinks = [
   { id: "home", href: "/", label: "Home" },
@@ -19,9 +20,37 @@ const noWrapTextStyle: CSSProperties = {
   hyphens: "none",
 };
 
+function desktopNavLinkClass(active: boolean) {
+  return [
+    "group relative inline-flex shrink-0 items-center rounded-full px-2.5 py-3 font-label-md text-[16px] font-semibold leading-none whitespace-nowrap break-normal transition-colors duration-200 min-[1440px]:text-[17px] 2xl:px-3 2xl:text-[18px]",
+    active ? "text-primary" : "text-on-surface-variant hover:text-primary",
+  ].join(" ");
+}
+
+function desktopNavUnderlineClass(active: boolean) {
+  return [
+    "pointer-events-none absolute inset-x-2 -bottom-0.5 h-[2px] origin-center rounded-full bg-[#FF8500] transition-all duration-200 ease-out 2xl:inset-x-3",
+    active
+      ? "scale-x-100 opacity-100"
+      : "scale-x-0 opacity-0 group-hover:scale-x-100 group-hover:opacity-75",
+  ].join(" ");
+}
+
 export function TopNav() {
+  const pathname = usePathname() ?? "/";
   const [open, setOpen] = useState(false);
+  const [currentHash, setCurrentHash] = useState("");
   const mobileMenuId = useId();
+
+  useEffect(() => {
+    function updateHash() {
+      setCurrentHash(window.location.hash);
+    }
+
+    updateHash();
+    window.addEventListener("hashchange", updateHash);
+    return () => window.removeEventListener("hashchange", updateHash);
+  }, []);
 
   useEffect(() => {
     function onKeyDown(e: KeyboardEvent) {
@@ -41,6 +70,21 @@ export function TopNav() {
       document.body.style.overflow = previousOverflow;
     };
   }, [open]);
+
+  function isDesktopNavActive(href: string) {
+    const [hrefPath, hrefHash] = href.split("#");
+    const cleanPath = hrefPath.split("?")[0] || "/";
+
+    if (hrefHash) {
+      return pathname === cleanPath && currentHash === `#${hrefHash}`;
+    }
+
+    if (cleanPath === "/") {
+      return pathname === "/" && currentHash !== "#professioni";
+    }
+
+    return pathname === cleanPath || pathname.startsWith(`${cleanPath}/`);
+  }
 
   return (
     <header className="fixed left-0 right-0 top-0 z-50 h-20 bg-surface-container-lowest/80 shadow-sm backdrop-blur-md sm:h-[100px]">
@@ -68,15 +112,16 @@ export function TopNav() {
           </span>
         </Link>
 
-        <nav className="hidden shrink-0 flex-nowrap items-center gap-3 xl:flex 2xl:gap-6">
+        <nav className="mx-4 hidden min-w-0 flex-1 flex-nowrap items-center justify-center gap-4 xl:flex min-[1440px]:gap-5 2xl:gap-7">
           {navLinks.map((l) => (
             <Link
               key={l.id}
               href={l.href}
-              className="shrink-0 whitespace-nowrap break-normal font-label-md text-[14px] text-on-surface-variant transition-colors hover:text-on-tertiary-container 2xl:text-label-md"
+              className={desktopNavLinkClass(isDesktopNavActive(l.href))}
               style={noWrapTextStyle}
             >
               {l.label}
+              <span className={desktopNavUnderlineClass(isDesktopNavActive(l.href))} />
             </Link>
           ))}
         </nav>

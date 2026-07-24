@@ -86,6 +86,13 @@ const NAV_ITEMS = [
   { href: "/professionista/supporto", label: "Supporto", icon: "help" },
 ] as const;
 
+type ProfessionalNavItem = {
+  href: string;
+  label: string;
+  icon: string;
+  activePaths?: string[];
+};
+
 function isProfessionalNavActive(pathname: string, href: string) {
   if (href === "/professionista") {
     return pathname === href;
@@ -108,6 +115,18 @@ function isProfessionalNavActive(pathname: string, href: string) {
   }
 
   return pathname === href || pathname.startsWith(`${href}/`);
+}
+
+function isProfessionalSidebarItemActive(pathname: string, item: ProfessionalNavItem) {
+  if (
+    item.activePaths?.some((activePath) =>
+      pathname === activePath || pathname.startsWith(`${activePath}/`),
+    )
+  ) {
+    return true;
+  }
+
+  return isProfessionalNavActive(pathname, item.href);
 }
 
 function professionalHeaderIconClass(active: boolean) {
@@ -294,6 +313,19 @@ export default function ProfessionalShell({ profile, children }: ProfessionalShe
     () => notifications.filter((notification) => !notification.read_at).length,
     [notifications],
   );
+  const sidebarNavItems = useMemo<ProfessionalNavItem[]>(() => {
+    const publicProfileHref = `/professionisti/${encodeURIComponent(profile.id)}`;
+    return [
+      NAV_ITEMS[0],
+      {
+        href: publicProfileHref,
+        label: "Profilo",
+        icon: "badge",
+        activePaths: [publicProfileHref, "/professionista/profilo"],
+      },
+      ...NAV_ITEMS.slice(1),
+    ];
+  }, [profile.id]);
   const loadNotifications = useCallback(async () => {
     try {
       const response = await fetchJson<NotificationsResponse>("/api/notifications?limit=10", {
@@ -537,8 +569,8 @@ export default function ProfessionalShell({ profile, children }: ProfessionalShe
 
   const sidebar = (
     <nav className="flex flex-col gap-2">
-      {NAV_ITEMS.map((item) => {
-        const active = isProfessionalNavActive(pathname, item.href);
+      {sidebarNavItems.map((item) => {
+        const active = isProfessionalSidebarItemActive(pathname, item);
         return (
           <Link
             key={item.href}
