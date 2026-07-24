@@ -28,7 +28,7 @@ export type NotificationDeliveryState = {
 };
 
 const ACTIVE_CONVERSATION_PRESENCE_WINDOW_MS = 75 * 1000;
-const HEARTBEAT_AMBIGUITY_WINDOW_MS = 60 * 1000;
+const GLOBAL_HEARTBEAT_ONLINE_WINDOW_MS = 90 * 1000;
 
 function ageMs(value: string | null | undefined) {
   if (!value) return null;
@@ -71,7 +71,7 @@ function buildState({
         ACTIVE_CONVERSATION_PRESENCE_WINDOW_MS,
       ),
       activeConversationPresenceAgeMs,
-      heartbeatRecent: isRecent(heartbeatAgeMs, HEARTBEAT_AMBIGUITY_WINDOW_MS),
+      heartbeatRecent: isRecent(heartbeatAgeMs, GLOBAL_HEARTBEAT_ONLINE_WINDOW_MS),
       heartbeatAgeMs,
     },
   };
@@ -173,12 +173,24 @@ export async function getNotificationDeliveryState({
     });
   }
 
-  if (isRecent(heartbeatAge, HEARTBEAT_AMBIGUITY_WINDOW_MS)) {
+  if (!activeConversationId && isRecent(heartbeatAge, GLOBAL_HEARTBEAT_ONLINE_WINDOW_MS)) {
+    return buildState({
+      recipientId,
+      recipientType,
+      online: true,
+      reason: "global_heartbeat_recent",
+      activeConversationId,
+      activeConversationPresenceAgeMs: activeConversationPresenceAge,
+      heartbeatAgeMs: heartbeatAge,
+    });
+  }
+
+  if (activeConversationId && isRecent(heartbeatAge, GLOBAL_HEARTBEAT_ONLINE_WINDOW_MS)) {
     return buildState({
       recipientId,
       recipientType,
       online: false,
-      reason: "heartbeat_recent_without_confirmed_realtime_presence",
+      reason: "heartbeat_recent_without_active_conversation_presence",
       activeConversationId,
       activeConversationPresenceAgeMs: activeConversationPresenceAge,
       heartbeatAgeMs: heartbeatAge,
