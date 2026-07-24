@@ -2,6 +2,10 @@ import "server-only";
 
 import { appBaseUrl, escapeHtml, sendTransactionalEmail } from "@/lib/server/email";
 import { logApiError } from "@/lib/server/api-logger";
+import {
+  getNotificationDeliveryState,
+  logNotificationEmailDecision,
+} from "@/lib/server/notification-delivery";
 import { createServiceClient } from "@/lib/supabase/service";
 
 type ServiceClient = ReturnType<typeof createServiceClient>;
@@ -22,36 +26,9 @@ type ReviewNotificationRow = {
   body?: string | null;
 };
 
-const ONLINE_WINDOW_MS = 60 * 1000;
-
 function fullName(profile: ProfileRow | null | undefined, fallback = "Utente") {
   const name = `${profile?.first_name ?? ""} ${profile?.last_name ?? ""}`.trim();
   return name || fallback;
-}
-
-function isRecent(lastSeenAt: string | null | undefined) {
-  if (!lastSeenAt) return false;
-  const timestamp = new Date(lastSeenAt).getTime();
-  return Number.isFinite(timestamp) && Date.now() - timestamp <= ONLINE_WINDOW_MS;
-}
-
-async function isUserOnline(service: ServiceClient, userId: string) {
-  const { data, error } = await service
-    .from("user_activity")
-    .select("last_seen_at")
-    .eq("user_id", userId)
-    .maybeSingle();
-
-  if (error) {
-    logApiError("REVIEW NOTIFICATION ERROR", {
-      query: "user_activity select last_seen_at",
-      user_id: userId,
-      error,
-    });
-    return false;
-  }
-
-  return isRecent(data?.last_seen_at);
 }
 
 async function loadProfiles(service: ServiceClient, userIds: string[]) {
@@ -133,7 +110,7 @@ async function ensureNotification({
       }
     }
 
-    return;
+    return true;
   }
 
   const { error } = await service.from("notifications").insert({
@@ -153,7 +130,10 @@ async function ensureNotification({
       entity_id: entityId,
       error,
     });
+    return false;
   }
+
+  return true;
 }
 
 function reviewTitleLine(review: ReviewNotificationRow) {
@@ -181,8 +161,18 @@ export async function notifyReviewReceived({
       entityId: review.id,
     });
 
-    const professionalOnline = await isUserOnline(service, review.professional_id);
-    if (professionalOnline) return;
+    const deliveryState = await getNotificationDeliveryState({
+      service,
+      recipientId: review.professional_id,
+      recipientType: "professional",
+    });
+    if (!deliveryState.emailRequired) {
+      logNotificationEmailDecision({
+        scope: "reviews.review_received",
+        state: deliveryState,
+      });
+      return;
+    }
 
     const profiles = await loadProfiles(service, [
       review.customer_id,
@@ -197,7 +187,7 @@ export async function notifyReviewReceived({
       Boolean,
     ) as string[];
 
-    await sendTransactionalEmail({
+    const emailResult = await sendTransactionalEmail({
       to: professional?.email,
       subject: "Hai ricevuto una nuova recensione",
       text: [
@@ -233,6 +223,11 @@ export async function notifyReviewReceived({
         </div>
       `,
     });
+    logNotificationEmailDecision({
+      scope: "reviews.review_received",
+      state: deliveryState,
+      emailResult,
+    });
   } catch (error) {
     console.error("[reviews] Failed to notify review received", {
       review_id: review.id,
@@ -263,8 +258,18 @@ export async function notifyReviewReplied({
       entityId: review.id,
     });
 
-    const customerOnline = await isUserOnline(service, review.customer_id);
-    if (customerOnline) return;
+    const deliveryState = await getNotificationDeliveryState({
+      service,
+      recipientId: review.customer_id,
+      recipientType: "customer",
+    });
+    if (!deliveryState.emailRequired) {
+      logNotificationEmailDecision({
+        scope: "reviews.review_replied",
+        state: deliveryState,
+      });
+      return;
+    }
 
     const profiles = await loadProfiles(service, [
       review.customer_id,
@@ -276,7 +281,7 @@ export async function notifyReviewReplied({
     const professionalName = fullName(professional, "Il professionista");
     const href = `${appBaseUrl()}/professionisti/${encodeURIComponent(review.professional_id)}?tab=reviews&review=${encodeURIComponent(review.id)}`;
 
-    await sendTransactionalEmail({
+    const emailResult = await sendTransactionalEmail({
       to: customer?.email,
       subject: "Il professionista ha risposto alla tua recensione",
       text: [
@@ -309,6 +314,11 @@ export async function notifyReviewReplied({
           </p>
         </div>
       `,
+    });
+    logNotificationEmailDecision({
+      scope: "reviews.review_replied",
+      state: deliveryState,
+      emailResult,
     });
   } catch (error) {
     console.error("[reviews] Failed to notify review reply", {

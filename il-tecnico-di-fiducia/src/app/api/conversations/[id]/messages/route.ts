@@ -13,6 +13,10 @@ import {
   escapeHtml,
   sendTransactionalEmail,
 } from "@/lib/server/email";
+import {
+  getNotificationDeliveryState,
+  logNotificationEmailDecision,
+} from "@/lib/server/notification-delivery";
 import { isProfessionalVisibleToCustomers } from "@/lib/server/professional-visibility";
 import { createServiceClient } from "@/lib/supabase/service";
 import type { MessageAttachment, MessageRow } from "@/lib/types/chat";
@@ -256,28 +260,11 @@ async function notifyMessageRecipient({
       : conversation.customer_id;
   if (!recipientId || recipientId === senderId) return;
 
-  const [
-    { data: activity, error: activityError },
-    { data: people, error: peopleError },
-  ] = await Promise.all([
-    service
-      .from("user_activity")
-      .select("last_seen_at")
-      .eq("user_id", recipientId)
-      .maybeSingle(),
-    service
-      .from("profiles")
-      .select("id, email, role, first_name, last_name")
-      .in("id", [senderId, recipientId]),
-  ]);
+  const { data: people, error: peopleError } = await service
+    .from("profiles")
+    .select("id, email, role, first_name, last_name")
+    .in("id", [senderId, recipientId]);
 
-  if (activityError) {
-    console.error("[messages] Failed to load recipient activity", {
-      conversationId,
-      recipientId,
-      error: errorDetails(activityError),
-    });
-  }
   if (peopleError) {
     console.error("[messages] Failed to load message notification profiles", {
       conversationId,
@@ -286,11 +273,6 @@ async function notifyMessageRecipient({
       error: errorDetails(peopleError),
     });
   }
-
-  const onlineWindowMs = 60 * 1000;
-  const lastSeenAt = activity?.last_seen_at ?? null;
-  const recipientOnline =
-    lastSeenAt !== null && Date.now() - new Date(lastSeenAt).getTime() <= onlineWindowMs;
 
   const { data: existingNotification, error: existingNotificationError } = await service
     .from("notifications")
@@ -331,11 +313,24 @@ async function notifyMessageRecipient({
     });
   }
 
-  if (recipientOnline) return;
-
   const personById = new Map((people ?? []).map((person) => [person.id, person]));
   const sender = personById.get(senderId);
   const recipient = personById.get(recipientId);
+  const deliveryState = await getNotificationDeliveryState({
+    service,
+    recipientId,
+    recipientType: recipient?.role ?? "unknown",
+    activeConversationId: conversationId,
+  });
+
+  if (!deliveryState.emailRequired) {
+    logNotificationEmailDecision({
+      scope: "messages.message_received",
+      state: deliveryState,
+    });
+    return;
+  }
+
   const senderName =
     `${sender?.first_name ?? ""} ${sender?.last_name ?? ""}`.trim() || "Un utente";
   const recipientName =
@@ -346,7 +341,7 @@ async function notifyMessageRecipient({
       ? `${baseUrl}/professionista/messaggi?conversation=${encodeURIComponent(conversationId)}`
       : `${baseUrl}/customer?section=messages&conversation=${encodeURIComponent(conversationId)}`;
   try {
-    await sendTransactionalEmail({
+    const emailResult = await sendTransactionalEmail({
       to: recipient?.email,
       subject: "Nuovo messaggio - Il Tecnico di Fiducia",
       text: [
@@ -369,7 +364,16 @@ async function notifyMessageRecipient({
         </div>
       `,
     });
+    logNotificationEmailDecision({
+      scope: "messages.message_received",
+      state: deliveryState,
+      emailResult,
+    });
   } catch (error) {
+    logNotificationEmailDecision({
+      scope: "messages.message_received",
+      state: deliveryState,
+    });
     console.error("[messages] Failed to send offline message email", error);
   }
 }

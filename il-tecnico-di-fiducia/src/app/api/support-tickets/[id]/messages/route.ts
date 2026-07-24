@@ -9,6 +9,11 @@ import {
   sendSupportTicketReplyEmail,
   sendSupportTicketUserReplyEmail,
 } from "@/lib/server/support-ticket-emails";
+import {
+  combineNotificationDeliveryStates,
+  getNotificationDeliveryState,
+  logNotificationEmailDecision,
+} from "@/lib/server/notification-delivery";
 import { createServiceClient } from "@/lib/supabase/service";
 
 export const runtime = "nodejs";
@@ -209,21 +214,55 @@ export async function POST(
       );
       const author = authorsById.get(updatedTicket.author_id) ?? null;
 
-      await service.from("notifications").insert({
+      const { error: notificationError } = await service.from("notifications").insert({
         recipient_id: updatedTicket.author_id,
         actor_id: profile.id,
         type: "support_ticket_replied",
         entity_type: "support_ticket",
         entity_id: updatedTicket.id,
       });
+
+      if (notificationError) {
+        logApiError("SUPPORT_MESSAGES NOTIFICATION ERROR", {
+          user_id: user.id,
+          role: profile.role,
+          query: "create ticket reply notification",
+          ticket_id: ticketId,
+          recipient_id: updatedTicket.author_id,
+          error: notificationError,
+        });
+      }
+
       if (author) {
+        const deliveryState = await getNotificationDeliveryState({
+          service,
+          recipientId: updatedTicket.author_id,
+          recipientType: author.role,
+        });
+        if (!deliveryState.emailRequired) {
+          logNotificationEmailDecision({
+            scope: "support.ticket_admin_reply",
+            state: deliveryState,
+          });
+          return NextResponse.json({ message: data, ticket: updatedTicket });
+        }
+
         try {
-          await sendSupportTicketReplyEmail({
+          const emailResult = await sendSupportTicketReplyEmail({
             ticket: updatedTicket,
             author,
             replyBody: payload.body.trim(),
           });
+          logNotificationEmailDecision({
+            scope: "support.ticket_admin_reply",
+            state: deliveryState,
+            emailResult,
+          });
         } catch (emailError) {
+          logNotificationEmailDecision({
+            scope: "support.ticket_admin_reply",
+            state: deliveryState,
+          });
           logApiError("SUPPORT_MESSAGES EMAIL ERROR", {
             user_id: user.id,
             role: profile.role,
@@ -287,7 +326,7 @@ export async function POST(
         .map((admin) => admin.id);
 
       if (activeAdminIds.length > 0) {
-        await service.from("notifications").insert(
+        const { error: adminNotificationError } = await service.from("notifications").insert(
           activeAdminIds.map((adminId) => ({
             recipient_id: adminId,
             actor_id: user.id,
@@ -296,14 +335,68 @@ export async function POST(
             entity_id: updatedTicket.id,
           })),
         );
+        if (adminNotificationError) {
+          logApiError("SUPPORT_MESSAGES NOTIFICATION ERROR", {
+            user_id: user.id,
+            role: profile.role,
+            query: "create admin ticket reply notification",
+            ticket_id: ticketId,
+            recipient_count: activeAdminIds.length,
+            error: adminNotificationError,
+          });
+        }
       }
 
       if (author) {
-        await sendSupportTicketUserReplyEmail({
-          ticket: updatedTicket,
-          author,
-          replyBody: payload.body.trim(),
+        const adminDeliveryStates = await Promise.all(
+          activeAdminIds.map((adminId) =>
+            getNotificationDeliveryState({
+              service,
+              recipientId: adminId,
+              recipientType: "admin",
+            }),
+          ),
+        );
+        const deliveryState = combineNotificationDeliveryStates({
+          recipientId:
+            activeAdminIds.length > 0 ? activeAdminIds.join(",") : "support-admins",
+          recipientType: "admin",
+          states: adminDeliveryStates,
+          fallbackReason: "no_active_admin_profiles_email_required",
         });
+
+        if (!deliveryState.emailRequired) {
+          logNotificationEmailDecision({
+            scope: "support.ticket_user_reply",
+            state: deliveryState,
+          });
+        } else {
+          try {
+            const emailResult = await sendSupportTicketUserReplyEmail({
+              ticket: updatedTicket,
+              author,
+              replyBody: payload.body.trim(),
+            });
+            logNotificationEmailDecision({
+              scope: "support.ticket_user_reply",
+              state: deliveryState,
+              emailResult,
+            });
+          } catch (emailError) {
+            logNotificationEmailDecision({
+              scope: "support.ticket_user_reply",
+              state: deliveryState,
+            });
+            logApiError("SUPPORT_MESSAGES EMAIL ERROR", {
+              user_id: user.id,
+              role: profile.role,
+              query: "send admin ticket reply email",
+              ticket_id: ticketId,
+              recipient_count: activeAdminIds.length,
+              error: emailError,
+            });
+          }
+        }
       }
     } catch (notificationError) {
       logApiError("SUPPORT_MESSAGES NOTIFICATION ERROR", {

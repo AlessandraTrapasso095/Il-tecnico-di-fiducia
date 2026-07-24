@@ -4,6 +4,10 @@ import { writeAuditLog } from "@/lib/api/audit-log";
 import { requireAuth } from "@/lib/api/auth";
 import { logApiError } from "@/lib/server/api-logger";
 import { loadAdminUserSummaries } from "@/lib/server/admin-user-summaries";
+import {
+  getNotificationDeliveryState,
+  logNotificationEmailDecision,
+} from "@/lib/server/notification-delivery";
 import { sendSupportTicketResolvedEmail } from "@/lib/server/support-ticket-emails";
 import { createServiceClient } from "@/lib/supabase/service";
 
@@ -167,7 +171,7 @@ export async function PATCH(
         );
         const author = authorsById.get(data.author_id) ?? null;
 
-        await service.from("notifications").insert({
+        const { error: notificationError } = await service.from("notifications").insert({
           recipient_id: data.author_id,
           actor_id: profile.id,
           type: "support_ticket_resolved",
@@ -175,8 +179,50 @@ export async function PATCH(
           entity_id: data.id,
         });
 
+        if (notificationError) {
+          logApiError("SUPPORT_TICKET_DETAIL NOTIFICATION ERROR", {
+            user_id: user.id,
+            role: profile.role,
+            query: "create ticket resolved notification",
+            ticket_id: id,
+            recipient_id: data.author_id,
+            error: notificationError,
+          });
+        }
+
         if (author) {
-          await sendSupportTicketResolvedEmail({ ticket: data, author });
+          const deliveryState = await getNotificationDeliveryState({
+            service,
+            recipientId: data.author_id,
+            recipientType: author.role,
+          });
+          if (!deliveryState.emailRequired) {
+            logNotificationEmailDecision({
+              scope: "support.ticket_resolved",
+              state: deliveryState,
+            });
+          } else {
+            try {
+              const emailResult = await sendSupportTicketResolvedEmail({ ticket: data, author });
+              logNotificationEmailDecision({
+                scope: "support.ticket_resolved",
+                state: deliveryState,
+                emailResult,
+              });
+            } catch (emailError) {
+              logNotificationEmailDecision({
+                scope: "support.ticket_resolved",
+                state: deliveryState,
+              });
+              logApiError("SUPPORT_TICKET_DETAIL EMAIL ERROR", {
+                user_id: user.id,
+                role: profile.role,
+                query: "send ticket resolved email",
+                ticket_id: id,
+                error: emailError,
+              });
+            }
+          }
         }
       } catch (notificationError) {
         logApiError("SUPPORT_TICKET_DETAIL NOTIFICATION ERROR", {

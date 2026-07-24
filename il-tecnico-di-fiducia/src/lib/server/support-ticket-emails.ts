@@ -46,7 +46,7 @@ export async function sendSupportTicketCreatedEmail({
     timeStyle: "short",
   }).format(new Date(ticket.created_at));
 
-  await sendTransactionalEmail({
+  return sendTransactionalEmail({
     to: supportAdminEmail(),
     subject: "Nuovo ticket supporto ricevuto",
     text: [
@@ -93,7 +93,7 @@ export async function sendSupportTicketReplyEmail({
       ? `${appBaseUrl()}/professionista/supporto`
       : `${appBaseUrl()}/customer`;
 
-  await sendTransactionalEmail({
+  return sendTransactionalEmail({
     to: author.email,
     subject: "Risposta al tuo ticket - Il Tecnico di Fiducia",
     text: [
@@ -137,7 +137,7 @@ export async function sendSupportTicketResolvedEmail({
       ? `${appBaseUrl()}/professionista/supporto`
       : `${appBaseUrl()}/customer`;
 
-  await sendTransactionalEmail({
+  return sendTransactionalEmail({
     to: author.email,
     subject: "Ticket risolto - Il Tecnico di Fiducia",
     text: [
@@ -176,7 +176,7 @@ export async function sendSupportTicketUserReplyEmail({
     timeStyle: "short",
   }).format(new Date());
 
-  await sendTransactionalEmail({
+  return sendTransactionalEmail({
     to: supportAdminEmail(),
     subject: "Nuova risposta a un ticket supporto",
     text: [
