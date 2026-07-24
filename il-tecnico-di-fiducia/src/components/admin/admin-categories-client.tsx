@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent, type FormEvent } from "react";
 
 import { fetchJson } from "@/lib/api/fetch-json";
 
@@ -33,6 +33,11 @@ type ManagedCategory = {
 
 type CategoriesResponse = {
   categories: ManagedCategory[];
+};
+
+type CategoryImageUploadResponse = {
+  image_url: string;
+  path: string;
 };
 
 type CategoryForm = {
@@ -112,6 +117,33 @@ function fullId(id: CategoryId) {
   return String(id);
 }
 
+function formatDateTime(value: string) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "—";
+  return new Intl.DateTimeFormat("it-IT", {
+    dateStyle: "short",
+    timeStyle: "short",
+  }).format(date);
+}
+
+function subcategoryPreview(subcategories: ManagedSubcategory[]) {
+  if (subcategories.length === 0) return "Nessuna sottocategoria";
+  const names = [...subcategories]
+    .sort((first, second) => first.sort_order - second.sort_order || first.name.localeCompare(second.name, "it"))
+    .slice(0, 5)
+    .map((subcategory) => subcategory.name);
+  const suffix = subcategories.length > names.length ? ` +${subcategories.length - names.length}` : "";
+  return `${names.join(", ")}${suffix}`;
+}
+
+async function removeCategoryImage(imageUrl: string | null) {
+  if (!imageUrl) return;
+  await fetchJson<{ ok: boolean }>("/api/admin/category-images", {
+    method: "DELETE",
+    body: JSON.stringify({ image_url: imageUrl }),
+  });
+}
+
 function StatusPill({ active }: { active: boolean }) {
   return (
     <span
@@ -155,14 +187,19 @@ function Field({
 }
 
 export function AdminCategoriesClient() {
+  const imageInputRef = useRef<HTMLInputElement | null>(null);
   const [categories, setCategories] = useState<ManagedCategory[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [imageUploading, setImageUploading] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [editingCategoryId, setEditingCategoryId] = useState<string | null>(null);
+  const [editingCategoryOriginalImageUrl, setEditingCategoryOriginalImageUrl] =
+    useState<string | null>(null);
   const [expandedCategoryId, setExpandedCategoryId] = useState<string | null>(null);
   const [categoryForm, setCategoryForm] = useState<CategoryForm>(emptyCategoryForm);
+  const [imagePreviewUrl, setImagePreviewUrl] = useState<string | null>(null);
   const [subcategoryForm, setSubcategoryForm] =
     useState<SubcategoryForm>(emptySubcategoryForm);
   const [editingSubcategoryId, setEditingSubcategoryId] = useState<string | null>(null);
@@ -207,19 +244,90 @@ export function AdminCategoriesClient() {
     return () => window.clearTimeout(timeout);
   }, [loadCategories]);
 
+  useEffect(() => {
+    return () => {
+      if (imagePreviewUrl?.startsWith("blob:")) {
+        URL.revokeObjectURL(imagePreviewUrl);
+      }
+    };
+  }, [imagePreviewUrl]);
+
   function startCreateCategory() {
     setEditingCategoryId(null);
+    setEditingCategoryOriginalImageUrl(null);
     setCategoryForm(emptyCategoryForm());
+    setImagePreviewUrl(null);
+    if (imageInputRef.current) imageInputRef.current.value = "";
     setMessage(null);
     setError(null);
   }
 
   function startEditCategory(category: ManagedCategory) {
     setEditingCategoryId(fullId(category.id));
+    setEditingCategoryOriginalImageUrl(category.image_url ?? null);
     setCategoryForm(categoryFormFrom(category));
+    setImagePreviewUrl(null);
+    if (imageInputRef.current) imageInputRef.current.value = "";
     setExpandedCategoryId(fullId(category.id));
     setMessage(null);
     setError(null);
+  }
+
+  async function uploadCategoryImage(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0] ?? null;
+    event.target.value = "";
+    if (!file) return;
+
+    if (!file.type.startsWith("image/")) {
+      setError("Seleziona un file immagine valido.");
+      return;
+    }
+
+    if (file.size > 5 * 1024 * 1024) {
+      setError("L’immagine non può superare 5 MB.");
+      return;
+    }
+
+    const previewUrl = URL.createObjectURL(file);
+    setImagePreviewUrl(previewUrl);
+    setImageUploading(true);
+    setError(null);
+    setMessage(null);
+
+    const formData = new FormData();
+    formData.append("file", file);
+
+    try {
+      const response = await fetch("/api/admin/category-images", {
+        method: "POST",
+        body: formData,
+        credentials: "same-origin",
+      });
+      const payload = (await response.json().catch(() => null)) as
+        | CategoryImageUploadResponse
+        | { error?: string }
+        | null;
+
+      if (!response.ok || !payload || !("image_url" in payload)) {
+        const errorMessage =
+          payload && "error" in payload && typeof payload.error === "string"
+            ? payload.error
+            : "Non è stato possibile caricare l’immagine.";
+        throw new Error(errorMessage);
+      }
+
+      setCategoryForm((current) => ({ ...current, image_url: payload.image_url }));
+      setMessage("Immagine caricata. Salva la categoria per applicarla al catalogo.");
+    } catch (uploadError) {
+      setImagePreviewUrl(null);
+      setError(
+        uploadError instanceof Error
+          ? uploadError.message
+          : "Non è stato possibile caricare l’immagine.",
+      );
+    } finally {
+      setImageUploading(false);
+    }
   }
 
   async function saveCategory(event: FormEvent<HTMLFormElement>) {
@@ -243,14 +351,25 @@ export function AdminCategoriesClient() {
           method: "PATCH",
           body: JSON.stringify(payload),
         });
+        if (
+          editingCategoryOriginalImageUrl &&
+          editingCategoryOriginalImageUrl !== payload.image_url
+        ) {
+          await removeCategoryImage(editingCategoryOriginalImageUrl).catch(() => undefined);
+        }
+        setEditingCategoryOriginalImageUrl(payload.image_url);
         setMessage("Categoria aggiornata.");
       } else {
-        await fetchJson("/api/admin/categories", {
+        const response = await fetchJson<{ category: ManagedCategory }>("/api/admin/categories", {
           method: "POST",
           body: JSON.stringify(payload),
         });
         setMessage("Categoria creata.");
+        setExpandedCategoryId(fullId(response.category.id));
         setCategoryForm(emptyCategoryForm());
+        setEditingCategoryOriginalImageUrl(null);
+        setImagePreviewUrl(null);
+        if (imageInputRef.current) imageInputRef.current.value = "";
       }
       await loadCategories();
     } catch (saveError) {
@@ -258,6 +377,37 @@ export function AdminCategoriesClient() {
         saveError instanceof Error
           ? saveError.message
           : "Non è stato possibile salvare la categoria.",
+      );
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function deleteCategory(category: ManagedCategory) {
+    if (
+      !window.confirm(
+        `Eliminare definitivamente “${category.name}”? Usa questa azione solo se la categoria non ha profili o sottocategorie associate.`,
+      )
+    ) {
+      return;
+    }
+
+    setSaving(true);
+    setError(null);
+    setMessage(null);
+    try {
+      await fetchJson(`/api/admin/categories/${encodeURIComponent(fullId(category.id))}`, {
+        method: "DELETE",
+      });
+      await removeCategoryImage(category.image_url).catch(() => undefined);
+      setMessage("Categoria eliminata.");
+      if (expandedCategoryId === fullId(category.id)) setExpandedCategoryId(null);
+      await loadCategories();
+    } catch (deleteError) {
+      setError(
+        deleteError instanceof Error
+          ? deleteError.message
+          : "Non è stato possibile eliminare la categoria.",
       );
     } finally {
       setSaving(false);
@@ -393,6 +543,35 @@ export function AdminCategoriesClient() {
     }
   }
 
+  async function deleteSubcategory(subcategory: ManagedSubcategory) {
+    if (!window.confirm(`Eliminare definitivamente “${subcategory.name}”?`)) {
+      return;
+    }
+
+    setSaving(true);
+    setError(null);
+    setMessage(null);
+    try {
+      await fetchJson(`/api/admin/subcategories/${encodeURIComponent(subcategory.id)}`, {
+        method: "DELETE",
+      });
+      setMessage("Sottocategoria eliminata.");
+      if (editingSubcategoryId === subcategory.id) {
+        setEditingSubcategoryId(null);
+        setSubcategoryForm(emptySubcategoryForm());
+      }
+      await loadCategories();
+    } catch (deleteError) {
+      setError(
+        deleteError instanceof Error
+          ? deleteError.message
+          : "Non è stato possibile eliminare la sottocategoria.",
+      );
+    } finally {
+      setSaving(false);
+    }
+  }
+
   return (
     <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_430px]">
       <section className="min-w-0 rounded-[28px] border border-outline-variant/30 bg-surface-container-lowest p-4 shadow-[0_4px_20px_rgba(8,43,95,0.08)] sm:p-6">
@@ -411,7 +590,7 @@ export function AdminCategoriesClient() {
             onClick={startCreateCategory}
           >
             <span className="material-symbols-outlined text-[20px]">add</span>
-            Nuova categoria
+            Aggiungi categoria
           </button>
         </div>
 
@@ -483,6 +662,17 @@ export function AdminCategoriesClient() {
                       <span className="mt-2 block text-sm text-on-surface-variant">
                         {category.subcategories.length} sottocategorie
                       </span>
+                      {category.description ? (
+                        <span className="mt-2 block text-sm text-on-surface">
+                          {category.description}
+                        </span>
+                      ) : null}
+                      <span className="mt-2 block text-sm text-on-surface-variant">
+                        Anteprima sottocategorie: {subcategoryPreview(category.subcategories)}
+                      </span>
+                      <span className="mt-2 block text-xs text-on-surface-variant">
+                        Ultimo aggiornamento: {formatDateTime(category.updated_at)}
+                      </span>
                     </span>
                   </button>
                   <div className="flex flex-wrap gap-2">
@@ -508,6 +698,19 @@ export function AdminCategoriesClient() {
                     >
                       {category.is_active ? "Disattiva" : "Riattiva"}
                     </button>
+                    <button
+                      type="button"
+                      className="rounded-full border border-error/30 px-4 py-2 text-sm font-bold text-error hover:bg-error-container disabled:cursor-not-allowed disabled:opacity-50"
+                      disabled={saving || category.subcategories.length > 0}
+                      title={
+                        category.subcategories.length > 0
+                          ? "Elimina disponibile solo per categorie senza sottocategorie."
+                          : "Elimina definitivamente la categoria"
+                      }
+                      onClick={() => void deleteCategory(category)}
+                    >
+                      Elimina
+                    </button>
                   </div>
                 </div>
               </article>
@@ -531,7 +734,13 @@ export function AdminCategoriesClient() {
             <Field
               label="Nome"
               value={categoryForm.name}
-              onChange={(value) => setCategoryForm((current) => ({ ...current, name: value }))}
+              onChange={(value) =>
+                setCategoryForm((current) => ({
+                  ...current,
+                  name: value,
+                  slug: current.slug ? current.slug : normalizeSlug(value),
+                }))
+              }
             />
             <Field
               label="Slug"
@@ -565,10 +774,49 @@ export function AdminCategoriesClient() {
               type="url"
               placeholder="https://…"
             />
-            {categoryForm.image_url && isPreviewableImage(categoryForm.image_url) ? (
+            <div className="rounded-2xl border border-dashed border-outline-variant bg-surface-container-low p-3">
+              <input
+                ref={imageInputRef}
+                type="file"
+                accept="image/jpeg,image/png,image/webp"
+                className="sr-only"
+                onChange={(event) => void uploadCategoryImage(event)}
+              />
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                <div className="text-sm text-on-surface-variant">
+                  Carica JPG, PNG o WebP fino a 5 MB. L’immagine viene salvata su Supabase Storage.
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    disabled={imageUploading || saving}
+                    className="inline-flex min-h-11 items-center justify-center gap-2 rounded-full border border-outline-variant bg-white px-4 py-2 text-sm font-bold text-primary hover:bg-surface-container-high disabled:opacity-60"
+                    onClick={() => imageInputRef.current?.click()}
+                  >
+                    <span className="material-symbols-outlined text-[18px]">upload</span>
+                    {imageUploading ? "Upload…" : "Carica immagine"}
+                  </button>
+                  {categoryForm.image_url ? (
+                    <button
+                      type="button"
+                      disabled={imageUploading || saving}
+                      className="inline-flex min-h-11 items-center justify-center rounded-full border border-outline-variant bg-white px-4 py-2 text-sm font-bold text-on-surface-variant hover:bg-surface-container-high disabled:opacity-60"
+                      onClick={() => {
+                        setCategoryForm((current) => ({ ...current, image_url: "" }));
+                        setImagePreviewUrl(null);
+                      }}
+                    >
+                      Rimuovi URL
+                    </button>
+                  ) : null}
+                </div>
+              </div>
+            </div>
+            {(imagePreviewUrl || categoryForm.image_url) &&
+            isPreviewableImage(imagePreviewUrl || categoryForm.image_url) ? (
               <span
                 className="block h-32 w-full rounded-2xl bg-cover bg-center"
-                style={{ backgroundImage: `url("${categoryForm.image_url}")` }}
+                style={{ backgroundImage: `url("${imagePreviewUrl || categoryForm.image_url}")` }}
                 aria-label="Anteprima immagine categoria"
                 role="img"
               />
@@ -668,6 +916,14 @@ export function AdminCategoriesClient() {
                       >
                         {subcategory.is_active ? "Disattiva" : "Riattiva"}
                       </button>
+                      <button
+                        type="button"
+                        className="rounded-full border border-error/30 px-3 py-1.5 text-xs font-bold text-error hover:bg-error-container"
+                        disabled={saving}
+                        onClick={() => void deleteSubcategory(subcategory)}
+                      >
+                        Elimina
+                      </button>
                     </div>
                   </div>
                 ))}
@@ -681,7 +937,11 @@ export function AdminCategoriesClient() {
                   label="Nome"
                   value={subcategoryForm.name}
                   onChange={(value) =>
-                    setSubcategoryForm((current) => ({ ...current, name: value }))
+                    setSubcategoryForm((current) => ({
+                      ...current,
+                      name: value,
+                      slug: current.slug ? current.slug : normalizeSlug(value),
+                    }))
                   }
                 />
                 <Field

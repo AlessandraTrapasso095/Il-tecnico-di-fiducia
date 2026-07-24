@@ -6,6 +6,7 @@ import {
   SUBCATEGORY_SELECT,
   hasPayloadError,
   parseSubcategoryPayload,
+  revalidateCategoryCatalog,
   subcategorySlugChangeBlockReason,
   type ManagedCategory,
   type ManagedSubcategory,
@@ -109,6 +110,8 @@ export async function PATCH(request: Request, { params }: RouteContext) {
     return NextResponse.json({ error: publicDatabaseError(error) }, { status: 400 });
   }
 
+  revalidateCategoryCatalog();
+
   return NextResponse.json({ subcategory: data });
 }
 
@@ -133,6 +136,8 @@ export async function DELETE(_request: Request, { params }: RouteContext) {
       { status: 400 },
     );
   }
+
+  revalidateCategoryCatalog();
 
   return NextResponse.json({ ok: true });
 }

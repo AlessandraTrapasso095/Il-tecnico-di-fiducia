@@ -16,7 +16,6 @@ import {
   normalizeProfessionCategories,
   professionCategoryKey,
   professionSearchText,
-  PROFESSION_CATEGORIES,
   type DbProfessionCategory,
   type ProfessionCategory,
   type ProfessionSubcategory,
@@ -74,7 +73,8 @@ export function ProfessionSearchFlow() {
 
   const [categories, setCategories] = useState<ProfessionCategory[]>([]);
   const [categoriesLoading, setCategoriesLoading] = useState(true);
-  const [usingCategoryFallback, setUsingCategoryFallback] = useState(false);
+  const [categoriesError, setCategoriesError] = useState<string | null>(null);
+  const [reloadKey, setReloadKey] = useState(0);
   const [provinces, setProvinces] = useState<ItalianProvince[]>(ITALIAN_PROVINCES_BY_NAME);
   const [selectedCategoryKey, setSelectedCategoryKey] = useState("");
   const [selectedSubcategorySlug, setSelectedSubcategorySlug] = useState("");
@@ -86,6 +86,8 @@ export function ProfessionSearchFlow() {
     let alive = true;
 
     async function loadOptions() {
+      setCategoriesLoading(true);
+      setCategoriesError(null);
       const [categoriesResult, provincesResult] = await Promise.allSettled([
         fetchJson<CategoriesResponse>("/api/categories", { method: "GET" }),
         fetchJson<ProvincesResponse>("/api/provinces", { method: "GET" }),
@@ -94,10 +96,9 @@ export function ProfessionSearchFlow() {
 
       if (categoriesResult.status === "fulfilled") {
         setCategories(normalizeProfessionCategories(categoriesResult.value.categories ?? []));
-        setUsingCategoryFallback(false);
       } else {
-        setCategories(PROFESSION_CATEGORIES);
-        setUsingCategoryFallback(true);
+        setCategories([]);
+        setCategoriesError("Non è stato possibile caricare le professioni. Riprova.");
       }
 
       if (
@@ -116,7 +117,7 @@ export function ProfessionSearchFlow() {
     return () => {
       alive = false;
     };
-  }, []);
+  }, [reloadKey]);
 
   const currentCategory = findProfessionCategory(categories, selectedCategoryKey);
   const currentSubcategories = currentCategory?.subcategories ?? [];
@@ -175,7 +176,18 @@ export function ProfessionSearchFlow() {
 
         {!categoriesLoading && categories.length === 0 ? (
           <div className="col-span-2 rounded-[24px] border border-outline-variant/40 bg-surface-container-lowest p-6 text-center text-on-surface-variant shadow-sm md:col-span-3 xl:col-span-4">
-            Nessuna professione disponibile al momento.
+            <p>
+              {categoriesError ?? "Nessuna professione disponibile al momento."}
+            </p>
+            {categoriesError ? (
+              <button
+                type="button"
+                className="mt-4 rounded-full bg-primary px-5 py-2 font-label-md text-label-md text-on-primary transition-colors hover:bg-primary/90 focus:outline-none focus:ring-4 focus:ring-primary/20"
+                onClick={() => setReloadKey((value) => value + 1)}
+              >
+                Riprova
+              </button>
+            ) : null}
           </div>
         ) : null}
 
@@ -222,12 +234,6 @@ export function ProfessionSearchFlow() {
           );
         }) : null}
       </div>
-
-      {usingCategoryFallback ? (
-        <p className="mt-5 text-center text-sm text-on-surface-variant">
-          Catalogo temporaneamente caricato dal fallback locale.
-        </p>
-      ) : null}
 
       <div
         ref={formRef}

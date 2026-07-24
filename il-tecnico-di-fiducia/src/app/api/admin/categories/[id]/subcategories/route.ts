@@ -5,6 +5,7 @@ import {
   SUBCATEGORY_SELECT,
   hasPayloadError,
   parseSubcategoryPayload,
+  revalidateCategoryCatalog,
 } from "@/lib/server/category-management";
 import { logApiError } from "@/lib/server/api-logger";
 import { createServiceClient } from "@/lib/supabase/service";
@@ -89,6 +90,8 @@ export async function POST(request: Request, { params }: RouteContext) {
     });
     return NextResponse.json({ error: publicDatabaseError(error) }, { status: 400 });
   }
+
+  revalidateCategoryCatalog();
 
   return NextResponse.json({ subcategory: data }, { status: 201 });
 }

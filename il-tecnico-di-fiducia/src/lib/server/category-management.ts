@@ -1,6 +1,7 @@
 import "server-only";
 
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { revalidatePath } from "next/cache";
 
 import { PROFESSION_CATEGORIES } from "@/lib/professions/taxonomy";
 
@@ -91,7 +92,22 @@ export function parseSortOrder(value: unknown) {
   if (value === undefined || value === null || value === "") return 0;
   const parsed = typeof value === "number" ? value : Number.parseInt(String(value), 10);
   if (!Number.isFinite(parsed)) return null;
-  return Math.max(-10_000, Math.min(10_000, Math.trunc(parsed)));
+  return Math.max(-1_000_000, Math.min(1_000_000, Math.trunc(parsed)));
+}
+
+export function revalidateCategoryCatalog() {
+  [
+    "/",
+    "/api/categories",
+    "/auth/register",
+    "/cliente",
+    "/customer",
+    "/professional",
+    "/professionista",
+    "/professionista/profilo",
+    "/admin",
+    "/admin/categorie",
+  ].forEach((path) => revalidatePath(path));
 }
 
 export function parseCategoryPayload(value: unknown): CategoryPayload | { error: string } {

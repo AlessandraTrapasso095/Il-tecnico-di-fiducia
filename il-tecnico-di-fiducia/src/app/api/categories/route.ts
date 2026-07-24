@@ -3,11 +3,6 @@ import { NextResponse } from "next/server";
 import { logApiError } from "@/lib/server/api-logger";
 import { createClient } from "@/lib/supabase/server";
 
-function isSchemaCompatibilityError(error: { code?: string | null; message?: string | null }) {
-  const message = error.message?.toLowerCase() ?? "";
-  return error.code === "42703" || error.code === "42P01" || message.includes("schema cache");
-}
-
 export async function GET() {
   try {
     const supabase = await createClient();
@@ -22,30 +17,14 @@ export async function GET() {
       .order("name", { ascending: true });
 
     if (error) {
-      if (!isSchemaCompatibilityError(error)) {
-        logApiError("CATEGORIES ERROR", {
-          query,
-          error,
-        });
-      }
-
-      const fallback = await supabase
-        .from("categories")
-        .select("id, name, slug, image_url")
-        .order("name", { ascending: true });
-
-      if (fallback.error) {
-        logApiError("CATEGORIES ERROR", {
-          query: "categories fallback select id, name, slug, image_url order name",
-          error: fallback.error,
-        });
-        return NextResponse.json(
-          { categories: [], error: "Non è stato possibile caricare le categorie." },
-          { status: 503 },
-        );
-      }
-
-      return NextResponse.json({ categories: fallback.data ?? [] });
+      logApiError("CATEGORIES ERROR", {
+        query,
+        error,
+      });
+      return NextResponse.json(
+        { categories: [], error: "Non è stato possibile caricare le categorie." },
+        { status: 503 },
+      );
     }
 
     const categoryIds = (data ?? []).map((category) => category.id).filter(Boolean);
@@ -65,6 +44,10 @@ export async function GET() {
         query: "subcategories select active by category ids",
         error: subcategoriesError,
       });
+      return NextResponse.json(
+        { categories: [], error: "Non è stato possibile caricare le sottocategorie." },
+        { status: 503 },
+      );
     }
 
     const subcategoriesByCategory = new Map<string, unknown[]>();

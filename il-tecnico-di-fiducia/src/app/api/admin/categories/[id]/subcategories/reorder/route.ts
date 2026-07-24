@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { requireAuth } from "@/lib/api/auth";
-import { parseSortOrder } from "@/lib/server/category-management";
+import { parseSortOrder, revalidateCategoryCatalog } from "@/lib/server/category-management";
 import { logApiError } from "@/lib/server/api-logger";
 import { createServiceClient } from "@/lib/supabase/service";
 
@@ -85,6 +85,8 @@ export async function PATCH(request: Request, { params }: RouteContext) {
       { status: 500 },
     );
   }
+
+  revalidateCategoryCatalog();
 
   return NextResponse.json({ ok: true });
 }

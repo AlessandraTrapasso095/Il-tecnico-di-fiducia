@@ -24,7 +24,6 @@ import type { ConversationRow, MeResponse } from "@/lib/types/chat";
 import {
   normalizeProfessionCategories,
   professionCategoryKey,
-  PROFESSION_CATEGORIES,
   type DbProfessionCategory,
   type ProfessionCategory,
 } from "@/lib/professions/taxonomy";
@@ -373,6 +372,7 @@ export default function CustomerDashboardClient({
 
   const [provinces, setProvinces] = useState<Province[]>([]);
   const [categories, setCategories] = useState<ProfessionCategory[]>([]);
+  const [categoriesError, setCategoriesError] = useState<string | null>(null);
 
   const [professionals, setProfessionals] = useState<ProfessionalRow[]>([]);
   const [professionalsTotal, setProfessionalsTotal] = useState(0);
@@ -443,6 +443,7 @@ export default function CustomerDashboardClient({
   const isSearchNavActive = !isMessagesNavActive;
 
   async function loadFilters() {
+    setCategoriesError(null);
     const [prov, cat] = await Promise.allSettled([
       fetchJson<ProvincesResponse>("/api/provinces", { method: "GET" }),
       fetchJson<CategoriesResponse>("/api/categories", { method: "GET" }),
@@ -457,7 +458,8 @@ export default function CustomerDashboardClient({
       return;
     }
 
-    setCategories(PROFESSION_CATEGORIES);
+    setCategories([]);
+    setCategoriesError("Non è stato possibile caricare le categorie. Riprova.");
   }
 
   async function loadSaved() {
@@ -514,9 +516,7 @@ export default function CustomerDashboardClient({
     params.set("page_size", "12");
 
     const qq = sanitizeQuery(q);
-    const categoryId = currentCategory
-      ? splitCategoryId(categoryOptionValue(currentCategory))
-      : "";
+    const categoryId = splitCategoryId(categoryKey);
     if (qq) params.set("q", qq);
     if (provinceCode) params.set("province_code", provinceCode);
     if (categoryId) params.set("category_id", categoryId);
@@ -1353,6 +1353,18 @@ export default function CustomerDashboardClient({
                                 </option>
                               ))}
                             </select>
+                            {categoriesError ? (
+                              <div className="flex flex-wrap items-center gap-2 text-sm text-error">
+                                <span>{categoriesError}</span>
+                                <button
+                                  type="button"
+                                  className="font-label-md text-label-md underline underline-offset-4"
+                                  onClick={() => void loadFilters()}
+                                >
+                                  Riprova
+                                </button>
+                              </div>
+                            ) : null}
                           </label>
 
                           <label className="space-y-2">
@@ -1363,7 +1375,7 @@ export default function CustomerDashboardClient({
                               className="w-full rounded-xl border border-outline-variant bg-surface-container-lowest px-4 py-3 font-body-md text-body-md outline-none transition-all focus:border-primary focus:ring-2 focus:ring-primary disabled:bg-surface-container-low disabled:text-outline"
                               value={subcategorySlug}
                               onChange={(e) => setSubcategorySlug(e.target.value)}
-                              disabled={!currentCategory}
+                              disabled={!currentCategory || currentSubcategories.length === 0}
                             >
                               <option value="">
                                 {currentCategory

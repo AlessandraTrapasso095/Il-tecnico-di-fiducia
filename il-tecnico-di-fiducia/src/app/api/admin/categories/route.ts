@@ -5,6 +5,7 @@ import {
   CATEGORY_SELECT,
   hasPayloadError,
   parseCategoryPayload,
+  revalidateCategoryCatalog,
   SUBCATEGORY_SELECT,
   type ManagedCategory,
   type ManagedSubcategory,
@@ -90,6 +91,8 @@ export async function POST(request: Request) {
     });
     return NextResponse.json({ error: publicDatabaseError(error) }, { status: 400 });
   }
+
+  revalidateCategoryCatalog();
 
   return NextResponse.json({ category: data }, { status: 201 });
 }

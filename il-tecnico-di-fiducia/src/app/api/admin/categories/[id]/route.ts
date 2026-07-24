@@ -6,6 +6,7 @@ import {
   categorySlugChangeBlockReason,
   hasPayloadError,
   parseCategoryPayload,
+  revalidateCategoryCatalog,
   type ManagedCategory,
 } from "@/lib/server/category-management";
 import { logApiError } from "@/lib/server/api-logger";
@@ -86,6 +87,8 @@ export async function PATCH(request: Request, { params }: RouteContext) {
     return NextResponse.json({ error: publicDatabaseError(error) }, { status: 400 });
   }
 
+  revalidateCategoryCatalog();
+
   return NextResponse.json({ category: data });
 }
 
@@ -130,6 +133,8 @@ export async function DELETE(_request: Request, { params }: RouteContext) {
       { status: 400 },
     );
   }
+
+  revalidateCategoryCatalog();
 
   return NextResponse.json({ ok: true });
 }
