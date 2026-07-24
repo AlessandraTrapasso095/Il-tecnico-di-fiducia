@@ -182,13 +182,10 @@ export function ProfessionSearchFlow() {
               </div>
               <div className="absolute bottom-5 left-5 right-5">
                 <div className="inline-flex rounded-full bg-[#FF8500] px-3 py-1 text-[11px] font-bold uppercase tracking-[0.14em] text-white shadow-sm">
-                  {selected ? "Selezionata" : "Professione"}
+                  Professione
                 </div>
                 <div className="mt-3 font-headline-sm text-[25px] leading-tight text-white drop-shadow-[0_3px_10px_rgba(0,0,0,0.45)] sm:text-[28px]">
                   {category.name}
-                </div>
-                <div className="mt-2 text-sm font-semibold text-primary-fixed-dim drop-shadow-[0_2px_8px_rgba(0,0,0,0.35)]">
-                  {category.subcategories[0]?.name ?? "Categoria professionale"}
                 </div>
               </div>
             </button>

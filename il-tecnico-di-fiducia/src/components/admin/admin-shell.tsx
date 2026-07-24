@@ -81,7 +81,7 @@ export function AdminShell({ children, title, subtitle, adminName }: AdminShellP
       </header>
 
       <aside className="fixed left-0 top-0 z-50 hidden h-dvh w-72 border-r border-outline-variant/30 bg-surface-container-low p-5 lg:flex lg:flex-col">
-        <div className="mb-8 flex items-center gap-2 px-2">
+        <div className="mb-8 -ml-1 flex items-center gap-2">
           <HeaderBackButton fallbackHref="/admin" hiddenPathnames={["/admin"]} />
           <Link href="/admin" className="flex min-w-0 items-center gap-3">
             <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-primary text-white shadow-lg">
