@@ -1094,7 +1094,7 @@ export default function ProfessionalProfileClient({
         ) : null}
 
         <div className="mt-8 border-b border-outline-variant/40">
-          <div className="flex gap-3 overflow-x-auto">
+          <div className="grid grid-cols-3 gap-1 overflow-x-auto sm:flex sm:gap-3">
             {[
               ["bio", "person", "Bio & CV"],
               ["works", "work", "Lavori"],
@@ -1104,15 +1104,17 @@ export default function ProfessionalProfileClient({
                 key={key}
                 type="button"
                 className={[
-                  "flex items-center gap-2 border-b-2 px-3 py-4 font-button text-button transition",
+                  "flex min-w-0 flex-col items-center justify-center gap-1 border-b-2 px-1.5 py-3 text-center font-button text-[11px] leading-none whitespace-nowrap [hyphens:none] [overflow-wrap:normal] [word-break:normal] transition sm:flex-row sm:gap-2 sm:px-3 sm:py-4 sm:text-button",
                   tab === key
                     ? "border-[#FF8500] text-[#FF8500]"
                     : "border-transparent text-on-surface-variant hover:text-primary",
                 ].join(" ")}
                 onClick={() => setTab(key as TabKey)}
               >
-                <span className="material-symbols-outlined text-[20px]">{icon}</span>
-                {label}
+                <span className="material-symbols-outlined shrink-0 text-[20px]">{icon}</span>
+                <span className="whitespace-nowrap [hyphens:none] [overflow-wrap:normal] [word-break:normal]">
+                  {label}
+                </span>
               </button>
             ))}
           </div>
@@ -1287,7 +1289,7 @@ export default function ProfessionalProfileClient({
             )}
           </div>
 
-          <aside className="space-y-5 lg:sticky lg:top-28 lg:self-start">
+          <aside className="hidden space-y-5 lg:sticky lg:top-28 lg:block lg:self-start">
             <section className="rounded-[24px] border border-outline-variant/30 bg-surface-container-lowest p-6 text-center shadow-[0_4px_20px_rgba(8,43,95,0.08)]">
               <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-primary-fixed text-primary">
                 <span className="material-symbols-outlined">
