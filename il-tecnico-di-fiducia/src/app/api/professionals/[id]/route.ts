@@ -4,6 +4,7 @@ import { requireAuth } from "@/lib/api/auth";
 import { isNonEmptyString } from "@/lib/api/validation";
 import { normalizeItalianProvinceCode } from "@/lib/locations/italian-provinces";
 import { isProfessionalVisibleToCustomers } from "@/lib/server/professional-visibility";
+import { normalizeWebsiteUrl } from "@/lib/validation/website-url";
 
 type UpdateProfessionalPayload = {
   first_name?: string;
@@ -13,6 +14,7 @@ type UpdateProfessionalPayload = {
   headline?: string | null;
   bio?: string | null;
   public_email?: string | null;
+  website_url?: string | null;
   specializations?: string[];
   services_offered?: string[];
   operational_provinces?: string[];
@@ -226,6 +228,8 @@ export async function PATCH(
   const headline = optionalText(payload.headline, 140);
   const bio = optionalLongText(payload.bio, 3000);
   const publicEmail = optionalText(payload.public_email, 160);
+  const hasWebsiteUrl = Object.prototype.hasOwnProperty.call(payload, "website_url");
+  const websiteUrl = normalizeWebsiteUrl(payload.website_url);
   const specializations = optionalStringArray(payload.specializations);
   const servicesOffered = optionalStringArray(payload.services_offered);
   const operationalProvinces = optionalStringArray(payload.operational_provinces, 110, 2);
@@ -236,6 +240,12 @@ export async function PATCH(
   if (headline !== undefined) professionalUpdates.headline = headline || null;
   if (bio !== undefined) professionalUpdates.bio = bio || null;
   if (publicEmail !== undefined) professionalUpdates.public_email = publicEmail || null;
+  if (hasWebsiteUrl) {
+    if (websiteUrl === undefined) {
+      return NextResponse.json({ error: "URL sito web non valido." }, { status: 400 });
+    }
+    professionalUpdates.website_url = websiteUrl;
+  }
   if (specializations !== undefined) professionalUpdates.specializations = specializations;
   if (servicesOffered !== undefined) professionalUpdates.services_offered = servicesOffered;
   if (operationalProvinces !== undefined) {
@@ -280,7 +290,7 @@ export async function PATCH(
   const { data: professional } = await supabase
     .from("professional_profiles")
     .select(
-      "id, headline, bio, specializations, avatar_url, cover_url, public_email, education, work_experiences, certifications, services_offered, operational_provinces, available_remote, available_travel, updated_at",
+      "id, headline, bio, specializations, avatar_url, cover_url, public_email, website_url, education, work_experiences, certifications, services_offered, operational_provinces, available_remote, available_travel, updated_at",
     )
     .eq("id", id)
     .maybeSingle();

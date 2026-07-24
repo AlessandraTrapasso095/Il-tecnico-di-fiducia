@@ -12,6 +12,7 @@ export type ProfessionalProfileDetails = {
   last_name: string;
   email: string;
   phone: string | null;
+  website_url: string | null;
   province_code: string | null;
   headline: string | null;
   bio: string | null;
@@ -98,7 +99,7 @@ export async function loadProfessionalProfile({
   const { data: professional } = await service
     .from("professional_profiles")
     .select(
-      "id, headline, bio, specializations, avatar_url, cover_url, public_email, education, work_experiences, certifications, services_offered, operational_provinces, available_remote, available_travel",
+      "id, headline, bio, specializations, avatar_url, cover_url, public_email, website_url, education, work_experiences, certifications, services_offered, operational_provinces, available_remote, available_travel",
     )
     .eq("id", professionalId)
     .maybeSingle();
@@ -174,6 +175,7 @@ export async function loadProfessionalProfile({
     last_name: profile.last_name ?? directory?.last_name ?? "",
     email: profile.email,
     phone: profile.phone,
+    website_url: professional.website_url,
     province_code: profile.province_code ?? directory?.province_code ?? null,
     headline: professional.headline ?? directory?.headline ?? null,
     bio: professional.bio ?? directory?.bio ?? null,

@@ -32,6 +32,7 @@ import type {
   ProfessionalProfileAccess,
   ProfessionalProfileDetails,
 } from "@/lib/server/professional-profile";
+import { formatWebsiteUrlLabel, normalizeWebsiteUrl } from "@/lib/validation/website-url";
 
 type TabKey = "bio" | "works" | "reviews";
 type MediaTarget = "avatar" | "cover";
@@ -483,6 +484,7 @@ export default function ProfessionalProfileClient({
       province_code: profile.province_code ?? "",
       phone: profile.phone ?? "",
       public_email: profile.public_email ?? "",
+      website_url: profile.website_url ?? "",
       specializations: profile.specializations.join("\n"),
       services_offered: profile.services_offered.join("\n"),
       education: linesFromJson(profile.education),
@@ -516,6 +518,11 @@ export default function ProfessionalProfileClient({
       if (editSection === "contact") {
         payload.phone = editDraft.phone || null;
         payload.public_email = editDraft.public_email || null;
+        const websiteUrl = normalizeWebsiteUrl(editDraft.website_url);
+        if (websiteUrl === undefined) {
+          throw new Error("Inserisci un URL valido per il sito web.");
+        }
+        payload.website_url = websiteUrl;
       }
       if (editSection === "education") {
         payload.education = jsonFromLines(String(editDraft.education ?? ""));
@@ -547,6 +554,10 @@ export default function ProfessionalProfileClient({
           "public_email" in payload
             ? (payload.public_email as string | null)
             : current.public_email,
+        website_url:
+          "website_url" in payload
+            ? (payload.website_url as string | null)
+            : current.website_url,
         specializations:
           (payload.specializations as string[] | undefined) ?? current.specializations,
         services_offered:
@@ -1225,6 +1236,7 @@ export default function ProfessionalProfileClient({
                     canView={profileAccess.can_view_contacts}
                     phone={profile.phone}
                     email={contactEmail}
+                    websiteUrl={profile.website_url}
                     className="grid gap-3 sm:grid-cols-2"
                   />
                 </SectionCard>
@@ -1297,6 +1309,7 @@ export default function ProfessionalProfileClient({
                   canView={profileAccess.can_view_contacts}
                   phone={profile.phone}
                   email={contactEmail}
+                  websiteUrl={profile.website_url}
                   className="space-y-3 text-left"
                 />
               </div>
@@ -1547,13 +1560,36 @@ function MediaMenu({
   );
 }
 
-function InfoPill({ icon, label, value }: { icon: string; label: string; value: string }) {
+function InfoPill({
+  icon,
+  label,
+  value,
+  href,
+}: {
+  icon: string;
+  label: string;
+  value: string;
+  href?: string;
+}) {
+  const valueClass = "truncate font-label-md text-primary";
+
   return (
     <div className="flex items-center gap-3 rounded-2xl bg-surface-container-low p-3">
       <span className="material-symbols-outlined text-primary">{icon}</span>
       <div className="min-w-0">
         <div className="text-xs text-on-surface-variant">{label}</div>
-        <div className="truncate font-label-md text-primary">{value}</div>
+        {href ? (
+          <a
+            href={href}
+            target="_blank"
+            rel="noopener noreferrer"
+            className={`${valueClass} block underline-offset-4 hover:underline`}
+          >
+            {value}
+          </a>
+        ) : (
+          <div className={valueClass}>{value}</div>
+        )}
       </div>
     </div>
   );
@@ -1563,11 +1599,13 @@ function ContactInfoRows({
   canView,
   phone,
   email,
+  websiteUrl,
   className,
 }: {
   canView: boolean;
   phone: string | null;
   email: string | null;
+  websiteUrl: string | null;
   className: string;
 }) {
   if (canView) {
@@ -1575,6 +1613,14 @@ function ContactInfoRows({
       <div className={className}>
         <InfoPill icon="phone" label="Telefono" value={phone || "Non indicato"} />
         <InfoPill icon="mail" label="Email" value={email || "Non indicato"} />
+        {websiteUrl ? (
+          <InfoPill
+            icon="language"
+            label="Sito web"
+            value={formatWebsiteUrlLabel(websiteUrl)}
+            href={websiteUrl}
+          />
+        ) : null}
       </div>
     );
   }
@@ -1703,6 +1749,7 @@ function EditModal({
             <>
               <TextInput label="Telefono" value={String(draft.phone ?? "")} onChange={(v) => setValue("phone", v)} />
               <TextInput label="Email pubblica" value={String(draft.public_email ?? "")} onChange={(v) => setValue("public_email", v)} />
+              <TextInput label="Sito web" value={String(draft.website_url ?? "")} onChange={(v) => setValue("website_url", v)} />
             </>
           ) : null}
           {section === "education" ? (
