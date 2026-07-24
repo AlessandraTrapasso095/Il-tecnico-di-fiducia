@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useId, useState } from "react";
+import { type CSSProperties, useEffect, useId, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
 
@@ -12,6 +12,12 @@ const navLinks = [
   { id: "suggest", href: "/proponi-un-tecnico", label: "Proponi un tecnico" },
   { id: "support", href: "/contattaci", label: "Segnala un problema" },
 ];
+
+const noWrapTextStyle: CSSProperties = {
+  overflowWrap: "normal",
+  wordBreak: "normal",
+  hyphens: "none",
+};
 
 export function TopNav() {
   const [open, setOpen] = useState(false);
@@ -67,7 +73,8 @@ export function TopNav() {
             <Link
               key={l.id}
               href={l.href}
-              className="shrink-0 whitespace-nowrap break-normal font-label-md text-[12px] text-on-surface-variant transition-colors hover:text-on-tertiary-container [overflow-wrap:normal] [hyphens:none] xl:text-[13px] 2xl:text-label-md"
+              className="shrink-0 whitespace-nowrap break-normal font-label-md text-[12px] text-on-surface-variant transition-colors hover:text-on-tertiary-container xl:text-[13px] 2xl:text-label-md"
+              style={noWrapTextStyle}
             >
               {l.label}
             </Link>
@@ -77,13 +84,15 @@ export function TopNav() {
         <div className="hidden shrink-0 flex-nowrap items-center gap-2 lg:flex xl:gap-3">
           <Link
             href="/auth/login"
-            className="shrink-0 whitespace-nowrap break-normal rounded-full bg-primary px-4 py-3 font-button text-[12px] text-white shadow-md transition-colors hover:bg-primary-container active:scale-[0.99] [overflow-wrap:normal] [hyphens:none] xl:px-6 xl:text-button"
+            className="shrink-0 whitespace-nowrap break-normal rounded-full bg-primary px-4 py-3 font-button text-[12px] text-white shadow-md transition-colors hover:bg-primary-container active:scale-[0.99] xl:px-6 xl:text-button"
+            style={noWrapTextStyle}
           >
             Log In
           </Link>
           <Link
             href="/auth/register"
-            className="shrink-0 whitespace-nowrap break-normal rounded-full bg-[#FF8500] px-4 py-3 font-button text-[12px] text-white shadow-md transition-colors hover:bg-[#FF9A2B] active:scale-[0.99] [overflow-wrap:normal] [hyphens:none] xl:px-6 xl:text-button"
+            className="shrink-0 whitespace-nowrap break-normal rounded-full bg-[#FF8500] px-4 py-3 font-button text-[12px] text-white shadow-md transition-colors hover:bg-[#FF9A2B] active:scale-[0.99] xl:px-6 xl:text-button"
+            style={noWrapTextStyle}
           >
             Inizia ora
           </Link>
