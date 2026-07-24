@@ -1,5 +1,7 @@
 import "server-only";
 
+import { randomUUID } from "node:crypto";
+
 import { logApiError } from "@/lib/server/api-logger";
 import { createServiceClient } from "@/lib/supabase/service";
 
@@ -12,6 +14,22 @@ type EmailResultLog = {
   rejected?: string[];
 };
 
+type GlobalPresencePayload = {
+  user_id?: string;
+  active_conversation_id?: string | null;
+  last_seen?: string;
+};
+
+type GlobalPresenceSnapshot = {
+  checked: boolean;
+  online: boolean;
+  reason: string;
+  ageMs: number | null;
+  activeConversationId: string | null;
+  presenceCount: number;
+  errorMessage: string | null;
+};
+
 export type NotificationDeliveryState = {
   recipientId: string;
   recipientType: string;
@@ -19,6 +37,10 @@ export type NotificationDeliveryState = {
   reason: string;
   emailRequired: boolean;
   signals: {
+    presenceSource: string;
+    globalPresenceRecent: boolean;
+    globalPresenceAgeMs: number | null;
+    globalPresenceCount: number;
     activeConversationId: string | null;
     activeConversationPresenceRecent: boolean;
     activeConversationPresenceAgeMs: number | null;
@@ -28,7 +50,10 @@ export type NotificationDeliveryState = {
 };
 
 const ACTIVE_CONVERSATION_PRESENCE_WINDOW_MS = 75 * 1000;
+const GLOBAL_REALTIME_PRESENCE_WINDOW_MS = 75 * 1000;
 const GLOBAL_HEARTBEAT_ONLINE_WINDOW_MS = 90 * 1000;
+const GLOBAL_PRESENCE_CHANNEL = "authenticated-users";
+const GLOBAL_PRESENCE_SNAPSHOT_TIMEOUT_MS = 1800;
 
 function ageMs(value: string | null | undefined) {
   if (!value) return null;
@@ -46,6 +71,9 @@ function buildState({
   recipientType,
   online,
   reason,
+  presenceSource = "unknown",
+  globalPresenceAgeMs = null,
+  globalPresenceCount = 0,
   activeConversationId = null,
   activeConversationPresenceAgeMs = null,
   heartbeatAgeMs = null,
@@ -54,6 +82,9 @@ function buildState({
   recipientType: string;
   online: boolean;
   reason: string;
+  presenceSource?: string;
+  globalPresenceAgeMs?: number | null;
+  globalPresenceCount?: number;
   activeConversationId?: string | null;
   activeConversationPresenceAgeMs?: number | null;
   heartbeatAgeMs?: number | null;
@@ -65,6 +96,13 @@ function buildState({
     reason,
     emailRequired: !online,
     signals: {
+      presenceSource,
+      globalPresenceRecent: isRecent(
+        globalPresenceAgeMs,
+        GLOBAL_REALTIME_PRESENCE_WINDOW_MS,
+      ),
+      globalPresenceAgeMs,
+      globalPresenceCount,
       activeConversationId,
       activeConversationPresenceRecent: isRecent(
         activeConversationPresenceAgeMs,
@@ -75,6 +113,120 @@ function buildState({
       heartbeatAgeMs,
     },
   };
+}
+
+function newestPresenceForRecipient(
+  state: Record<string, GlobalPresencePayload[]>,
+  recipientId: string,
+) {
+  return Object.values(state)
+    .flat()
+    .filter((presence) => presence?.user_id === recipientId)
+    .sort((first, second) => {
+      const firstTime = first.last_seen ? new Date(first.last_seen).getTime() : 0;
+      const secondTime = second.last_seen ? new Date(second.last_seen).getTime() : 0;
+      return secondTime - firstTime;
+    })[0];
+}
+
+async function getGlobalRealtimePresenceSnapshot({
+  service,
+  recipientId,
+}: {
+  service: ServiceClient;
+  recipientId: string;
+}): Promise<GlobalPresenceSnapshot> {
+  return new Promise((resolve) => {
+    const channel = service.channel(GLOBAL_PRESENCE_CHANNEL, {
+      config: { presence: { key: `server-delivery-${randomUUID()}` } },
+    });
+    let settled = false;
+    let settleTimer: ReturnType<typeof setTimeout> | null = null;
+
+    function finish(snapshot: GlobalPresenceSnapshot) {
+      if (settled) return;
+      settled = true;
+      if (settleTimer) windowClearTimeout(settleTimer);
+      void service.removeChannel(channel);
+      resolve(snapshot);
+    }
+
+    function finishFromState(reason: string) {
+      try {
+        const state = channel.presenceState() as Record<string, GlobalPresencePayload[]>;
+        const presence = newestPresenceForRecipient(state, recipientId);
+        const presenceCount = Object.values(state)
+          .flat()
+          .filter((item) => item?.user_id === recipientId).length;
+        const presenceAge = ageMs(presence?.last_seen);
+        const online = presenceCount > 0 && isRecent(presenceAge, GLOBAL_REALTIME_PRESENCE_WINDOW_MS);
+
+        finish({
+          checked: true,
+          online,
+          reason: online
+            ? "global_realtime_presence_recent"
+            : presenceCount > 0
+              ? "global_realtime_presence_stale"
+              : reason,
+          ageMs: presenceAge,
+          activeConversationId: presence?.active_conversation_id ?? null,
+          presenceCount,
+          errorMessage: null,
+        });
+      } catch (error) {
+        finish({
+          checked: false,
+          online: false,
+          reason: "global_realtime_presence_snapshot_error",
+          ageMs: null,
+          activeConversationId: null,
+          presenceCount: 0,
+          errorMessage: error instanceof Error ? error.message : String(error),
+        });
+      }
+    }
+
+    settleTimer = setTimeout(() => {
+      finish({
+        checked: false,
+        online: false,
+        reason: "global_realtime_presence_timeout",
+        ageMs: null,
+        activeConversationId: null,
+        presenceCount: 0,
+        errorMessage: null,
+      });
+    }, GLOBAL_PRESENCE_SNAPSHOT_TIMEOUT_MS);
+
+    channel
+      .on("presence", { event: "sync" }, () => {
+        finishFromState("global_realtime_presence_absent");
+      })
+      .subscribe((status) => {
+        if (status === "SUBSCRIBED") {
+          setTimeout(() => {
+            finishFromState("global_realtime_presence_absent");
+          }, 150);
+        }
+
+        if (status === "CHANNEL_ERROR" || status === "TIMED_OUT" || status === "CLOSED") {
+          finish({
+            checked: false,
+            online: false,
+            reason: `global_realtime_presence_${status.toLowerCase()}`,
+            ageMs: null,
+            activeConversationId: null,
+            presenceCount: 0,
+            errorMessage: null,
+          });
+        }
+      });
+  });
+}
+
+function windowClearTimeout(timer: ReturnType<typeof setTimeout>) {
+  clearTimeout(timer);
 }
 
 export function offlineNotificationDeliveryState({
@@ -99,15 +251,38 @@ export async function getNotificationDeliveryState({
   recipientId,
   recipientType,
   activeConversationId = null,
+  requireRealtimePresence = false,
 }: {
   service: ServiceClient;
   recipientId: string;
   recipientType: string;
   activeConversationId?: string | null;
+  requireRealtimePresence?: boolean;
 }): Promise<NotificationDeliveryState> {
   let activeConversationPresenceAge: number | null = null;
   let heartbeatAge: number | null = null;
   let lookupFailed = false;
+  let globalPresence: GlobalPresenceSnapshot = {
+    checked: false,
+    online: false,
+    reason: "global_realtime_presence_not_checked",
+    ageMs: null,
+    activeConversationId: null,
+    presenceCount: 0,
+    errorMessage: null,
+  };
+
+  if (requireRealtimePresence) {
+    globalPresence = await getGlobalRealtimePresenceSnapshot({ service, recipientId });
+    if (!globalPresence.checked && globalPresence.errorMessage) {
+      logApiError("NOTIFICATION DELIVERY ERROR", {
+        query: "global realtime presence snapshot",
+        recipient_id: recipientId,
+        recipient_type: recipientType,
+        error: new Error(globalPresence.errorMessage),
+      });
+    }
+  }
 
   if (activeConversationId) {
     const { data, error } = await service
@@ -155,7 +330,40 @@ export async function getNotificationDeliveryState({
       recipientType,
       online: true,
       reason: "active_conversation_presence_recent",
+      presenceSource: "conversation_active_presence",
+      globalPresenceAgeMs: globalPresence.ageMs,
+      globalPresenceCount: globalPresence.presenceCount,
       activeConversationId,
+      activeConversationPresenceAgeMs: activeConversationPresenceAge,
+      heartbeatAgeMs: heartbeatAge,
+    });
+  }
+
+  if (globalPresence.online) {
+    return buildState({
+      recipientId,
+      recipientType,
+      online: true,
+      reason: globalPresence.reason,
+      presenceSource: "global_realtime_presence",
+      globalPresenceAgeMs: globalPresence.ageMs,
+      globalPresenceCount: globalPresence.presenceCount,
+      activeConversationId: globalPresence.activeConversationId ?? activeConversationId,
+      activeConversationPresenceAgeMs: activeConversationPresenceAge,
+      heartbeatAgeMs: heartbeatAge,
+    });
+  }
+
+  if (requireRealtimePresence) {
+    return buildState({
+      recipientId,
+      recipientType,
+      online: false,
+      reason: globalPresence.reason,
+      presenceSource: "global_realtime_presence",
+      globalPresenceAgeMs: globalPresence.ageMs,
+      globalPresenceCount: globalPresence.presenceCount,
+      activeConversationId: globalPresence.activeConversationId ?? activeConversationId,
       activeConversationPresenceAgeMs: activeConversationPresenceAge,
       heartbeatAgeMs: heartbeatAge,
     });
@@ -167,6 +375,9 @@ export async function getNotificationDeliveryState({
       recipientType,
       online: false,
       reason: "presence_lookup_failed_email_required",
+      presenceSource: "server_presence_projection",
+      globalPresenceAgeMs: globalPresence.ageMs,
+      globalPresenceCount: globalPresence.presenceCount,
       activeConversationId,
       activeConversationPresenceAgeMs: activeConversationPresenceAge,
       heartbeatAgeMs: heartbeatAge,
@@ -179,6 +390,9 @@ export async function getNotificationDeliveryState({
       recipientType,
       online: true,
       reason: "global_heartbeat_recent",
+      presenceSource: "user_activity_heartbeat",
+      globalPresenceAgeMs: globalPresence.ageMs,
+      globalPresenceCount: globalPresence.presenceCount,
       activeConversationId,
       activeConversationPresenceAgeMs: activeConversationPresenceAge,
       heartbeatAgeMs: heartbeatAge,
@@ -191,6 +405,9 @@ export async function getNotificationDeliveryState({
       recipientType,
       online: false,
       reason: "heartbeat_recent_without_active_conversation_presence",
+      presenceSource: "user_activity_heartbeat",
+      globalPresenceAgeMs: globalPresence.ageMs,
+      globalPresenceCount: globalPresence.presenceCount,
       activeConversationId,
       activeConversationPresenceAgeMs: activeConversationPresenceAge,
       heartbeatAgeMs: heartbeatAge,
@@ -202,6 +419,9 @@ export async function getNotificationDeliveryState({
     recipientType,
     online: false,
     reason: heartbeatAge === null ? "presence_not_available" : "heartbeat_expired",
+    presenceSource: "user_activity_heartbeat",
+    globalPresenceAgeMs: globalPresence.ageMs,
+    globalPresenceCount: globalPresence.presenceCount,
     activeConversationId,
     activeConversationPresenceAgeMs: activeConversationPresenceAge,
     heartbeatAgeMs: heartbeatAge,

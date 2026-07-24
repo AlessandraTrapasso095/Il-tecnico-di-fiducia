@@ -4,6 +4,7 @@ import nodemailer from "nodemailer";
 
 type SendEmailInput = {
   to: string | null | undefined;
+  replyTo?: string | null | undefined;
   subject: string;
   text: string;
   html?: string;
@@ -139,15 +140,16 @@ function smtpEnvSummary(recipientPresent: boolean) {
   };
 }
 
-function maskEmailAddress(value: unknown) {
+export function maskEmailForLog(value: unknown) {
   if (typeof value !== "string") return null;
-  const [, domain] = value.split("@");
+  const candidate = value.match(/<([^<>@\s]+@[^<>@\s]+)>/)?.[1] ?? value;
+  const [, domain] = candidate.trim().split("@");
   return domain ? `***@${domain}` : "***";
 }
 
 function sanitizeMailList(value: unknown) {
   const list = Array.isArray(value) ? value : typeof value === "string" ? [value] : [];
-  return list.map(maskEmailAddress).filter((email): email is string => Boolean(email));
+  return list.map(maskEmailForLog).filter((email): email is string => Boolean(email));
 }
 
 function sanitizeEnvelope(value: unknown): SanitizedEnvelope | null {
@@ -156,7 +158,7 @@ function sanitizeEnvelope(value: unknown): SanitizedEnvelope | null {
   const envelope = value as Record<string, unknown>;
 
   return {
-    from: maskEmailAddress(envelope.from),
+    from: maskEmailForLog(envelope.from),
     to: sanitizeMailList(envelope.to),
   };
 }
@@ -246,6 +248,10 @@ export function supportAdminEmail() {
   return envValue("SUPPORT_ADMIN_EMAIL");
 }
 
+export function configuredEmailFrom() {
+  return sender();
+}
+
 export function escapeHtml(value: string) {
   return value
     .replaceAll("&", "&amp;")
@@ -257,14 +263,19 @@ export function escapeHtml(value: string) {
 
 export async function sendTransactionalEmail({
   to,
+  replyTo,
   subject,
   text,
   html,
 }: SendEmailInput): Promise<EmailResult> {
   const recipient = to?.trim();
+  const replyToAddress = replyTo?.trim() || null;
   const logContext = {
     subject,
     ...smtpEnvSummary(Boolean(recipient)),
+    from_masked: maskEmailForLog(sender()),
+    reply_to_present: Boolean(replyToAddress),
+    reply_to_masked: maskEmailForLog(replyToAddress),
   };
 
   if (!recipient) {
@@ -312,6 +323,7 @@ export async function sendTransactionalEmail({
     const result = await transporter.sendMail({
       from: config.from,
       to: recipient,
+      ...(replyToAddress ? { replyTo: replyToAddress } : {}),
       subject,
       text,
       ...(html ? { html } : {}),

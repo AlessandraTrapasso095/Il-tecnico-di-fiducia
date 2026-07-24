@@ -6,6 +6,11 @@ import { isNonEmptyString } from "@/lib/api/validation";
 import { logApiError } from "@/lib/server/api-logger";
 import { loadAdminUserSummaries } from "@/lib/server/admin-user-summaries";
 import {
+  configuredEmailFrom,
+  maskEmailForLog,
+  supportAdminEmail,
+} from "@/lib/server/email";
+import {
   sendSupportTicketReplyEmail,
   sendSupportTicketUserReplyEmail,
 } from "@/lib/server/support-ticket-emails";
@@ -13,6 +18,7 @@ import {
   combineNotificationDeliveryStates,
   getNotificationDeliveryState,
   logNotificationEmailDecision,
+  offlineNotificationDeliveryState,
 } from "@/lib/server/notification-delivery";
 import { createServiceClient } from "@/lib/supabase/service";
 
@@ -22,6 +28,72 @@ type CreateSupportMessagePayload = {
   body: string;
   next_status?: "waiting" | "closed";
 };
+
+function maskId(value: string | null | undefined) {
+  if (!value) return null;
+  if (value.length <= 12) return `${value.slice(0, 3)}…`;
+  return `${value.slice(0, 8)}…${value.slice(-4)}`;
+}
+
+function errorMessage(error: unknown) {
+  return error instanceof Error ? error.message : String(error);
+}
+
+function logSupportTicketAdminReplyDelivery({
+  ticketId,
+  authorRole,
+  recipientId,
+  recipientType,
+  recipientEmail,
+  deliveryState,
+  notificationAttempted,
+  notificationCreated,
+  emailAttempted,
+  emailResult,
+  errorStage = null,
+  errorMessage: deliveryErrorMessage = null,
+}: {
+  ticketId: string;
+  authorRole: string;
+  recipientId: string;
+  recipientType: string;
+  recipientEmail: string | null | undefined;
+  deliveryState: ReturnType<typeof offlineNotificationDeliveryState>;
+  notificationAttempted: boolean;
+  notificationCreated: boolean;
+  emailAttempted: boolean;
+  emailResult:
+    | Awaited<ReturnType<typeof sendSupportTicketReplyEmail>>
+    | null;
+  errorStage?: string | null;
+  errorMessage?: string | null;
+}) {
+  console.info("[support-ticket-delivery] Admin reply delivery", {
+    ticket_id: maskId(ticketId),
+    author_role: authorRole,
+    recipient_id: maskId(recipientId),
+    recipient_type: recipientType,
+    recipient_email_present: Boolean(recipientEmail),
+    recipient_email_masked: maskEmailForLog(recipientEmail),
+    presence_source: deliveryState.signals.presenceSource,
+    online: deliveryState.online,
+    reason: deliveryState.reason,
+    notification_attempted: notificationAttempted,
+    notification_created: notificationCreated,
+    email_required: deliveryState.emailRequired,
+    email_attempted: emailAttempted,
+    email_sent: emailResult?.sent === true,
+    from_masked: maskEmailForLog(configuredEmailFrom()),
+    reply_to_masked: maskEmailForLog(supportAdminEmail()),
+    messageId: emailResult && "messageId" in emailResult ? emailResult.messageId ?? null : null,
+    accepted: emailResult && "accepted" in emailResult ? emailResult.accepted ?? [] : [],
+    rejected: emailResult && "rejected" in emailResult ? emailResult.rejected ?? [] : [],
+    smtp_response: emailResult && "response" in emailResult ? emailResult.response ?? null : null,
+    error_stage: errorStage,
+    error_message: deliveryErrorMessage,
+    signals: deliveryState.signals,
+  });
+}
 
 export async function GET(
   _request: Request,
@@ -198,31 +270,77 @@ export async function POST(
       metadata: { status: nextStatus },
     });
 
+    let service: ReturnType<typeof createServiceClient> | null = null;
+    let notificationAttempted = false;
+    let notificationCreated = false;
+    let emailAttempted = false;
+    let emailResult: Awaited<ReturnType<typeof sendSupportTicketReplyEmail>> | null = null;
+    let errorStage: string | null = null;
+    let deliveryErrorMessage: string | null = null;
+
     try {
-      const service = createServiceClient();
-      const authorsById = await loadAdminUserSummaries(service, [updatedTicket.author_id]).catch(
-        (authorError) => {
-          logApiError("SUPPORT_MESSAGES ENRICHMENT ERROR", {
+      service = createServiceClient();
+    } catch (serviceError) {
+      errorStage = "service_client";
+      deliveryErrorMessage = errorMessage(serviceError);
+      logApiError("SUPPORT_MESSAGES DELIVERY ERROR", {
+        user_id: user.id,
+        role: profile.role,
+        query: "create service client for admin ticket reply delivery",
+        ticket_id: ticketId,
+        error: serviceError,
+      });
+    }
+
+    const authorsById = service
+      ? await loadAdminUserSummaries(service, [updatedTicket.author_id]).catch(
+          (authorError) => {
+            errorStage = "recipient_lookup";
+            deliveryErrorMessage = errorMessage(authorError);
+            logApiError("SUPPORT_MESSAGES ENRICHMENT ERROR", {
+              user_id: user.id,
+              role: profile.role,
+              query: "load support ticket author after admin reply",
+              ticket_id: ticketId,
+              recipient_id: updatedTicket.author_id,
+              error: authorError,
+            });
+            return new Map();
+          },
+        )
+      : new Map();
+    const author = authorsById.get(updatedTicket.author_id) ?? null;
+    const recipientType = author?.role ?? "unknown";
+    const recipientEmail = author?.email ?? null;
+
+    if (service) {
+      notificationAttempted = true;
+      try {
+        const { error: notificationError } = await service.from("notifications").insert({
+          recipient_id: updatedTicket.author_id,
+          actor_id: profile.id,
+          type: "support_ticket_replied",
+          entity_type: "support_ticket",
+          entity_id: updatedTicket.id,
+        });
+
+        if (notificationError) {
+          errorStage = "notification";
+          deliveryErrorMessage = notificationError.message;
+          logApiError("SUPPORT_MESSAGES NOTIFICATION ERROR", {
             user_id: user.id,
             role: profile.role,
-            query: "load support ticket author after admin reply",
+            query: "create ticket reply notification",
             ticket_id: ticketId,
-            error: authorError,
+            recipient_id: updatedTicket.author_id,
+            error: notificationError,
           });
-          return new Map();
-        },
-      );
-      const author = authorsById.get(updatedTicket.author_id) ?? null;
-
-      const { error: notificationError } = await service.from("notifications").insert({
-        recipient_id: updatedTicket.author_id,
-        actor_id: profile.id,
-        type: "support_ticket_replied",
-        entity_type: "support_ticket",
-        entity_id: updatedTicket.id,
-      });
-
-      if (notificationError) {
+        } else {
+          notificationCreated = true;
+        }
+      } catch (notificationError) {
+        errorStage = "notification";
+        deliveryErrorMessage = errorMessage(notificationError);
         logApiError("SUPPORT_MESSAGES NOTIFICATION ERROR", {
           user_id: user.id,
           role: profile.role,
@@ -232,55 +350,85 @@ export async function POST(
           error: notificationError,
         });
       }
+    }
 
-      if (author) {
-        const deliveryState = await getNotificationDeliveryState({
-          service,
-          recipientId: updatedTicket.author_id,
-          recipientType: author.role,
+    const deliveryState =
+      service && author
+        ? await getNotificationDeliveryState({
+            service,
+            recipientId: updatedTicket.author_id,
+            recipientType: author.role,
+            requireRealtimePresence: true,
+          }).catch((presenceError) => {
+            errorStage = "presence";
+            deliveryErrorMessage = errorMessage(presenceError);
+            logApiError("SUPPORT_MESSAGES PRESENCE ERROR", {
+              user_id: user.id,
+              role: profile.role,
+              query: "check support ticket recipient presence",
+              ticket_id: ticketId,
+              recipient_id: updatedTicket.author_id,
+              error: presenceError,
+            });
+            return offlineNotificationDeliveryState({
+              recipientId: updatedTicket.author_id,
+              recipientType: author.role,
+              reason: "presence_check_exception_email_required",
+            });
+          })
+        : offlineNotificationDeliveryState({
+            recipientId: updatedTicket.author_id,
+            recipientType,
+            reason: service ? "recipient_profile_missing_email_required" : "service_client_unavailable_email_required",
+          });
+
+    if (deliveryState.emailRequired && author?.email) {
+      emailAttempted = true;
+      try {
+        emailResult = await sendSupportTicketReplyEmail({
+          ticket: updatedTicket,
+          author,
+          replyBody: payload.body.trim(),
         });
-        if (!deliveryState.emailRequired) {
-          logNotificationEmailDecision({
-            scope: "support.ticket_admin_reply",
-            state: deliveryState,
-          });
-          return NextResponse.json({ message: data, ticket: updatedTicket });
-        }
-
-        try {
-          const emailResult = await sendSupportTicketReplyEmail({
-            ticket: updatedTicket,
-            author,
-            replyBody: payload.body.trim(),
-          });
-          logNotificationEmailDecision({
-            scope: "support.ticket_admin_reply",
-            state: deliveryState,
-            emailResult,
-          });
-        } catch (emailError) {
-          logNotificationEmailDecision({
-            scope: "support.ticket_admin_reply",
-            state: deliveryState,
-          });
-          logApiError("SUPPORT_MESSAGES EMAIL ERROR", {
-            user_id: user.id,
-            role: profile.role,
-            query: "send ticket reply email",
-            ticket_id: ticketId,
-            error: emailError,
-          });
-        }
+      } catch (emailError) {
+        errorStage = "email";
+        deliveryErrorMessage = errorMessage(emailError);
+        logApiError("SUPPORT_MESSAGES EMAIL ERROR", {
+          user_id: user.id,
+          role: profile.role,
+          query: "send ticket reply email",
+          ticket_id: ticketId,
+          recipient_id: updatedTicket.author_id,
+          error: emailError,
+        });
       }
-    } catch (notificationError) {
-      logApiError("SUPPORT_MESSAGES NOTIFICATION ERROR", {
+    } else if (deliveryState.emailRequired && !author?.email) {
+      errorStage = "recipient_email";
+      deliveryErrorMessage = "Recipient email is missing";
+      logApiError("SUPPORT_MESSAGES EMAIL ERROR", {
         user_id: user.id,
         role: profile.role,
-        query: "create ticket reply notification",
+        query: "resolve ticket recipient email",
         ticket_id: ticketId,
-        error: notificationError,
+        recipient_id: updatedTicket.author_id,
+        error: new Error("Recipient email is missing"),
       });
     }
+
+    logSupportTicketAdminReplyDelivery({
+      ticketId,
+      authorRole: profile.role,
+      recipientId: updatedTicket.author_id,
+      recipientType,
+      recipientEmail,
+      deliveryState,
+      notificationAttempted,
+      notificationCreated,
+      emailAttempted,
+      emailResult,
+      errorStage,
+      errorMessage: deliveryErrorMessage,
+    });
   } else {
     if (ticket.status !== "open") {
       const { data: statusTicket, error: statusError } = await supabase

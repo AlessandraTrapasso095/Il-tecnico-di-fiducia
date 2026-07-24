@@ -95,6 +95,7 @@ export async function sendSupportTicketReplyEmail({
 
   return sendTransactionalEmail({
     to: author.email,
+    replyTo: supportAdminEmail(),
     subject: "Risposta al tuo ticket - Il Tecnico di Fiducia",
     text: [
       `Ciao ${fullName(author)},`,
@@ -139,6 +140,7 @@ export async function sendSupportTicketResolvedEmail({
 
   return sendTransactionalEmail({
     to: author.email,
+    replyTo: supportAdminEmail(),
     subject: "Ticket risolto - Il Tecnico di Fiducia",
     text: [
       `Ciao ${fullName(author)},`,
