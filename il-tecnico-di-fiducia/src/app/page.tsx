@@ -60,9 +60,11 @@ export default async function Home() {
           <div className="absolute inset-0 bg-gradient-to-b from-primary/80 to-primary/60" />
 
           <Container className="relative z-10 py-16 text-center">
-            <h1 className="font-display-lg text-display-lg-mobile md:text-display-lg text-white mb-6">
-              Trova il tuo{" "}
-              <span className="text-on-tertiary-container">tecnico di fiducia</span>
+            <h1 className="mb-6 font-display-lg text-[32px] leading-[1.15] text-white min-[375px]:text-display-lg-mobile md:text-display-lg">
+              <span className="block md:inline">Trova il tuo</span>{" "}
+              <span className="block whitespace-nowrap text-on-tertiary-container md:inline md:whitespace-normal">
+                tecnico di fiducia
+              </span>
             </h1>
             <p className="font-body-lg text-body-lg text-surface-container-highest mb-10 max-w-[740px] mx-auto">
               La piattaforma che mette in contatto clienti e professionisti qualificati in tutta Italia
@@ -112,8 +114,8 @@ export default async function Home() {
 
             <div className="grid grid-cols-1 gap-8 lg:grid-cols-2">
               <article className="rounded-[32px] border border-outline-variant/30 bg-surface-container-lowest p-6 shadow-[0_10px_32px_rgba(8,43,95,0.08)] sm:p-8">
-                <div className="mb-8 flex items-center justify-center gap-3 text-center sm:justify-start sm:text-left">
-                  <span className="flex h-11 w-11 items-center justify-center rounded-full bg-[#FF8500] text-white" aria-hidden>
+                <div className="mb-8 flex flex-col items-center justify-center gap-2 text-center sm:flex-row sm:justify-start sm:gap-3 sm:text-left">
+                  <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-[#FF8500] text-white" aria-hidden>
                     <span className="material-symbols-outlined block text-[26px] leading-none">
                       search
                     </span>
@@ -140,8 +142,8 @@ export default async function Home() {
               </article>
 
               <article className="rounded-[32px] border border-primary/10 bg-white p-6 shadow-[0_10px_32px_rgba(8,43,95,0.08)] sm:p-8">
-                <div className="mb-8 flex items-center justify-center gap-3 text-center sm:justify-start sm:text-left">
-                  <span className="flex h-11 w-11 items-center justify-center rounded-full bg-primary text-white" aria-hidden>
+                <div className="mb-8 flex flex-col items-center justify-center gap-2 text-center sm:flex-row sm:justify-start sm:gap-3 sm:text-left">
+                  <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-primary text-white" aria-hidden>
                     <span className="material-symbols-outlined block text-[26px] leading-none">
                       engineering
                     </span>
