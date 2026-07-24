@@ -77,7 +77,7 @@ export function TopNav() {
         <div className="hidden items-center gap-3 xl:flex">
           <Link
             href="/auth/login"
-            className="font-button text-button text-primary px-4 py-2 rounded-full hover:bg-surface-container-high transition-colors"
+            className="font-button text-button bg-primary text-white px-6 py-3 rounded-full shadow-md hover:bg-primary-container transition-colors active:scale-[0.99]"
           >
             Log In
           </Link>
@@ -145,7 +145,7 @@ export function TopNav() {
               <div className="mt-2 flex flex-col gap-2 border-t border-outline-variant/30 pt-2">
                 <Link
                   href="/auth/login"
-                  className="min-h-11 rounded-xl px-3 py-3 text-center font-button text-button text-primary transition-colors hover:bg-surface-container-low"
+                  className="min-h-11 rounded-xl bg-primary px-3 py-3 text-center font-button text-button text-white transition-colors hover:bg-primary-container"
                   onClick={() => setOpen(false)}
                 >
                   Log In

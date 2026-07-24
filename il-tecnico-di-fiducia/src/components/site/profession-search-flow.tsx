@@ -135,10 +135,10 @@ export function ProfessionSearchFlow() {
   }
 
   return (
-    <section id="professioni" className="py-20">
+    <section id="professioni" tabIndex={-1} className="scroll-mt-24 py-20 outline-none">
       <div className="text-center mb-12">
         <h2 className="font-headline-md text-headline-md text-primary mb-3">
-          Sfoglia per professione
+          Sfoglia professioni
         </h2>
         <p className="text-on-surface-variant max-w-[680px] mx-auto">
           Scegli una categoria, aggiungi una specializzazione e filtra per zona o
