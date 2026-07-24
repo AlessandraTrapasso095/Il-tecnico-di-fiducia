@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  type CSSProperties,
   type MouseEvent as ReactMouseEvent,
   useCallback,
   useEffect,
@@ -921,9 +922,12 @@ export default function CustomerDashboardClient({
 
   const heroBg =
     "https://images.pexels.com/photos/3184465/pexels-photo-3184465.jpeg?auto=compress&cs=tinysrgb&w=1800&h=900&fit=crop";
+  const shellStyle = {
+    "--mobile-header-height": "5rem",
+  } as CSSProperties;
 
   return (
-    <div className="flex min-h-dvh flex-col bg-surface text-on-surface">
+    <div className="flex min-h-dvh flex-col bg-surface text-on-surface" style={shellStyle}>
       <AuthenticatedPresence
         userId={profile.id}
         role="customer"
@@ -1311,7 +1315,7 @@ export default function CustomerDashboardClient({
                     </div>
 
                     {filterOpen ? (
-                      <div className="fixed inset-x-3 top-[calc(5rem+0.75rem)] bottom-[max(0.75rem,env(safe-area-inset-bottom))] z-[90] overflow-y-auto rounded-[24px] border border-outline-variant/30 bg-surface-container-lowest p-4 text-left shadow-[0_18px_50px_rgba(8,43,95,0.18)] sm:absolute sm:bottom-auto sm:left-auto sm:right-0 sm:top-[calc(100%+12px)] sm:w-[520px] sm:max-h-[calc(100dvh-180px)] sm:p-5">
+                      <div className="fixed inset-x-3 top-[calc(var(--mobile-header-height)+0.75rem)] bottom-[max(0.75rem,env(safe-area-inset-bottom))] z-[90] max-h-[calc(100dvh-var(--mobile-header-height)-1.5rem)] overflow-y-auto rounded-[24px] border border-outline-variant/30 bg-surface-container-lowest p-4 text-left shadow-[0_18px_50px_rgba(8,43,95,0.18)] sm:absolute sm:bottom-auto sm:left-auto sm:right-0 sm:top-[calc(100%+12px)] sm:w-[520px] sm:max-h-[calc(100dvh-180px)] sm:p-5">
                         <div className="mb-4 flex items-center justify-between gap-3">
                           <div>
                             <div className="font-headline-sm text-primary">
