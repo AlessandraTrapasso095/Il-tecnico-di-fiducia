@@ -68,12 +68,12 @@ export function TopNav() {
           </span>
         </Link>
 
-        <nav className="hidden shrink-0 flex-nowrap items-center gap-2 lg:flex xl:gap-4 2xl:gap-6">
+        <nav className="hidden shrink-0 flex-nowrap items-center gap-3 xl:flex 2xl:gap-6">
           {navLinks.map((l) => (
             <Link
               key={l.id}
               href={l.href}
-              className="shrink-0 whitespace-nowrap break-normal font-label-md text-[12px] text-on-surface-variant transition-colors hover:text-on-tertiary-container xl:text-[13px] 2xl:text-label-md"
+              className="shrink-0 whitespace-nowrap break-normal font-label-md text-[14px] text-on-surface-variant transition-colors hover:text-on-tertiary-container 2xl:text-label-md"
               style={noWrapTextStyle}
             >
               {l.label}
@@ -81,17 +81,17 @@ export function TopNav() {
           ))}
         </nav>
 
-        <div className="hidden shrink-0 flex-nowrap items-center gap-2 lg:flex xl:gap-3">
+        <div className="hidden shrink-0 flex-nowrap items-center gap-3 xl:flex">
           <Link
             href="/auth/login"
-            className="shrink-0 whitespace-nowrap break-normal rounded-full bg-primary px-4 py-3 font-button text-[12px] text-white shadow-md transition-colors hover:bg-primary-container active:scale-[0.99] xl:px-6 xl:text-button"
+            className="shrink-0 whitespace-nowrap break-normal rounded-full bg-primary px-6 py-4 font-button text-[15px] text-white shadow-md transition-colors hover:bg-primary-container active:scale-[0.99] 2xl:text-button"
             style={noWrapTextStyle}
           >
             Log In
           </Link>
           <Link
             href="/auth/register"
-            className="shrink-0 whitespace-nowrap break-normal rounded-full bg-[#FF8500] px-4 py-3 font-button text-[12px] text-white shadow-md transition-colors hover:bg-[#FF9A2B] active:scale-[0.99] xl:px-6 xl:text-button"
+            className="shrink-0 whitespace-nowrap break-normal rounded-full bg-[#FF8500] px-6 py-4 font-button text-[15px] text-white shadow-md transition-colors hover:bg-[#FF9A2B] active:scale-[0.99] 2xl:text-button"
             style={noWrapTextStyle}
           >
             Inizia ora
@@ -100,7 +100,7 @@ export function TopNav() {
 
         <button
           type="button"
-          className="flex h-11 w-11 shrink-0 cursor-pointer touch-manipulation items-center justify-center rounded-full border border-outline-variant/40 text-primary transition-colors hover:bg-surface-container-high lg:hidden"
+          className="flex h-11 w-11 shrink-0 cursor-pointer touch-manipulation items-center justify-center rounded-full border border-outline-variant/40 text-primary transition-colors hover:bg-surface-container-high xl:hidden"
           aria-label="Apri menu"
           aria-controls={mobileMenuId}
           aria-expanded={open}
@@ -113,7 +113,7 @@ export function TopNav() {
       </div>
 
       {open ? (
-        <div className="fixed inset-0 z-[200] lg:hidden" id={mobileMenuId}>
+        <div className="fixed inset-0 z-[200] xl:hidden" id={mobileMenuId}>
           <button
             type="button"
             className="absolute inset-0 h-full w-full bg-inverse-surface/45 backdrop-blur-sm"

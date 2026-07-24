@@ -337,7 +337,7 @@ function customerNavTextClass(active: boolean) {
 
 function customerIconButtonClass(active: boolean) {
   return [
-    "inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full transition-all hover:bg-surface-container-high sm:h-11 sm:w-11 lg:h-14 lg:w-14 lg:[&_.material-symbols-outlined]:text-[27px]",
+    "inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full transition-all hover:bg-surface-container-high sm:h-11 sm:w-11 md:h-12 md:w-12 md:[&_.material-symbols-outlined]:text-[24px] lg:h-16 lg:w-16 lg:[&_.material-symbols-outlined]:text-[32px]",
     active ? "bg-[#FF8500]/10 text-[#FF8500]" : "text-primary",
   ].join(" ");
 }
@@ -405,6 +405,7 @@ export default function CustomerDashboardClient({
 
   const searchDebounce = useRef<number | null>(null);
   const filterRef = useRef<HTMLDivElement | null>(null);
+  const filterPanelRef = useRef<HTMLDivElement | null>(null);
   const favoritesRef = useRef<HTMLDivElement | null>(null);
   const notificationsRef = useRef<HTMLDivElement | null>(null);
 
@@ -755,6 +756,7 @@ export default function CustomerDashboardClient({
       const target = event.target;
       if (!(target instanceof Node)) return;
       if (filterRef.current?.contains(target)) return;
+      if (filterPanelRef.current?.contains(target)) return;
       setFilterOpen(false);
     }
 
@@ -1205,7 +1207,7 @@ export default function CustomerDashboardClient({
               </span>
             </Link>
             <SignOutButton
-              className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-error transition-all hover:bg-error-container/30 sm:h-11 sm:w-11 lg:h-14 lg:w-14 lg:[&_.material-symbols-outlined]:text-[27px]"
+              className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-error transition-all hover:bg-error-container/30 sm:h-11 sm:w-11 md:h-12 md:w-12 md:[&_.material-symbols-outlined]:text-[24px] lg:h-16 lg:w-16 lg:[&_.material-symbols-outlined]:text-[32px]"
               aria-label="Logout"
             >
               <span className="material-symbols-outlined" aria-hidden>
@@ -1274,7 +1276,7 @@ export default function CustomerDashboardClient({
                   Ciao {profile.first_name}, di cosa hai bisogno oggi?
                 </h1>
 
-                <div className="mx-auto max-w-4xl">
+                <div className="relative mx-auto max-w-4xl">
                   <div
                     ref={filterRef}
                     className="relative z-[60] rounded-[28px] bg-white/82 p-2 shadow-[0_14px_42px_rgba(8,43,95,0.18)] backdrop-blur-md sm:rounded-full"
@@ -1314,8 +1316,13 @@ export default function CustomerDashboardClient({
                       </button>
                     </div>
 
-                    {filterOpen ? (
-                      <div className="fixed inset-x-3 top-[calc(var(--mobile-header-height)+0.75rem)] bottom-[max(0.75rem,env(safe-area-inset-bottom))] z-[90] max-h-[calc(100dvh-var(--mobile-header-height)-1.5rem)] overflow-y-auto rounded-[24px] border border-outline-variant/30 bg-surface-container-lowest p-4 text-left shadow-[0_18px_50px_rgba(8,43,95,0.18)] sm:absolute sm:bottom-auto sm:left-auto sm:right-0 sm:top-[calc(100%+12px)] sm:w-[520px] sm:max-h-[calc(100dvh-180px)] sm:p-5">
+                  </div>
+
+                  {filterOpen ? (
+                    <div
+                      ref={filterPanelRef}
+                      className="fixed inset-x-3 top-[var(--mobile-header-height)] bottom-[max(0.75rem,env(safe-area-inset-bottom))] z-[90] overflow-y-auto rounded-[24px] border border-outline-variant/30 bg-surface-container-lowest p-4 text-left shadow-[0_18px_50px_rgba(8,43,95,0.18)] sm:absolute sm:bottom-auto sm:left-auto sm:right-0 sm:top-[calc(100%+12px)] sm:w-[520px] sm:max-h-[calc(100dvh-180px)] sm:p-5"
+                    >
                         <div className="mb-4 flex items-center justify-between gap-3">
                           <div>
                             <div className="font-headline-sm text-primary">
@@ -1457,8 +1464,7 @@ export default function CustomerDashboardClient({
                           </button>
                         </div>
                       </div>
-                    ) : null}
-                  </div>
+                  ) : null}
                 </div>
               </div>
             </section>

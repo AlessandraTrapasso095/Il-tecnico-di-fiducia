@@ -112,13 +112,13 @@ function isProfessionalNavActive(pathname: string, href: string) {
 
 function professionalHeaderIconClass(active: boolean) {
   return [
-    "flex h-11 w-11 shrink-0 items-center justify-center rounded-full transition hover:scale-95 lg:h-14 lg:w-14",
+    "flex h-11 w-11 shrink-0 items-center justify-center rounded-full transition hover:scale-95 md:h-12 md:w-12 lg:h-16 lg:w-16",
     active ? "ring-2 ring-[#FF8500] ring-offset-2 ring-offset-surface-container-lowest" : "",
   ].join(" ");
 }
 
 const professionalHeaderButtonClass =
-  "flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-primary transition hover:bg-surface-container-high lg:h-14 lg:w-14 lg:[&_.material-symbols-outlined]:text-[27px]";
+  "flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-primary transition hover:bg-surface-container-high md:h-12 md:w-12 md:[&_.material-symbols-outlined]:text-[24px] lg:h-16 lg:w-16 lg:[&_.material-symbols-outlined]:text-[32px]";
 
 function fullName(person: { first_name: string; last_name: string } | null | undefined) {
   if (!person) return "Utente";
