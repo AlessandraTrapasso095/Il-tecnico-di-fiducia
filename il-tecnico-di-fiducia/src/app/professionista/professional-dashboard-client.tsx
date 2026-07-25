@@ -14,6 +14,7 @@ import {
 import { PostComments } from "@/components/posts/post-comments";
 import { ProfileAvatar } from "@/components/ui/profile-avatar";
 import { fetchJson } from "@/lib/api/fetch-json";
+import { preparePostMedia } from "@/lib/media/prepare-post-media";
 
 type ProfessionalProfileLite = {
   id: string;
@@ -84,15 +85,6 @@ type ProfessionalDashboardClientProps = {
 };
 
 const SUBSCRIPTION_SETTINGS_PATH = "/professionista/abbonamento";
-const MAX_MEDIA_FILE_SIZE_BYTES = Math.floor(4.7 * 1024 * 1024);
-
-function validateMediaFiles(files: File[]) {
-  const oversizedFile = files.find(
-    (file) => file.size > MAX_MEDIA_FILE_SIZE_BYTES,
-  );
-
-  return oversizedFile ? "File troppo grande, massimo 4,7 MB." : null;
-}
 
 function fullName(person: { first_name: string; last_name: string } | null | undefined) {
   if (!person) return "Utente";
@@ -215,6 +207,7 @@ export default function ProfessionalDashboardClient({
     useState<PostMediaAttachment | null>(null);
   const [loading, setLoading] = useState(true);
   const [posting, setPosting] = useState(false);
+  const [optimizingMedia, setOptimizingMedia] = useState(false);
   const [busyPostId, setBusyPostId] = useState<string | null>(null);
 
   const subscriptionCopy = subscriptionCardCopy(subscription);
@@ -286,13 +279,60 @@ export default function ProfessionalDashboardClient({
     };
   }, [applyDashboardData, fetchDashboardData]);
 
+  async function handlePhotoSelection(files: File[]) {
+    setPostError(null);
+    setOptimizingMedia(true);
+
+    try {
+      const prepared = await preparePostMedia(files);
+
+      if (prepared.videosCount > 0) {
+        throw new Error("Seleziona solo immagini dal pulsante Foto.");
+      }
+
+      if (prepared.files.length + videoFiles.length > 4) {
+        throw new Error("Puoi allegare al massimo 4 contenuti per post.");
+      }
+
+      setPhotoFiles(prepared.files);
+    } catch (error) {
+      setPhotoFiles([]);
+      setPostError(
+        error instanceof Error
+          ? error.message
+          : "Ottimizzazione delle immagini non riuscita.",
+      );
+    } finally {
+      setOptimizingMedia(false);
+    }
+  }
+
+  function handleVideoSelection(files: File[]) {
+    setPostError(null);
+
+    if (photoFiles.length + files.length > 4) {
+      setVideoFiles([]);
+      setPostError("Puoi allegare al massimo 4 contenuti per post.");
+      return;
+    }
+
+    if (files.length > 1) {
+      setVideoFiles([]);
+      setPostError("Puoi allegare al massimo un video per post.");
+      return;
+    }
+
+    if (files.some((file) => file.size > 4 * 1024 * 1024)) {
+      setVideoFiles([]);
+      setPostError("Video troppo grande, massimo 4 MB per ora.");
+      return;
+    }
+
+    setVideoFiles(files);
+  }
+
   async function uploadPostFiles(postId: string, files: File[]) {
     if (files.length === 0) return;
-
-    const validationError = validateMediaFiles(files);
-    if (validationError) {
-      throw new Error(validationError);
-    }
 
     const formData = new FormData();
     files.forEach((file) => formData.append("files", file));
@@ -381,7 +421,15 @@ export default function ProfessionalDashboardClient({
           { method: "DELETE" },
         );
       }
-      await uploadPostFiles(postId, newFiles);
+      const preparedNewMedia =
+        newFiles.length > 0 ? await preparePostMedia(newFiles) : { files: [] };
+      const oversizedVideo = preparedNewMedia.files.find(
+        (file) => file.type.startsWith("video/") && file.size > 4 * 1024 * 1024,
+      );
+      if (oversizedVideo) {
+        throw new Error("Video troppo grande, massimo 4 MB per ora.");
+      }
+      await uploadPostFiles(postId, preparedNewMedia.files);
       setPosts((current) =>
         current.map((post) =>
           post.id === postId
@@ -513,6 +561,11 @@ export default function ProfessionalDashboardClient({
               {postError}
             </div>
           ) : null}
+          {optimizingMedia ? (
+            <div className="mt-3 rounded-xl bg-primary-fixed px-4 py-3 text-sm text-primary">
+              Ottimizzazione delle immagini in corso…
+            </div>
+          ) : null}
           {photoFiles.length > 0 || videoFiles.length > 0 ? (
             <div className="mt-3 rounded-2xl bg-surface-container-low px-4 py-3 text-sm text-on-surface-variant">
               <span className="font-bold text-primary">File selezionati:</span>{" "}
@@ -537,17 +590,8 @@ export default function ProfessionalDashboardClient({
                 className="sr-only"
                 onChange={(event) => {
                   const files = Array.from(event.target.files ?? []);
-                  const validationError = validateMediaFiles(files);
-
-                  if (validationError) {
-                    setPostError(validationError);
-                    setPhotoFiles([]);
-                    event.target.value = "";
-                    return;
-                  }
-
-                  setPostError(null);
-                  setPhotoFiles(files);
+                  event.target.value = "";
+                  void handlePhotoSelection(files);
                 }}
               />
               <label
@@ -565,22 +609,13 @@ export default function ProfessionalDashboardClient({
                 className="sr-only"
                 onChange={(event) => {
                   const files = Array.from(event.target.files ?? []);
-                  const validationError = validateMediaFiles(files);
-
-                  if (validationError) {
-                    setPostError(validationError);
-                    setVideoFiles([]);
-                    event.target.value = "";
-                    return;
-                  }
-
-                  setPostError(null);
-                  setVideoFiles(files);
+                  event.target.value = "";
+                  handleVideoSelection(files);
                 }}
               />
               </div>
               <p className="mt-1 px-2 text-xs text-on-surface-variant">
-                Foto e video: massimo 4,7 MB per file.
+                Massimo 4 contenuti per post. Le foto vengono ottimizzate automaticamente. Video massimo 4 MB, uno per post.
               </p>
             </div>
             <div className="flex items-center justify-between gap-3 sm:justify-end">
@@ -589,10 +624,10 @@ export default function ProfessionalDashboardClient({
               </span>
               <button
                 type="submit"
-                disabled={posting}
+                disabled={posting || optimizingMedia}
               className="min-h-11 rounded-full bg-[#FF8500] px-7 py-3 font-button text-button text-white shadow-md transition hover:bg-[#FF9A2B] disabled:opacity-60"
               >
-                {posting ? "Pubblicazione…" : "Pubblica"}
+                {optimizingMedia ? "Ottimizzazione…" : posting ? "Pubblicazione…" : "Pubblica"}
               </button>
             </div>
           </div>

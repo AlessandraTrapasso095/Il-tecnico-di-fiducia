@@ -27,6 +27,7 @@ import {
 } from "@/components/posts/post-media-ui";
 import { ProfileAvatar } from "@/components/ui/profile-avatar";
 import { fetchJson } from "@/lib/api/fetch-json";
+import { preparePostMedia } from "@/lib/media/prepare-post-media";
 import { ITALIAN_PROVINCES } from "@/lib/locations/italian-provinces";
 import {
   normalizeProfessionCategories,
@@ -137,16 +138,6 @@ type ProfessionalProfileClientProps = {
 
 const EMPTY_COVER =
   "linear-gradient(135deg, rgba(0,38,84,0.96), rgba(11,60,120,0.72)), radial-gradient(circle at 70% 30%, rgba(255,136,20,0.22), transparent 30%)";
-
-const MAX_MEDIA_FILE_SIZE_BYTES = Math.floor(4.7 * 1024 * 1024);
-
-function validateMediaFiles(files: File[]) {
-  const oversizedFile = files.find(
-    (file) => file.size > MAX_MEDIA_FILE_SIZE_BYTES,
-  );
-
-  return oversizedFile ? "File troppo grande, massimo 4,7 MB." : null;
-}
 
 function categoryOptionValue(category: Pick<ProfessionCategory, "id" | "slug">) {
   return category.id !== null && category.id !== undefined ? `id:${category.id}` : `slug:${category.slug}`;
@@ -387,6 +378,7 @@ export default function ProfessionalProfileClient({
   const [postBody, setPostBody] = useState("");
   const [postFiles, setPostFiles] = useState<File[]>([]);
   const [posting, setPosting] = useState(false);
+  const [optimizingMedia, setOptimizingMedia] = useState(false);
   const [postError, setPostError] = useState<string | null>(null);
   const [busyPostId, setBusyPostId] = useState<string | null>(null);
 
@@ -744,11 +736,6 @@ export default function ProfessionalProfileClient({
   async function uploadPostFiles(postId: string, files: File[]) {
     if (files.length === 0) return;
 
-    const validationError = validateMediaFiles(files);
-    if (validationError) {
-      throw new Error(validationError);
-    }
-
     const formData = new FormData();
     files.forEach((file) => formData.append("files", file));
     const response = await fetch(`/api/posts/${postId}/attachments`, {
@@ -760,17 +747,32 @@ export default function ProfessionalProfileClient({
     if (!response.ok) throw new Error(payload.error ?? "Upload media non riuscito.");
   }
 
-  function handlePostFilesSelection(files: File[]) {
-    const validationError = validateMediaFiles(files);
-
-    if (validationError) {
-      setPostError(validationError);
-      setPostFiles([]);
-      return;
-    }
-
+  async function handlePostFilesSelection(files: File[]) {
     setPostError(null);
-    setPostFiles(files);
+    setOptimizingMedia(true);
+
+    try {
+      const prepared = await preparePostMedia(files);
+
+      const oversizedVideo = prepared.files.find(
+        (file) => file.type.startsWith("video/") && file.size > 4 * 1024 * 1024,
+      );
+
+      if (oversizedVideo) {
+        throw new Error("Video troppo grande, massimo 4 MB per ora.");
+      }
+
+      setPostFiles(prepared.files);
+    } catch (error) {
+      setPostFiles([]);
+      setPostError(
+        error instanceof Error
+          ? error.message
+          : "Preparazione dei file non riuscita.",
+      );
+    } finally {
+      setOptimizingMedia(false);
+    }
   }
 
   async function createPost() {
@@ -865,7 +867,15 @@ export default function ProfessionalProfileClient({
           { method: "DELETE" },
         );
       }
-      await uploadPostFiles(postId, newFiles);
+      const preparedNewMedia =
+        newFiles.length > 0 ? await preparePostMedia(newFiles) : { files: [] };
+      const oversizedVideo = preparedNewMedia.files.find(
+        (file) => file.type.startsWith("video/") && file.size > 4 * 1024 * 1024,
+      );
+      if (oversizedVideo) {
+        throw new Error("Video troppo grande, massimo 4 MB per ora.");
+      }
+      await uploadPostFiles(postId, preparedNewMedia.files);
       await loadPosts();
     } catch (error) {
       setPostError(error instanceof Error ? error.message : "Modifica non riuscita.");
@@ -1396,6 +1406,7 @@ export default function ProfessionalProfileClient({
                 postFiles={postFiles}
                 setPostFiles={handlePostFilesSelection}
                 posting={posting}
+                optimizingMedia={optimizingMedia}
                 postError={postError}
                 composerPerson={{
                   first_name: profile.first_name,
@@ -2154,6 +2165,7 @@ function WorksTab({
   postFiles,
   setPostFiles,
   posting,
+  optimizingMedia,
   postError,
   composerPerson,
   createPost,
@@ -2171,6 +2183,7 @@ function WorksTab({
   postFiles: File[];
   setPostFiles: (files: File[]) => void;
   posting: boolean;
+  optimizingMedia: boolean;
   postError: string | null;
   composerPerson: { first_name: string; last_name: string; avatar_url?: string | null };
   createPost: () => void;
@@ -2220,6 +2233,11 @@ function WorksTab({
               {postError}
             </div>
           ) : null}
+          {optimizingMedia ? (
+            <div className="mt-3 rounded-2xl bg-primary-fixed p-3 text-sm text-primary">
+              Ottimizzazione delle immagini in corso…
+            </div>
+          ) : null}
           {postFiles.length > 0 ? (
             <div className="mt-3 rounded-2xl bg-surface-container-low p-3 text-sm text-on-surface-variant">
               {postFiles.map((file) => file.name).join(", ")}
@@ -2236,22 +2254,23 @@ function WorksTab({
                   multiple
                   accept="image/png,image/jpeg,image/webp,video/mp4,video/quicktime"
                   onChange={(event) => {
-                    setPostFiles(Array.from(event.target.files ?? []));
+                    const files = Array.from(event.target.files ?? []);
                     event.target.value = "";
+                    void setPostFiles(files);
                   }}
                 />
               </label>
               <p className="mt-1 px-2 text-xs text-on-surface-variant">
-                Foto e video: massimo 4,7 MB per file.
+                Massimo 4 contenuti per post. Le foto vengono ottimizzate automaticamente. Video massimo 4 MB, uno per post.
               </p>
             </div>
             <button
               type="button"
-              disabled={posting}
+              disabled={posting || optimizingMedia}
               className="rounded-full bg-[#FF8500] px-7 py-3 font-button text-white hover:bg-[#FF9A2B] disabled:opacity-60"
               onClick={createPost}
             >
-              {posting ? "Pubblicazione…" : "Pubblica"}
+              {optimizingMedia ? "Ottimizzazione…" : posting ? "Pubblicazione…" : "Pubblica"}
             </button>
           </div>
         </section>
