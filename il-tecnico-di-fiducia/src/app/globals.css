@@ -210,13 +210,14 @@ body {
   vertical-align: middle;
 }
 
-/* Feedback tattile sui controlli da dispositivi touch */
+/* Feedback visivo per i controlli premuti da dispositivi touch */
 @media (hover: none) and (pointer: coarse) {
   button,
   a[role="button"],
   input[type="button"],
   input[type="submit"],
-  input[type="reset"] {
+  input[type="reset"],
+  label[for] {
     -webkit-tap-highlight-color: transparent;
     transition:
       transform 120ms ease,
@@ -228,7 +229,8 @@ body {
   a[role="button"]:active,
   input[type="button"]:active,
   input[type="submit"]:active,
-  input[type="reset"]:active {
+  input[type="reset"]:active,
+  label[for]:active {
     transform: scale(1.06);
     filter: brightness(0.96);
   }

@@ -8,7 +8,7 @@ import {
 import { sanitizeFileName } from "@/lib/api/validation";
 
 const MAX_FILES = 6;
-const MAX_FILE_SIZE_BYTES = 50 * 1024 * 1024;
+const MAX_FILE_SIZE_BYTES = Math.floor(4.7 * 1024 * 1024);
 const ALLOWED_IMAGE_TYPES = new Set(["image/jpeg", "image/png", "image/webp"]);
 const ALLOWED_VIDEO_TYPES = new Set(["video/mp4", "video/quicktime"]);
 
@@ -49,11 +49,16 @@ export async function POST(
 
   const formData = await request.formData();
   const files = formData.getAll("files");
+
   if (files.length === 0) {
     return NextResponse.json({ error: "files are required" }, { status: 400 });
   }
+
   if (files.length > MAX_FILES) {
-    return NextResponse.json({ error: `Max ${MAX_FILES} files` }, { status: 400 });
+    return NextResponse.json(
+      { error: `Puoi caricare al massimo ${MAX_FILES} file.` },
+      { status: 400 },
+    );
   }
 
   const attachments = [];
@@ -62,8 +67,12 @@ export async function POST(
     if (!(item instanceof File)) {
       return NextResponse.json({ error: "Invalid file" }, { status: 400 });
     }
+
     if (item.size > MAX_FILE_SIZE_BYTES) {
-      return NextResponse.json({ error: "Max file size is 50MB" }, { status: 400 });
+      return NextResponse.json(
+        { error: "File troppo grande, massimo 4,7 MB." },
+        { status: 413 },
+      );
     }
 
     let contentType: string | null = await sniffImageMime(item);
@@ -90,13 +99,19 @@ export async function POST(
 
     const { error: uploadError } = await supabase.storage
       .from("public-media")
-      .upload(path, item, { upsert: false, contentType, cacheControl: "3600" });
+      .upload(path, item, {
+        upsert: false,
+        contentType,
+        cacheControl: "3600",
+      });
 
     if (uploadError) {
       return NextResponse.json({ error: uploadError.message }, { status: 400 });
     }
 
-    const { data: publicUrl } = supabase.storage.from("public-media").getPublicUrl(path);
+    const { data: publicUrl } = supabase.storage
+      .from("public-media")
+      .getPublicUrl(path);
 
     const { data: inserted, error: insertError } = await supabase
       .from("post_attachments")
@@ -110,7 +125,9 @@ export async function POST(
         file_name: safeName,
         file_size: item.size,
       })
-      .select("id, post_id, file_url, file_path, file_type, mime_type, file_name, file_size, created_at")
+      .select(
+        "id, post_id, file_url, file_path, file_type, mime_type, file_name, file_size, created_at",
+      )
       .single();
 
     if (insertError) {

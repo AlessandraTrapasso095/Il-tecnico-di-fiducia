@@ -84,6 +84,15 @@ type ProfessionalDashboardClientProps = {
 };
 
 const SUBSCRIPTION_SETTINGS_PATH = "/professionista/abbonamento";
+const MAX_MEDIA_FILE_SIZE_BYTES = Math.floor(4.7 * 1024 * 1024);
+
+function validateMediaFiles(files: File[]) {
+  const oversizedFile = files.find(
+    (file) => file.size > MAX_MEDIA_FILE_SIZE_BYTES,
+  );
+
+  return oversizedFile ? "File troppo grande, massimo 4,7 MB." : null;
+}
 
 function fullName(person: { first_name: string; last_name: string } | null | undefined) {
   if (!person) return "Utente";
@@ -279,6 +288,11 @@ export default function ProfessionalDashboardClient({
 
   async function uploadPostFiles(postId: string, files: File[]) {
     if (files.length === 0) return;
+
+    const validationError = validateMediaFiles(files);
+    if (validationError) {
+      throw new Error(validationError);
+    }
 
     const formData = new FormData();
     files.forEach((file) => formData.append("files", file));
@@ -506,7 +520,8 @@ export default function ProfessionalDashboardClient({
             </div>
           ) : null}
           <div className="mt-4 flex flex-col gap-4 border-t border-outline-variant/30 pt-4 sm:flex-row sm:items-center sm:justify-between">
-            <div className="flex flex-wrap items-center gap-2">
+            <div>
+              <div className="flex flex-wrap items-center gap-2">
               <label
                 htmlFor="post-photos"
                 className="flex cursor-pointer items-center gap-2 rounded-full px-4 py-2 text-sm font-bold text-secondary transition hover:bg-surface-container-low"
@@ -520,7 +535,20 @@ export default function ProfessionalDashboardClient({
                 accept="image/png,image/jpeg,image/webp"
                 multiple
                 className="sr-only"
-                onChange={(event) => setPhotoFiles(Array.from(event.target.files ?? []))}
+                onChange={(event) => {
+                  const files = Array.from(event.target.files ?? []);
+                  const validationError = validateMediaFiles(files);
+
+                  if (validationError) {
+                    setPostError(validationError);
+                    setPhotoFiles([]);
+                    event.target.value = "";
+                    return;
+                  }
+
+                  setPostError(null);
+                  setPhotoFiles(files);
+                }}
               />
               <label
                 htmlFor="post-videos"
@@ -535,8 +563,25 @@ export default function ProfessionalDashboardClient({
                 accept="video/mp4,video/quicktime"
                 multiple
                 className="sr-only"
-                onChange={(event) => setVideoFiles(Array.from(event.target.files ?? []))}
+                onChange={(event) => {
+                  const files = Array.from(event.target.files ?? []);
+                  const validationError = validateMediaFiles(files);
+
+                  if (validationError) {
+                    setPostError(validationError);
+                    setVideoFiles([]);
+                    event.target.value = "";
+                    return;
+                  }
+
+                  setPostError(null);
+                  setVideoFiles(files);
+                }}
               />
+              </div>
+              <p className="mt-1 px-2 text-xs text-on-surface-variant">
+                Foto e video: massimo 4,7 MB per file.
+              </p>
             </div>
             <div className="flex items-center justify-between gap-3 sm:justify-end">
               <span className="text-sm text-on-surface-variant">
@@ -624,23 +669,53 @@ export default function ProfessionalDashboardClient({
                       </Link>
 
                       {isAuthor ? (
-                        <div className="flex shrink-0 flex-wrap justify-end gap-2">
-                          <button
-                            type="button"
-                            className="min-h-10 rounded-full px-3 py-2 text-sm font-bold text-primary hover:bg-primary-fixed"
-                            onClick={() => setEditingPost(post)}
-                          >
-                            Modifica
-                          </button>
-                          <button
-                            type="button"
-                            className="min-h-10 rounded-full px-3 py-2 text-sm font-bold text-error hover:bg-error-container/40"
-                            disabled={busyPostId === post.id}
-                            onClick={() => setDeleteTargetPost(post)}
-                          >
-                            Elimina
-                          </button>
-                        </div>
+                        <>
+                          <details className="relative shrink-0 md:hidden">
+                            <summary
+                              className="flex h-10 w-10 cursor-pointer list-none items-center justify-center rounded-full text-primary transition hover:bg-primary-fixed [&::-webkit-details-marker]:hidden"
+                              aria-label="Azioni del post"
+                            >
+                              <span className="material-symbols-outlined">more_horiz</span>
+                            </summary>
+                            <div className="absolute right-0 top-11 z-20 min-w-[150px] overflow-hidden rounded-2xl border border-outline-variant/30 bg-surface-container-lowest p-1.5 shadow-xl">
+                              <button
+                                type="button"
+                                className="flex w-full items-center gap-2 rounded-xl px-3 py-2.5 text-left text-sm font-bold text-primary hover:bg-primary-fixed"
+                                onClick={() => setEditingPost(post)}
+                              >
+                                <span className="material-symbols-outlined text-[19px]">edit</span>
+                                Modifica
+                              </button>
+                              <button
+                                type="button"
+                                className="flex w-full items-center gap-2 rounded-xl px-3 py-2.5 text-left text-sm font-bold text-error hover:bg-error-container/40"
+                                disabled={busyPostId === post.id}
+                                onClick={() => setDeleteTargetPost(post)}
+                              >
+                                <span className="material-symbols-outlined text-[19px]">delete</span>
+                                Elimina
+                              </button>
+                            </div>
+                          </details>
+
+                          <div className="hidden shrink-0 flex-wrap justify-end gap-2 md:flex">
+                            <button
+                              type="button"
+                              className="min-h-10 rounded-full px-3 py-2 text-sm font-bold text-primary hover:bg-primary-fixed"
+                              onClick={() => setEditingPost(post)}
+                            >
+                              Modifica
+                            </button>
+                            <button
+                              type="button"
+                              className="min-h-10 rounded-full px-3 py-2 text-sm font-bold text-error hover:bg-error-container/40"
+                              disabled={busyPostId === post.id}
+                              onClick={() => setDeleteTargetPost(post)}
+                            >
+                              Elimina
+                            </button>
+                          </div>
+                        </>
                       ) : null}
                     </div>
 
