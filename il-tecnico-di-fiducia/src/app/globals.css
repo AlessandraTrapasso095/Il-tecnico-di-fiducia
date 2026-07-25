@@ -210,34 +210,67 @@ body {
   vertical-align: middle;
 }
 
-/* Feedback visivo per i controlli premuti da dispositivi touch */
+/* Feedback visivo globale per tutti gli elementi cliccabili */
 @media (hover: none) and (pointer: coarse) {
-  button,
-  a[role="button"],
-  input[type="button"],
-  input[type="submit"],
-  input[type="reset"],
-  label[for] {
+  :where(
+    button,
+    a,
+    summary,
+    label[for],
+    [role="button"],
+    [data-clickable="true"],
+    input[type="button"],
+    input[type="submit"],
+    input[type="reset"]
+  ) {
+    cursor: pointer;
+    touch-action: manipulation;
     -webkit-tap-highlight-color: transparent;
+    transform-origin: center;
+    will-change: transform, filter;
     transition:
-      transform 120ms ease,
-      filter 120ms ease,
-      opacity 120ms ease;
+      transform 140ms cubic-bezier(0.2, 0.8, 0.2, 1),
+      filter 140ms ease,
+      opacity 140ms ease !important;
   }
 
-  button:active,
-  a[role="button"]:active,
-  input[type="button"]:active,
-  input[type="submit"]:active,
-  input[type="reset"]:active,
-  label[for]:active {
-    transform: scale(1.06);
-    filter: brightness(0.96);
+  :where(
+    button,
+    a,
+    summary,
+    label[for],
+    [role="button"],
+    [data-clickable="true"],
+    input[type="button"],
+    input[type="submit"],
+    input[type="reset"]
+  ):active,
+  :where(
+    button,
+    a,
+    summary,
+    label[for],
+    [role="button"],
+    [data-clickable="true"],
+    input[type="button"],
+    input[type="submit"],
+    input[type="reset"]
+  ).is-pressing {
+    transform: scale(1.09) !important;
+    filter: brightness(0.94) !important;
   }
 
-  button:disabled:active,
-  input:disabled:active {
-    transform: none;
-    filter: none;
+  :where(
+    button:disabled,
+    input:disabled,
+    [aria-disabled="true"]
+  ):active,
+  :where(
+    button:disabled,
+    input:disabled,
+    [aria-disabled="true"]
+  ).is-pressing {
+    transform: none !important;
+    filter: none !important;
   }
 }
