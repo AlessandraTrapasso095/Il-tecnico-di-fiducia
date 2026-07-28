@@ -129,37 +129,60 @@ export default function RegisterClient({ initialRole }: RegisterClientProps) {
   }, []);
 
   useEffect(() => {
-    if (role !== "professional" || categories.length > 0 || categoriesLoading) return;
+    if (role !== "professional" || categories.length > 0) {
+      return;
+    }
 
-    let mounted = true;
-    Promise.resolve()
-      .then(() => {
-        if (!mounted) return null;
-        setCategoriesLoading(true);
-        setCategoriesError(null);
-        return fetchJson<CategoriesResponse>("/api/categories", { method: "GET" });
-      })
-      .then((res) => {
-        if (!mounted || !res) return;
-        const nextCategories = normalizeProfessionCategories(res.categories ?? []);
-        setCategories(nextCategories);
-        if (nextCategories.length === 0) {
-          setCategoriesError("Nessuna categoria attiva disponibile al momento.");
+    let cancelled = false;
+
+    async function loadCategories() {
+      setCategoriesLoading(true);
+      setCategoriesError(null);
+
+      try {
+        const response = await fetchJson<CategoriesResponse>("/api/categories", {
+          method: "GET",
+        });
+
+        if (cancelled) {
+          return;
         }
-      })
-      .catch(() => {
-        if (!mounted) return;
+
+        const nextCategories = normalizeProfessionCategories(
+          response.categories ?? [],
+        );
+
+        setCategories(nextCategories);
+
+        if (nextCategories.length === 0) {
+          setCategoriesError(
+            "Nessuna categoria attiva disponibile al momento.",
+          );
+        }
+      } catch (err) {
+        if (cancelled) {
+          return;
+        }
+
         setCategories([]);
-        setCategoriesError("Non è stato possibile caricare le categorie. Riprova.");
-      })
-      .finally(() => {
-        if (mounted) setCategoriesLoading(false);
-      });
+        setCategoriesError(
+          err instanceof Error
+            ? err.message
+            : "Non è stato possibile caricare le categorie. Riprova.",
+        );
+      } finally {
+        if (!cancelled) {
+          setCategoriesLoading(false);
+        }
+      }
+    }
+
+    void loadCategories();
 
     return () => {
-      mounted = false;
+      cancelled = true;
     };
-  }, [categories.length, categoriesLoading, categoriesReloadKey, role]);
+  }, [categories.length, categoriesReloadKey, role]);
 
   async function onSignUp(e: React.FormEvent) {
     e.preventDefault();
