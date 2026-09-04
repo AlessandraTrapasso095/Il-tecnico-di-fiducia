@@ -99,7 +99,7 @@ export default async function AdminPage() {
         <MetricCard icon="shield_person" label="Admin" value={admins} href="/admin/admin" />
         <MetricCard
           icon="support_agent"
-          label="Ticket"
+          label="Ticket da gestire"
           value={tickets}
           tone="orange"
           href="/admin/supporto"
