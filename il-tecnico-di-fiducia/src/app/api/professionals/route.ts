@@ -24,6 +24,8 @@ type ProfessionalDirectoryRow = {
   avatar_url: string | null;
   available_remote: boolean | null;
   available_travel: boolean | null;
+  is_ctu: boolean | null;
+  is_ctp: boolean | null;
 };
 
 type CategoryId = number | string;
@@ -150,6 +152,8 @@ function rowSearchText(
       ...categoryTerms,
       subcategory?.name,
       subcategory?.slug,
+      row.is_ctu ? "ctu consulente tecnico ufficio" : null,
+      row.is_ctp ? "ctp consulente tecnico parte" : null,
     ]
       .filter((value): value is string => Boolean(value))
       .join(" "),
@@ -331,6 +335,8 @@ export async function GET(request: NextRequest) {
       : viewer!.supabase;
 
     const searchParams = request.nextUrl.searchParams;
+    const isCtu = parseBoolean(searchParams.get("is_ctu"));
+    const isCtp = parseBoolean(searchParams.get("is_ctp"));
 
     const provinceCode = searchParams.get("province_code");
     const query = searchParams.get("q");
@@ -569,9 +575,17 @@ export async function GET(request: NextRequest) {
     let queryBuilder = dataClient
       .from("professional_directory")
       .select(
-        "id, first_name, last_name, province_code, headline, bio, specializations, subcategory_id, avatar_url, available_remote, available_travel",
+        "id, first_name, last_name, province_code, headline, bio, specializations, subcategory_id, avatar_url, available_remote, available_travel, is_ctu, is_ctp",
         { count: "exact" },
       );
+
+    if (isCtu !== null) {
+      queryBuilder = queryBuilder.eq("is_ctu", isCtu);
+    }
+
+    if (isCtp !== null) {
+      queryBuilder = queryBuilder.eq("is_ctp", isCtp);
+    }
 
     if (provinceCode) {
       queryBuilder = queryBuilder.eq("province_code", provinceCode);

@@ -30,6 +30,8 @@ type UpdateProfessionalPayload = {
   certifications?: unknown[];
   available_remote?: boolean;
   available_travel?: boolean;
+  is_ctu?: boolean;
+  is_ctp?: boolean;
 };
 
 function optionalText(value: unknown, maxLength: number) {
@@ -274,6 +276,34 @@ export async function PATCH(
   const operationalProvinces = optionalStringArray(payload.operational_provinces, 110, 2);
   const education = optionalJsonList(payload.education);
   const workExperiences = optionalJsonList(payload.work_experiences);
+  const isCtu =
+    payload.is_ctu === undefined
+      ? undefined
+      : typeof payload.is_ctu === "boolean"
+        ? payload.is_ctu
+        : null;
+
+  if (isCtu === null) {
+    return NextResponse.json(
+      { error: "is_ctu deve essere boolean." },
+      { status: 400 },
+    );
+  }
+
+  const isCtp =
+    payload.is_ctp === undefined
+      ? undefined
+      : typeof payload.is_ctp === "boolean"
+        ? payload.is_ctp
+        : null;
+
+  if (isCtp === null) {
+    return NextResponse.json(
+      { error: "is_ctp deve essere boolean." },
+      { status: 400 },
+    );
+  }
+
   const certifications = optionalJsonList(payload.certifications);
 
   if (headline !== undefined) professionalUpdates.headline = headline || null;
@@ -302,6 +332,8 @@ export async function PATCH(
   if (education !== undefined) professionalUpdates.education = education;
   if (workExperiences !== undefined) professionalUpdates.work_experiences = workExperiences;
   if (certifications !== undefined) professionalUpdates.certifications = certifications;
+  if (isCtu !== undefined) professionalUpdates.is_ctu = isCtu;
+  if (isCtp !== undefined) professionalUpdates.is_ctp = isCtp;
   if (typeof payload.available_remote === "boolean") {
     professionalUpdates.available_remote = payload.available_remote;
   }
@@ -446,7 +478,7 @@ export async function PATCH(
   const { data: professional } = await supabase
     .from("professional_profiles")
     .select(
-      "id, headline, bio, specializations, avatar_url, cover_url, public_email, website_url, subcategory_id, education, work_experiences, certifications, services_offered, operational_provinces, available_remote, available_travel, updated_at",
+      "id, headline, bio, specializations, avatar_url, cover_url, public_email, website_url, subcategory_id, education, work_experiences, certifications, services_offered, operational_provinces, available_remote, available_travel, is_ctu, is_ctp, updated_at",
     )
     .eq("id", id)
     .maybeSingle();

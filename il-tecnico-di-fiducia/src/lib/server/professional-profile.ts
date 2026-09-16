@@ -27,6 +27,8 @@ export type ProfessionalProfileDetails = {
   operational_provinces: string[];
   available_remote: boolean;
   available_travel: boolean;
+  is_ctu: boolean;
+  is_ctp: boolean;
   rating_average: number | null;
   reviews_count: number;
   categories: { id: string | number; name: string; slug: string }[];
@@ -85,7 +87,7 @@ export async function loadProfessionalProfile({
   const { data: directory } = await supabase
     .from("professional_directory")
     .select(
-      "id, first_name, last_name, province_code, headline, bio, specializations, avatar_url, cover_url, available_remote, available_travel",
+      "id, first_name, last_name, province_code, headline, bio, specializations, avatar_url, cover_url, available_remote, available_travel, is_ctu, is_ctp",
     )
     .eq("id", professionalId)
     .maybeSingle();
@@ -105,7 +107,7 @@ export async function loadProfessionalProfile({
   const { data: professional } = await service
     .from("professional_profiles")
     .select(
-      "id, headline, bio, specializations, avatar_url, cover_url, public_email, website_url, subcategory_id, education, work_experiences, certifications, services_offered, operational_provinces, available_remote, available_travel",
+      "id, headline, bio, specializations, avatar_url, cover_url, public_email, website_url, subcategory_id, education, work_experiences, certifications, services_offered, operational_provinces, available_remote, available_travel, is_ctu, is_ctp",
     )
     .eq("id", professionalId)
     .maybeSingle();
@@ -204,6 +206,8 @@ export async function loadProfessionalProfile({
     operational_provinces: toStringArray(professional.operational_provinces),
     available_remote: Boolean(professional.available_remote),
     available_travel: Boolean(professional.available_travel),
+    is_ctu: Boolean(professional.is_ctu),
+    is_ctp: Boolean(professional.is_ctp),
     rating_average: ratingAverage,
     reviews_count: reviewsCount,
     categories: (categories ?? []) as { id: string | number; name: string; slug: string }[],
@@ -236,6 +240,8 @@ export type PublicProfessionalProfileDetails = {
   operational_provinces: string[];
   available_remote: boolean;
   available_travel: boolean;
+  is_ctu: boolean;
+  is_ctp: boolean;
   rating_average: number | null;
   reviews_count: number;
   categories: { id: string | number; name: string; slug: string }[];
@@ -274,7 +280,7 @@ export async function loadPublicProfessionalProfile(
     service
       .from("professional_profiles")
       .select(
-        "id, headline, bio, specializations, avatar_url, subcategory_id, services_offered, operational_provinces, available_remote, available_travel",
+        "id, headline, bio, specializations, avatar_url, subcategory_id, services_offered, operational_provinces, available_remote, available_travel, is_ctu, is_ctp",
       )
       .eq("id", professionalId)
       .maybeSingle(),
@@ -337,6 +343,8 @@ export async function loadPublicProfessionalProfile(
     available_travel: Boolean(
       professional.available_travel ?? directory.available_travel,
     ),
+    is_ctu: Boolean(professional.is_ctu),
+    is_ctp: Boolean(professional.is_ctp),
     rating_average: ratingAverage,
     reviews_count: reviewsCount,
     categories: (categories ?? []) as {

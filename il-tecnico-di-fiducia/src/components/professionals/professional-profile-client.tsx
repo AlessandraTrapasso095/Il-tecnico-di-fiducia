@@ -576,6 +576,8 @@ export default function ProfessionalProfileClient({
       certifications: linesFromJson(profile.certifications),
       available_remote: profile.available_remote,
       available_travel: profile.available_travel,
+      is_ctu: profile.is_ctu,
+      is_ctp: profile.is_ctp,
       operational_provinces: profile.operational_provinces.join("\n"),
     });
   }
@@ -601,6 +603,8 @@ export default function ProfessionalProfileClient({
           : null;
         payload.available_remote = Boolean(editDraft.available_remote);
         payload.available_travel = Boolean(editDraft.available_travel);
+        payload.is_ctu = Boolean(editDraft.is_ctu);
+        payload.is_ctp = Boolean(editDraft.is_ctp);
       }
       if (editSection === "services") {
         payload.services_offered = splitLines(String(editDraft.services_offered ?? ""));
@@ -672,6 +676,14 @@ export default function ProfessionalProfileClient({
           typeof payload.available_travel === "boolean"
             ? payload.available_travel
             : current.available_travel,
+        is_ctu:
+          typeof payload.is_ctu === "boolean"
+            ? payload.is_ctu
+            : current.is_ctu,
+        is_ctp:
+          typeof payload.is_ctp === "boolean"
+            ? payload.is_ctp
+            : current.is_ctp,
         operational_provinces:
           (payload.operational_provinces as string[] | undefined) ??
           current.operational_provinces,
@@ -1296,6 +1308,33 @@ export default function ProfessionalProfileClient({
                         value={profile.available_travel ? "Disponibile" : "Non disponibile"}
                       />
                     </div>
+
+                    {profile.is_ctu || profile.is_ctp ? (
+                      <div>
+                        <h3 className="font-label-md text-primary">
+                          Qualifiche professionali
+                        </h3>
+                        <div className="mt-2 flex flex-wrap gap-2">
+                          {profile.is_ctu ? (
+                            <span className="inline-flex items-center gap-1.5 rounded-full bg-primary-fixed px-4 py-2 text-sm font-bold text-on-primary-fixed-variant">
+                              <span className="material-symbols-outlined text-[18px]">
+                                verified
+                              </span>
+                              CTU
+                            </span>
+                          ) : null}
+
+                          {profile.is_ctp ? (
+                            <span className="inline-flex items-center gap-1.5 rounded-full bg-primary-fixed px-4 py-2 text-sm font-bold text-on-primary-fixed-variant">
+                              <span className="material-symbols-outlined text-[18px]">
+                                verified
+                              </span>
+                              CTP
+                            </span>
+                          ) : null}
+                        </div>
+                      </div>
+                    ) : null}
 
                     <div>
                       <h3 className="font-label-md text-primary">Bio / descrizione professionale</h3>
@@ -2047,6 +2086,54 @@ function EditModal({
                 />
                 Disponibile a trasferte
               </label>
+
+              <div className="rounded-2xl border border-outline-variant bg-surface-container-low p-4">
+                <div>
+                  <p className="font-label-md text-primary">
+                    Qualifiche professionali
+                  </p>
+                  <p className="mt-1 text-sm text-on-surface-variant">
+                    Seleziona le qualifiche che possiedi.
+                  </p>
+                </div>
+
+                <div className="mt-4 grid gap-3">
+                  <label className="flex items-start gap-3 rounded-xl bg-surface-container-lowest p-3 text-primary">
+                    <input
+                      type="checkbox"
+                      className="mt-1"
+                      checked={Boolean(draft.is_ctu)}
+                      onChange={(event) => setValue("is_ctu", event.target.checked)}
+                    />
+                    <span>
+                      <span className="block font-medium">
+                        CTU — Consulente Tecnico d&apos;Ufficio
+                      </span>
+                      <span className="mt-1 block text-sm text-on-surface-variant">
+                        Iscritto o incaricato come Consulente Tecnico d&apos;Ufficio.
+                      </span>
+                    </span>
+                  </label>
+
+                  <label className="flex items-start gap-3 rounded-xl bg-surface-container-lowest p-3 text-primary">
+                    <input
+                      type="checkbox"
+                      className="mt-1"
+                      checked={Boolean(draft.is_ctp)}
+                      onChange={(event) => setValue("is_ctp", event.target.checked)}
+                    />
+                    <span>
+                      <span className="block font-medium">
+                        CTP — Consulente Tecnico di Parte
+                      </span>
+                      <span className="mt-1 block text-sm text-on-surface-variant">
+                        Disponibile per incarichi come Consulente Tecnico di Parte.
+                      </span>
+                    </span>
+                  </label>
+                </div>
+              </div>
+
               <TextArea label="Bio" value={String(draft.bio ?? "")} onChange={(v) => setValue("bio", v)} />
             </>
           ) : null}

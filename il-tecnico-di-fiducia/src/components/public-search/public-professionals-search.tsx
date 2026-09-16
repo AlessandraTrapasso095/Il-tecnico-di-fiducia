@@ -32,6 +32,8 @@ type Professional = {
   avatar_url: string | null;
   available_remote: boolean | null;
   available_travel: boolean | null;
+  is_ctu: boolean;
+  is_ctp: boolean;
   rating_average: number | null;
   reviews_count: number;
   categories?: Category[];
@@ -265,6 +267,28 @@ export function PublicProfessionalsSearch() {
                     </div>
 
                     <div className="mt-3 flex flex-wrap gap-2">
+                      {professional.is_ctu || professional.is_ctp ? (
+                        <>
+                          {professional.is_ctu ? (
+                            <span className="inline-flex items-center gap-1 rounded-full bg-primary-fixed px-3 py-1 text-xs font-bold text-on-primary-fixed-variant">
+                              <span className="material-symbols-outlined text-[14px]">
+                                verified
+                              </span>
+                              CTU
+                            </span>
+                          ) : null}
+
+                          {professional.is_ctp ? (
+                            <span className="inline-flex items-center gap-1 rounded-full bg-primary-fixed px-3 py-1 text-xs font-bold text-on-primary-fixed-variant">
+                              <span className="material-symbols-outlined text-[14px]">
+                                verified
+                              </span>
+                              CTP
+                            </span>
+                          ) : null}
+                        </>
+                      ) : null}
+
                       {professional.province_code ? (
                         <span className="rounded-full bg-surface-container-low px-3 py-1 text-xs font-bold text-primary">
                           {provinceNameByCode.get(professional.province_code) ??

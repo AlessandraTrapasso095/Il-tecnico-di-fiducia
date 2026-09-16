@@ -95,6 +95,34 @@ export function PublicProfessionalProfile({
               </section>
             ) : null}
 
+            {profile.is_ctu || profile.is_ctp ? (
+              <section>
+                <h2 className="font-headline-sm text-headline-sm text-primary">
+                  Qualifiche professionali
+                </h2>
+
+                <div className="mt-4 flex flex-wrap gap-2">
+                  {profile.is_ctu ? (
+                    <span className="inline-flex items-center gap-1.5 rounded-full bg-primary-fixed px-3 py-1.5 text-xs font-bold text-on-primary-fixed-variant">
+                      <span className="material-symbols-outlined text-[16px]">
+                        verified
+                      </span>
+                      CTU
+                    </span>
+                  ) : null}
+
+                  {profile.is_ctp ? (
+                    <span className="inline-flex items-center gap-1.5 rounded-full bg-primary-fixed px-3 py-1.5 text-xs font-bold text-on-primary-fixed-variant">
+                      <span className="material-symbols-outlined text-[16px]">
+                        verified
+                      </span>
+                      CTP
+                    </span>
+                  ) : null}
+                </div>
+              </section>
+            ) : null}
+
             {profile.services_offered.length > 0 ? (
               <section>
                 <h2 className="font-headline-sm text-headline-sm text-primary">
