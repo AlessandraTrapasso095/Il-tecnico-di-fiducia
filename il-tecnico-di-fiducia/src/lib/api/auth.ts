@@ -33,8 +33,117 @@ type RequireAuthOptions = {
 };
 
 type RequireAuthResult =
-  | { ok: true; ctx: ApiAuthContext }
+  { ok: true; ctx: ApiAuthContext } | { ok: false; response: NextResponse };
+
+export type OptionalAuthResult =
+  | { ok: true; ctx: ApiAuthContext | null }
   | { ok: false; response: NextResponse };
+
+export async function getOptionalAuth(): Promise<OptionalAuthResult> {
+  let supabase: SupabaseClient;
+
+  try {
+    supabase = await createClient();
+  } catch (error) {
+    logApiError("AUTH ERROR", {
+      stage: "create_client_optional",
+      error,
+    });
+
+    return {
+      ok: false,
+      response: NextResponse.json(
+        { error: "Failed to initialize auth" },
+        { status: 500 },
+      ),
+    };
+  }
+
+  const {
+    data: { user },
+    error: userError,
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    if (userError && userError.name !== "AuthSessionMissingError") {
+      logApiError("AUTH ERROR", {
+        stage: "get_user_optional",
+        error: userError,
+      });
+
+      return {
+        ok: false,
+        response: NextResponse.json(
+          { error: "Failed to validate session" },
+          { status: 500 },
+        ),
+      };
+    }
+
+    return { ok: true, ctx: null };
+  }
+
+  const { data: isActive, error: activeError } =
+    await supabase.rpc("is_active_user");
+
+  if (activeError) {
+    logApiError("AUTH ERROR", {
+      stage: "is_active_user_optional",
+      user_id: user.id,
+      error: activeError,
+    });
+
+    return {
+      ok: false,
+      response: NextResponse.json(
+        { error: "Failed to validate session" },
+        { status: 500 },
+      ),
+    };
+  }
+
+  if (!isActive) {
+    await supabase.auth.signOut();
+
+    return {
+      ok: false,
+      response: NextResponse.json({ error: "Forbidden" }, { status: 403 }),
+    };
+  }
+
+  const { data: profile, error: profileError } = await supabase
+    .from("profiles")
+    .select(
+      "id, role, email, first_name, last_name, province_code, phone, must_change_password, is_banned, suspended_until",
+    )
+    .eq("id", user.id)
+    .maybeSingle();
+
+  if (profileError || !profile) {
+    logApiError("AUTH ERROR", {
+      stage: "profiles_optional",
+      user_id: user.id,
+      error: profileError ?? new Error("Profile not found"),
+    });
+
+    return {
+      ok: false,
+      response: NextResponse.json(
+        { error: "Failed to load profile" },
+        { status: 500 },
+      ),
+    };
+  }
+
+  return {
+    ok: true,
+    ctx: {
+      supabase,
+      user,
+      profile: profile as ViewerProfile,
+    },
+  };
+}
 
 export async function requireAuth(
   options: RequireAuthOptions = {},
@@ -74,9 +183,8 @@ export async function requireAuth(
     };
   }
 
-  const { data: isActive, error: activeError } = await supabase.rpc(
-    "is_active_user",
-  );
+  const { data: isActive, error: activeError } =
+    await supabase.rpc("is_active_user");
 
   if (activeError) {
     logApiError("AUTH ERROR", {

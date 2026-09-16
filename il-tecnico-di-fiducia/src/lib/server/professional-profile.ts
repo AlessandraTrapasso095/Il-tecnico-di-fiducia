@@ -222,3 +222,129 @@ export async function loadProfessionalProfile({
 
   return { profile: details, access };
 }
+
+export type PublicProfessionalProfileDetails = {
+  id: string;
+  first_name: string;
+  last_name: string;
+  province_code: string | null;
+  headline: string | null;
+  bio: string | null;
+  specializations: string[];
+  avatar_url: string | null;
+  services_offered: string[];
+  operational_provinces: string[];
+  available_remote: boolean;
+  available_travel: boolean;
+  rating_average: number | null;
+  reviews_count: number;
+  categories: { id: string | number; name: string; slug: string }[];
+  subcategory: {
+    id: string;
+    category_id: string | number;
+    name: string;
+    slug: string;
+  } | null;
+};
+
+export async function loadPublicProfessionalProfile(
+  professionalId: string,
+): Promise<PublicProfessionalProfileDetails | null> {
+  if (!professionalId) return null;
+
+  const service = createServiceClient();
+
+  if (!(await isProfessionalVisibleToCustomers(professionalId, service))) {
+    return null;
+  }
+
+  const [
+    { data: directory },
+    { data: professional },
+    { data: categoriesMap },
+    { data: reviews },
+  ] = await Promise.all([
+    service
+      .from("professional_directory")
+      .select(
+        "id, first_name, last_name, province_code, headline, bio, specializations, avatar_url, available_remote, available_travel, subcategory_id",
+      )
+      .eq("id", professionalId)
+      .maybeSingle(),
+    service
+      .from("professional_profiles")
+      .select(
+        "id, headline, bio, specializations, avatar_url, subcategory_id, services_offered, operational_provinces, available_remote, available_travel",
+      )
+      .eq("id", professionalId)
+      .maybeSingle(),
+    service
+      .from("professional_categories")
+      .select("category_id")
+      .eq("professional_id", professionalId),
+    service
+      .from("reviews")
+      .select("rating")
+      .eq("professional_id", professionalId),
+  ]);
+
+  if (!directory || !professional) return null;
+
+  const categoryIds = (categoriesMap ?? []).map((row) => row.category_id);
+
+  const [{ data: categories }, { data: subcategory }] = await Promise.all([
+    categoryIds.length > 0
+      ? service
+          .from("categories")
+          .select("id, name, slug")
+          .in("id", categoryIds)
+          .eq("is_active", true)
+      : Promise.resolve({ data: [] }),
+    professional.subcategory_id
+      ? service
+          .from("subcategories")
+          .select("id, category_id, name, slug")
+          .eq("id", professional.subcategory_id)
+          .eq("is_active", true)
+          .maybeSingle()
+      : Promise.resolve({ data: null }),
+  ]);
+
+  const reviewRows = reviews ?? [];
+  const reviewsCount = reviewRows.length;
+  const ratingAverage =
+    reviewsCount > 0
+      ? reviewRows.reduce((sum, review) => sum + Number(review.rating), 0) /
+        reviewsCount
+      : null;
+
+  return {
+    id: professionalId,
+    first_name: directory.first_name ?? "",
+    last_name: directory.last_name ?? "",
+    province_code: directory.province_code ?? null,
+    headline: professional.headline ?? directory.headline ?? null,
+    bio: professional.bio ?? directory.bio ?? null,
+    specializations: toStringArray(
+      professional.specializations ?? directory.specializations,
+    ),
+    avatar_url: professional.avatar_url ?? directory.avatar_url ?? null,
+    services_offered: toStringArray(professional.services_offered),
+    operational_provinces: toStringArray(professional.operational_provinces),
+    available_remote: Boolean(
+      professional.available_remote ?? directory.available_remote,
+    ),
+    available_travel: Boolean(
+      professional.available_travel ?? directory.available_travel,
+    ),
+    rating_average: ratingAverage,
+    reviews_count: reviewsCount,
+    categories: (categories ?? []) as {
+      id: string | number;
+      name: string;
+      slug: string;
+    }[],
+    subcategory:
+      (subcategory as PublicProfessionalProfileDetails["subcategory"]) ?? null,
+  };
+}

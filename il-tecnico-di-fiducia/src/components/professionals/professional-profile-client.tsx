@@ -348,6 +348,7 @@ export default function ProfessionalProfileClient({
   const searchParams = useSearchParams();
   const requestedTabParam = searchParams.get("tab");
   const highlightedReviewId = searchParams.get("review");
+  const requestedAction = searchParams.get("action");
   const [profile, setProfile] = useState(initialProfile);
   const [profileAccess, setProfileAccess] = useState(access);
   const [tab, setTab] = useState<TabKey>(() => {
@@ -495,6 +496,18 @@ export default function ProfessionalProfileClient({
     const nextTab = tabFromSearchParam(requestedTabParam);
     if (nextTab) setTab(nextTab);
   }, [requestedTabParam]);
+
+  useEffect(() => {
+    if (
+      requestedAction === "contact" &&
+      viewer.role === "customer" &&
+      !isOwner
+    ) {
+      setContactDone(false);
+      setContactError(null);
+      setContactOpen(true);
+    }
+  }, [isOwner, requestedAction, viewer.role]);
 
   useEffect(() => {
     if (tab !== "reviews" || !highlightedReviewId || reviewsLoading) return;

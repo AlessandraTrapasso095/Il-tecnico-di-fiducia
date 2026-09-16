@@ -1,10 +1,18 @@
 import { notFound, redirect } from "next/navigation";
 
+import { Footer } from "@/components/site/footer";
+import { TopNav } from "@/components/site/top-nav";
+import { PublicProfessionalProfile } from "@/components/public-profile/public-professional-profile";
+import { createClient } from "@/lib/supabase/server";
+
 import ProfessionalShell from "@/app/professionista/professional-shell";
 import { AdminShell } from "@/components/admin/admin-shell";
 import { CustomerAreaShell } from "@/components/customer/customer-area-shell";
 import ProfessionalProfileClient from "@/components/professionals/professional-profile-client";
-import { loadProfessionalProfile } from "@/lib/server/professional-profile";
+import {
+  loadProfessionalProfile,
+  loadPublicProfessionalProfile,
+} from "@/lib/server/professional-profile";
 import { requirePageAuth } from "@/lib/server/require-page-auth";
 
 export const dynamic = "force-dynamic";
@@ -17,6 +25,30 @@ export default async function ProfessionalProfilePage({
   params,
 }: ProfessionalProfilePageProps) {
   const { id } = await params;
+
+  const sessionClient = await createClient();
+  const {
+    data: { user: optionalUser },
+  } = await sessionClient.auth.getUser();
+
+  if (!optionalUser) {
+    const publicProfile = await loadPublicProfessionalProfile(id);
+
+    if (!publicProfile) {
+      notFound();
+    }
+
+    return (
+      <div className="flex min-h-dvh flex-col bg-surface">
+        <TopNav />
+        <main className="flex-1 pt-20 sm:pt-[100px]">
+          <PublicProfessionalProfile profile={publicProfile} />
+        </main>
+        <Footer />
+      </div>
+    );
+  }
+
   const { supabase, user, profile } = await requirePageAuth({
     allowedRoles: ["customer", "professional", "admin"],
   });

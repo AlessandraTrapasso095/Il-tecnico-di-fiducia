@@ -45,7 +45,7 @@ function isRenderableImage(url: string | null): url is string {
   }
 }
 
-function buildCustomerPath(input: {
+function buildPublicSearchPath(input: {
   category: ProfessionCategory | null;
   subcategory: ProfessionSubcategory | null;
   provinceCode: string;
@@ -67,7 +67,7 @@ function buildCustomerPath(input: {
   if (input.travel) params.set("travel", "true");
 
   const queryString = params.toString();
-  return `/customer${queryString ? `?${queryString}` : ""}`;
+  return `/cerca${queryString ? `?${queryString}` : ""}`;
 }
 
 function subcategoryOptionValue(subcategory: ProfessionSubcategory) {
@@ -150,14 +150,14 @@ export function ProfessionSearchFlow() {
 
   function submitSearch(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    const customerPath = buildCustomerPath({
+    const publicSearchPath = buildPublicSearchPath({
       category: currentCategory,
       subcategory: currentSubcategory,
       provinceCode,
       remote,
       travel,
     });
-    router.push(`/auth/login?next=${encodeURIComponent(customerPath)}`);
+    router.push(publicSearchPath);
   }
 
   return (

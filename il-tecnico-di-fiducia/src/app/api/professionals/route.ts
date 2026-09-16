@@ -1,7 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
-import { requireAuth } from "@/lib/api/auth";
+import { getOptionalAuth } from "@/lib/api/auth";
 import { clampInt } from "@/lib/api/validation";
 import { ITALIAN_PROVINCES_BY_NAME } from "@/lib/locations/italian-provinces";
 import { logApiError } from "@/lib/server/api-logger";
@@ -44,7 +44,7 @@ type ProfessionalCategoryMappingRow = {
   category_id: CategoryId;
 };
 
-const MAX_LOCAL_SEARCH_CANDIDATES = 1_000;
+const DIRECTORY_FETCH_BATCH_SIZE = 500;
 const PROVINCE_NAME_BY_CODE = new Map(
   ITALIAN_PROVINCES_BY_NAME.map((province) => [province.code, province.name]),
 );
@@ -318,12 +318,17 @@ async function loadProfessionalIdsForSubcategory(
 
 export async function GET(request: NextRequest) {
   try {
-    const auth = await requireAuth();
+    const auth = await getOptionalAuth();
     if (!auth.ok) return auth.response;
 
-    const { supabase, profile } = auth.ctx;
-    const isCustomerSearch = profile.role === "customer";
-    const dataClient = isCustomerSearch ? createServiceClient() : supabase;
+    const viewer = auth.ctx;
+    const profile = viewer?.profile ?? null;
+    const viewerId = viewer?.user.id ?? null;
+    const viewerRole = profile?.role ?? "guest";
+    const isPublicSearch = !profile || profile.role === "customer";
+    const dataClient = isPublicSearch
+      ? createServiceClient()
+      : viewer!.supabase;
 
     const searchParams = request.nextUrl.searchParams;
 
@@ -350,7 +355,7 @@ export async function GET(request: NextRequest) {
       total: 0,
       professionals: [],
     };
-    const customerVisibleProfessionalIds = isCustomerSearch
+    const customerVisibleProfessionalIds = isPublicSearch
       ? await loadCustomerVisibleProfessionalIds(undefined, dataClient)
       : null;
 
@@ -379,8 +384,8 @@ export async function GET(request: NextRequest) {
 
       if (categoryResult.error) {
         logApiError("PROFESSIONALS ERROR", {
-          user_id: auth.ctx.user.id,
-          role: profile.role,
+          user_id: viewerId,
+          role: viewerRole,
           query: "categories select active id, name, slug by id",
           category_id: categoryId,
           error: categoryResult.error,
@@ -424,8 +429,8 @@ export async function GET(request: NextRequest) {
 
         if (categoryError) {
           logApiError("PROFESSIONALS ERROR", {
-            user_id: auth.ctx.user.id,
-            role: profile.role,
+            user_id: viewerId,
+            role: viewerRole,
             query: "categories select active id, name, slug by slug",
             category_slug: categorySlug,
             error: categoryError,
@@ -475,8 +480,8 @@ export async function GET(request: NextRequest) {
 
       if (subcategoryError) {
         logApiError("PROFESSIONALS ERROR", {
-          user_id: auth.ctx.user.id,
-          role: profile.role,
+          user_id: viewerId,
+          role: viewerRole,
           query: "subcategories select active id, category_id, name, slug by id",
           subcategory_id: subcategoryId,
           error: subcategoryError,
@@ -502,8 +507,8 @@ export async function GET(request: NextRequest) {
 
         if (parentCategoryError) {
           logApiError("PROFESSIONALS ERROR", {
-            user_id: auth.ctx.user.id,
-            role: profile.role,
+            user_id: viewerId,
+            role: viewerRole,
             query: "categories select active parent by subcategory",
             subcategory_id: selectedSubcategory.id,
             error: parentCategoryError,
@@ -611,25 +616,42 @@ export async function GET(request: NextRequest) {
     }
 
     if (requiresLocalSearch) {
-      const { data, error } = await queryBuilder
+      const candidates: ProfessionalDirectoryRow[] = [];
+      let candidateOffset = 0;
+
+      queryBuilder = queryBuilder
         .order("updated_at", { ascending: false })
-        .limit(MAX_LOCAL_SEARCH_CANDIDATES);
+        .order("id", { ascending: true });
 
-      if (error) {
-        logApiError("PROFESSIONALS ERROR", {
-          user_id: auth.ctx.user.id,
-          role: profile.role,
-          query: "professional_directory local search candidates",
-          search: request.nextUrl.search,
-          error,
-        });
-        return NextResponse.json(
-          { error: "Non è stato possibile caricare i professionisti. Riprova." },
-          { status: 500 },
+      while (true) {
+        const { data, error } = await queryBuilder.range(
+          candidateOffset,
+          candidateOffset + DIRECTORY_FETCH_BATCH_SIZE - 1,
         );
-      }
 
-      const candidates = (data ?? []) as ProfessionalDirectoryRow[];
+        if (error) {
+          logApiError("PROFESSIONALS ERROR", {
+            user_id: viewerId,
+            role: viewerRole,
+            query: "professional_directory local search candidates",
+            search: request.nextUrl.search,
+            error,
+          });
+          return NextResponse.json(
+            { error: "Non è stato possibile caricare i professionisti. Riprova." },
+            { status: 500 },
+          );
+        }
+
+        const batch = (data ?? []) as ProfessionalDirectoryRow[];
+        candidates.push(...batch);
+
+        if (batch.length < DIRECTORY_FETCH_BATCH_SIZE) {
+          break;
+        }
+
+        candidateOffset += DIRECTORY_FETCH_BATCH_SIZE;
+      }
       const candidateIds = candidates.map((professional) => professional.id);
       const { categoriesByProfessionalId } =
         await loadProfessionalCategoryLookup(dataClient, candidateIds);
@@ -707,25 +729,42 @@ export async function GET(request: NextRequest) {
     }
 
     if (recommended) {
-      const { data, error } = await queryBuilder
+      const recommendedRows: ProfessionalDirectoryRow[] = [];
+      let recommendedOffset = 0;
+
+      queryBuilder = queryBuilder
         .order("updated_at", { ascending: false })
-        .limit(200);
+        .order("id", { ascending: true });
 
-      if (error) {
-        logApiError("PROFESSIONALS ERROR", {
-          user_id: auth.ctx.user.id,
-          role: profile.role,
-          query: "professional_directory recommended",
-          search: request.nextUrl.search,
-          error,
-        });
-        return NextResponse.json(
-          { error: "Non è stato possibile caricare i professionisti. Riprova." },
-          { status: 500 },
+      while (true) {
+        const { data, error } = await queryBuilder.range(
+          recommendedOffset,
+          recommendedOffset + DIRECTORY_FETCH_BATCH_SIZE - 1,
         );
-      }
 
-      const recommendedRows = (data ?? []) as ProfessionalDirectoryRow[];
+        if (error) {
+          logApiError("PROFESSIONALS ERROR", {
+            user_id: viewerId,
+            role: viewerRole,
+            query: "professional_directory recommended",
+            search: request.nextUrl.search,
+            error,
+          });
+          return NextResponse.json(
+            { error: "Non è stato possibile caricare i professionisti. Riprova." },
+            { status: 500 },
+          );
+        }
+
+        const batch = (data ?? []) as ProfessionalDirectoryRow[];
+        recommendedRows.push(...batch);
+
+        if (batch.length < DIRECTORY_FETCH_BATCH_SIZE) {
+          break;
+        }
+
+        recommendedOffset += DIRECTORY_FETCH_BATCH_SIZE;
+      }
       const recommendedIds = recommendedRows.map((professional) => professional.id);
       const { categoriesByProfessionalId } =
         await loadProfessionalCategoryLookup(dataClient, recommendedIds);
@@ -783,8 +822,8 @@ export async function GET(request: NextRequest) {
 
     if (error) {
       logApiError("PROFESSIONALS ERROR", {
-        user_id: auth.ctx.user.id,
-        role: profile.role,
+        user_id: viewerId,
+        role: viewerRole,
         query: "professional_directory paginated",
         search: request.nextUrl.search,
         error,
