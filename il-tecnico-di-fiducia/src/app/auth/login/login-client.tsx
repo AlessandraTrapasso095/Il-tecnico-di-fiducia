@@ -2,10 +2,10 @@
 
 import { useMemo, useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 
 import { PasswordField } from "@/components/auth/password-field";
 import { fetchJson } from "@/lib/api/fetch-json";
+import { navigateAfterLogin } from "@/lib/auth/post-login-navigation";
 import { nextPathByRole, routeBelongsToRole } from "@/lib/routes/role-paths";
 
 type UserRole = "customer" | "professional" | "admin";
@@ -39,8 +39,6 @@ export default function LoginClient({
   nextPath,
   infoMessage = null,
 }: LoginClientProps) {
-  const router = useRouter();
-
   const [roleHint, setRoleHint] = useState<"customer" | "professional">(initialRole);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -61,14 +59,17 @@ export default function LoginClient({
       });
 
       if (res.profile.role === "admin" && res.profile.must_change_password) {
-        router.push("/auth/change-password");
+        navigateAfterLogin("/auth/change-password");
         return;
       }
 
-      router.push(safeNextPath(nextPath, res.profile.role) ?? nextPathByRole(res.profile.role));
+      const destination =
+        safeNextPath(nextPath, res.profile.role) ??
+        nextPathByRole(res.profile.role);
+
+      navigateAfterLogin(destination);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Errore imprevisto.");
-    } finally {
       setLoading(false);
     }
   }
@@ -120,10 +121,14 @@ export default function LoginClient({
               ) : null}
 
               <div className="space-y-2">
-                <label className="font-label-md text-label-md text-on-surface-variant">
+                <label
+                  htmlFor="login-email"
+                  className="font-label-md text-label-md text-on-surface-variant"
+                >
                   Indirizzo Email
                 </label>
                 <input
+                  id="login-email"
                   className="w-full px-4 py-3 bg-surface-container-lowest border border-outline-variant rounded-xl focus:ring-2 focus:ring-primary focus:border-primary outline-none transition-all font-body-md text-body-md"
                   type="email"
                   value={email}
@@ -179,7 +184,7 @@ export default function LoginClient({
                 type="submit"
                 disabled={loading}
               >
-                {loading ? "Accesso…" : "Accedi"}
+                {loading ? "Accesso in corso…" : "Accedi"}
               </button>
             </form>
 
