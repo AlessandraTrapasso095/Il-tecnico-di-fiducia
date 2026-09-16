@@ -1,5 +1,10 @@
 import { NextResponse } from "next/server";
 
+import {
+  enforceRateLimit,
+  getClientIp,
+  hashRateLimitId,
+} from "@/lib/api/rate-limit";
 import { isNonEmptyString } from "@/lib/api/validation";
 import { logApiError } from "@/lib/server/api-logger";
 import {
@@ -199,6 +204,21 @@ async function loadSupportAuthor() {
 }
 
 export async function POST(request: Request) {
+  const rateLimitClient = createServiceClient();
+
+  const ip = getClientIp(request);
+  const ipLimited = await enforceRateLimit({
+    supabase: rateLimitClient,
+    key: `v1:public-contact:ip:${ip}`,
+    maxHits: 5,
+    windowSeconds: 300,
+    errorMessage: "Troppe richieste. Riprova tra qualche minuto.",
+  });
+
+  if (ipLimited) {
+    return ipLimited;
+  }
+
   let payload: PublicContactPayload;
   try {
     payload = (await request.json()) as PublicContactPayload;
@@ -228,6 +248,19 @@ export async function POST(request: Request) {
 
   if (!EMAIL_PATTERN.test(email)) {
     return NextResponse.json({ error: "Inserisci un indirizzo email valido." }, { status: 400 });
+  }
+
+  const emailHash = await hashRateLimitId(`email:${email}`);
+  const emailLimited = await enforceRateLimit({
+    supabase: rateLimitClient,
+    key: `v1:public-contact:email:${emailHash}`,
+    maxHits: 3,
+    windowSeconds: 900,
+    errorMessage: "Troppe richieste per questo indirizzo email. Riprova più tardi.",
+  });
+
+  if (emailLimited) {
+    return emailLimited;
   }
 
   logPublicContact("REQUEST_RECEIVED", {

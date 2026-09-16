@@ -4,10 +4,8 @@ import { useMemo, useState } from "react";
 import Link from "next/link";
 
 import { fetchJson } from "@/lib/api/fetch-json";
+import { normalizeEmail } from "@/lib/auth/normalize-email";
 
-function normalizeEmail(raw: string) {
-  return raw.trim().toLowerCase();
-}
 
 export default function ForgotPasswordPage() {
   const [email, setEmail] = useState("");

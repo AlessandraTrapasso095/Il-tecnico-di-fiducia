@@ -2,10 +2,10 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 
 import { PasswordField } from "@/components/auth/password-field";
 import { fetchJson } from "@/lib/api/fetch-json";
+import { navigateAfterLogin } from "@/lib/auth/post-login-navigation";
 import {
   ITALIAN_PROVINCES_BY_NAME,
   normalizeItalianProvinceCode,
@@ -19,6 +19,7 @@ import {
   type ProfessionSubcategory,
 } from "@/lib/professions/taxonomy";
 import { nextPathByRole } from "@/lib/routes/role-paths";
+import { normalizeEmail } from "@/lib/auth/normalize-email";
 
 type Role = "customer" | "professional";
 
@@ -36,9 +37,6 @@ type ConfirmOtpResponse = {
   profile: { id: string; role: Role | "admin" };
 };
 
-function normalizeEmail(raw: string) {
-  return raw.trim().toLowerCase();
-}
 
 function normalizeOtp(raw: string) {
   return raw.replace(/\s+/g, "").trim();
@@ -67,7 +65,6 @@ type RegisterClientProps = {
 };
 
 export default function RegisterClient({ initialRole }: RegisterClientProps) {
-  const router = useRouter();
 
   const [role, setRole] = useState<Role>(initialRole);
   const [step, setStep] = useState<"form" | "otp">("form");
@@ -247,10 +244,9 @@ export default function RegisterClient({ initialRole }: RegisterClientProps) {
         body: JSON.stringify({ email: emailValue, token }),
       });
 
-      router.push(nextPathByRole(res.profile.role));
+      navigateAfterLogin(nextPathByRole(res.profile.role));
     } catch (err) {
       setOtpError(err instanceof Error ? err.message : "Errore imprevisto.");
-    } finally {
       setLoading(false);
     }
   }

@@ -1,11 +1,12 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
 
 import { PasswordField } from "@/components/auth/password-field";
 import { fetchJson } from "@/lib/api/fetch-json";
+import { navigateAfterLogin } from "@/lib/auth/post-login-navigation";
+import { normalizeEmail } from "@/lib/auth/normalize-email";
 
 type AdminSignInResponse = {
   profile: {
@@ -14,16 +15,12 @@ type AdminSignInResponse = {
   };
 };
 
-function normalizeEmail(raw: string) {
-  return raw.trim().toLowerCase();
-}
 
 export default function AdminLoginClient({
   infoMessage = null,
 }: {
   infoMessage?: string | null;
 }) {
-  const router = useRouter();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
@@ -43,15 +40,13 @@ export default function AdminLoginClient({
       });
 
       if (response.profile.must_change_password) {
-        router.push("/auth/change-password");
+        navigateAfterLogin("/auth/change-password");
         return;
       }
 
-      router.push("/admin");
-      router.refresh();
+      navigateAfterLogin("/admin");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Accesso admin non riuscito.");
-    } finally {
       setLoading(false);
     }
   }
@@ -174,7 +169,7 @@ export default function AdminLoginClient({
                   className="w-full rounded-full bg-[#FF8500] px-6 py-4 font-button text-white shadow-lg shadow-orange-500/20 transition hover:bg-[#FF9A2B] disabled:opacity-60"
                   disabled={loading}
                 >
-                  {loading ? "Accesso admin…" : "Accedi come admin"}
+                  {loading ? "Accesso in corso…" : "Accedi come admin"}
                 </button>
               </form>
 

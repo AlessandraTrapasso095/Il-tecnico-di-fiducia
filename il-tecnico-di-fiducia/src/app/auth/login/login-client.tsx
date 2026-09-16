@@ -7,6 +7,7 @@ import { PasswordField } from "@/components/auth/password-field";
 import { fetchJson } from "@/lib/api/fetch-json";
 import { navigateAfterLogin } from "@/lib/auth/post-login-navigation";
 import { nextPathByRole, routeBelongsToRole } from "@/lib/routes/role-paths";
+import { normalizeEmail } from "@/lib/auth/normalize-email";
 
 type UserRole = "customer" | "professional" | "admin";
 
@@ -15,9 +16,6 @@ type SignInResponse = {
   profile: { id: string; role: UserRole; must_change_password: boolean; is_banned: boolean };
 };
 
-function normalizeEmail(raw: string) {
-  return raw.trim().toLowerCase();
-}
 
 function safeNextPath(raw: string | null | undefined, role: UserRole) {
   if (!raw) return null;
