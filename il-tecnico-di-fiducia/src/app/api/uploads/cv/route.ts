@@ -12,7 +12,6 @@ export async function POST(request: Request) {
   const { supabase, user } = auth.ctx;
 
   const limited = await enforceRateLimit({
-    supabase,
     key: `v1:upload:cv:user:${user.id}`,
     maxHits: 5,
     windowSeconds: 3600,

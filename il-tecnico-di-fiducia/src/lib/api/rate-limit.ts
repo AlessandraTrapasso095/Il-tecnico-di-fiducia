@@ -1,7 +1,8 @@
 import "server-only";
 
-import type { SupabaseClient } from "@supabase/supabase-js";
 import { NextResponse } from "next/server";
+
+import { createServiceClient } from "@/lib/supabase/service";
 
 async function sha256Hex(input: string) {
   const buf = new TextEncoder().encode(input);
@@ -37,7 +38,6 @@ export function getClientIp(request: Request) {
 }
 
 type EnforceRateLimitArgs = {
-  supabase: SupabaseClient;
   key: string;
   maxHits: number;
   windowSeconds: number;
@@ -45,7 +45,6 @@ type EnforceRateLimitArgs = {
 };
 
 export async function enforceRateLimit({
-  supabase,
   key,
   maxHits,
   windowSeconds,
@@ -55,7 +54,9 @@ export async function enforceRateLimit({
     return null;
   }
 
-  const builder = supabase.rpc("rate_limit_check", {
+  const service = createServiceClient();
+
+  const builder = service.rpc("rate_limit_check", {
     p_key: key,
     p_max_hits: maxHits,
     p_window_seconds: windowSeconds,

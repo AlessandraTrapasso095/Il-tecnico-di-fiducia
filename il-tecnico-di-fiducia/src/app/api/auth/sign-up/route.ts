@@ -31,7 +31,6 @@ export async function POST(request: Request) {
   // Rate-limit by IP early (before parsing JSON) to reduce abuse surface.
   const ip = getClientIp(request);
   const ipLimited = await enforceRateLimit({
-    supabase,
     key: `v1:auth:signup:ip:${ip}`,
     maxHits: 8,
     windowSeconds: 60,
@@ -68,7 +67,6 @@ export async function POST(request: Request) {
   const normalizedEmail = payload.email.trim().toLowerCase();
   const emailHash = await hashRateLimitId(`email:${normalizedEmail}`);
   const emailLimited = await enforceRateLimit({
-    supabase,
     key: `v1:auth:signup:email:${emailHash}`,
     maxHits: 3,
     windowSeconds: 600,

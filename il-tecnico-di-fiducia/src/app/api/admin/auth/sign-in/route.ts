@@ -19,7 +19,6 @@ export async function POST(request: Request) {
 
   const ip = getClientIp(request);
   const ipLimited = await enforceRateLimit({
-    supabase,
     key: `v1:admin:signin:ip:${ip}`,
     maxHits: 20,
     windowSeconds: 300,
@@ -44,7 +43,6 @@ export async function POST(request: Request) {
   const normalizedEmail = payload.email.trim().toLowerCase();
   const emailHash = await hashRateLimitId(`admin-email:${normalizedEmail}`);
   const emailLimited = await enforceRateLimit({
-    supabase,
     key: `v1:admin:signin:email:${emailHash}`,
     maxHits: 10,
     windowSeconds: 600,

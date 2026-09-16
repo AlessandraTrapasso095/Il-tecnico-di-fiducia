@@ -204,11 +204,8 @@ async function loadSupportAuthor() {
 }
 
 export async function POST(request: Request) {
-  const rateLimitClient = createServiceClient();
-
   const ip = getClientIp(request);
   const ipLimited = await enforceRateLimit({
-    supabase: rateLimitClient,
     key: `v1:public-contact:ip:${ip}`,
     maxHits: 5,
     windowSeconds: 300,
@@ -252,7 +249,6 @@ export async function POST(request: Request) {
 
   const emailHash = await hashRateLimitId(`email:${email}`);
   const emailLimited = await enforceRateLimit({
-    supabase: rateLimitClient,
     key: `v1:public-contact:email:${emailHash}`,
     maxHits: 3,
     windowSeconds: 900,

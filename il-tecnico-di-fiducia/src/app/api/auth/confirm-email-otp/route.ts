@@ -22,7 +22,6 @@ export async function POST(request: Request) {
 
   const ip = getClientIp(request);
   const ipLimited = await enforceRateLimit({
-    supabase,
     key: `v1:auth:confirm_otp:ip:${ip}`,
     maxHits: 20,
     windowSeconds: 600,
@@ -47,7 +46,6 @@ export async function POST(request: Request) {
   const email = payload.email.trim();
   const emailHash = await hashRateLimitId(`email:${email.toLowerCase()}`);
   const emailLimited = await enforceRateLimit({
-    supabase,
     key: `v1:auth:confirm_otp:email:${emailHash}`,
     maxHits: 10,
     windowSeconds: 600,
