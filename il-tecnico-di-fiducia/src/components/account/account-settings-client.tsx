@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 
 import { ConfirmActionModal } from "@/components/posts/post-media-ui";
 import { fetchJson } from "@/lib/api/fetch-json";
@@ -48,6 +49,8 @@ export default function AccountSettingsClient({
   profile,
   preferences,
 }: AccountSettingsClientProps) {
+  const router = useRouter();
+
   const [firstName, setFirstName] = useState(profile.first_name);
   const [lastName, setLastName] = useState(profile.last_name);
   const [email, setEmail] = useState(profile.email);
@@ -163,7 +166,7 @@ export default function AccountSettingsClient({
         method: "DELETE",
         body: JSON.stringify({ confirm: DEFAULT_CONFIRM_TEXT }),
       });
-      window.location.href = "/";
+      router.replace("/");
     } catch (accountError) {
       setDeleteError(
         accountError instanceof Error ? accountError.message : "Eliminazione non riuscita.",

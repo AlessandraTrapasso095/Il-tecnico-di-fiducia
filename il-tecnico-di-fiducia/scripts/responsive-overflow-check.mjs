@@ -1,6 +1,6 @@
 import { chromium } from "playwright";
 
-const baseUrl = process.env.BASE_URL ?? "http://localhost:3000";
+const baseUrl = process.env.BASE_URL ?? "http://localhost:3002";
 const routes = (process.env.RESPONSIVE_ROUTES ?? "/,/auth/login,/auth/register,/admin/login,/customer,/professionista,/professionista/messaggi,/admin")
   .split(",")
   .map((route) => route.trim())
