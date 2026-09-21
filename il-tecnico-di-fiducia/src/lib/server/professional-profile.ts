@@ -70,12 +70,34 @@ function toJsonArray(value: unknown): unknown[] {
   return Array.isArray(value) ? value : [];
 }
 
+function toTextList(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+
+  return value
+    .map((item) => {
+      if (typeof item === "string") return item.trim();
+
+      if (
+        item &&
+        typeof item === "object" &&
+        "text" in item &&
+        typeof item.text === "string"
+      ) {
+        return item.text.trim();
+      }
+
+      return "";
+    })
+    .filter(Boolean);
+}
+
 export async function loadProfessionalProfile({
   supabase,
   viewer,
   professionalId,
 }: LoadProfessionalProfileOptions) {
-  const isOwner = viewer.role === "professional" && viewer.id === professionalId;
+  const isOwner =
+    viewer.role === "professional" && viewer.id === professionalId;
 
   if (
     viewer.role === "customer" &&
@@ -114,10 +136,12 @@ export async function loadProfessionalProfile({
 
   if (!profile || !professional) return null;
 
-  let latestContactRequest: ProfessionalProfileAccess["latest_contact_request"] = null;
+  let latestContactRequest: ProfessionalProfileAccess["latest_contact_request"] =
+    null;
   let canViewContacts = isOwner || viewer.role === "admin";
   let isFollowing: boolean | null = null;
-  let canViewFullProfile = isOwner || viewer.role === "admin" || viewer.role === "customer";
+  let canViewFullProfile =
+    isOwner || viewer.role === "admin" || viewer.role === "customer";
 
   if (viewer.role === "customer") {
     const { data: latest } = await supabase
@@ -177,7 +201,8 @@ export async function loadProfessionalProfile({
   const reviewsCount = reviewRows.length;
   const ratingAverage =
     reviewsCount > 0
-      ? reviewRows.reduce((sum, review) => sum + Number(review.rating), 0) / reviewsCount
+      ? reviewRows.reduce((sum, review) => sum + Number(review.rating), 0) /
+        reviewsCount
       : null;
 
   const canReview =
@@ -210,7 +235,11 @@ export async function loadProfessionalProfile({
     is_ctp: Boolean(professional.is_ctp),
     rating_average: ratingAverage,
     reviews_count: reviewsCount,
-    categories: (categories ?? []) as { id: string | number; name: string; slug: string }[],
+    categories: (categories ?? []) as {
+      id: string | number;
+      name: string;
+      slug: string;
+    }[],
     subcategory: subcategory as ProfessionalProfileDetails["subcategory"],
   };
 
@@ -238,10 +267,40 @@ export type PublicProfessionalProfileDetails = {
   avatar_url: string | null;
   services_offered: string[];
   operational_provinces: string[];
+  education: string[];
+  work_experiences: string[];
+  certifications: string[];
   available_remote: boolean;
   available_travel: boolean;
   is_ctu: boolean;
   is_ctp: boolean;
+  work_media: {
+    id: string;
+    post_id: string;
+    public_url: string;
+    media_type: "image" | "video";
+    file_name: string | null;
+  }[];
+  work_posts: {
+    id: string;
+    body: string;
+    created_at: string;
+    attachments: {
+      id: string;
+      public_url: string;
+      media_type: "image" | "video";
+      file_name: string | null;
+    }[];
+  }[];
+  reviews: {
+    id: string;
+    rating: number;
+    title: string | null;
+    body: string | null;
+    created_at: string;
+    professional_reply: string | null;
+    professional_replied_at: string | null;
+  }[];
   rating_average: number | null;
   reviews_count: number;
   categories: { id: string | number; name: string; slug: string }[];
@@ -269,6 +328,8 @@ export async function loadPublicProfessionalProfile(
     { data: professional },
     { data: categoriesMap },
     { data: reviews },
+    { data: workMedia },
+    { data: workPosts },
   ] = await Promise.all([
     service
       .from("professional_directory")
@@ -280,7 +341,7 @@ export async function loadPublicProfessionalProfile(
     service
       .from("professional_profiles")
       .select(
-        "id, headline, bio, specializations, avatar_url, subcategory_id, services_offered, operational_provinces, available_remote, available_travel, is_ctu, is_ctp",
+        "id, headline, bio, specializations, avatar_url, subcategory_id, services_offered, operational_provinces, education, work_experiences, certifications, available_remote, available_travel, is_ctu, is_ctp",
       )
       .eq("id", professionalId)
       .maybeSingle(),
@@ -290,8 +351,21 @@ export async function loadPublicProfessionalProfile(
       .eq("professional_id", professionalId),
     service
       .from("reviews")
-      .select("rating")
-      .eq("professional_id", professionalId),
+      .select(
+        "id, rating, title, body, created_at, professional_reply, professional_replied_at",
+      )
+      .eq("professional_id", professionalId)
+      .order("created_at", { ascending: false }),
+    service
+      .from("post_attachments")
+      .select("id, post_id, file_url, file_type, file_name, created_at")
+      .eq("user_id", professionalId)
+      .order("created_at", { ascending: false }),
+    service
+      .from("posts")
+      .select("id, body, created_at")
+      .eq("author_id", professionalId)
+      .order("created_at", { ascending: false }),
   ]);
 
   if (!directory || !professional) return null;
@@ -337,6 +411,9 @@ export async function loadPublicProfessionalProfile(
     avatar_url: professional.avatar_url ?? directory.avatar_url ?? null,
     services_offered: toStringArray(professional.services_offered),
     operational_provinces: toStringArray(professional.operational_provinces),
+    education: toTextList(professional.education),
+    work_experiences: toTextList(professional.work_experiences),
+    certifications: toTextList(professional.certifications),
     available_remote: Boolean(
       professional.available_remote ?? directory.available_remote,
     ),
@@ -345,6 +422,42 @@ export async function loadPublicProfessionalProfile(
     ),
     is_ctu: Boolean(professional.is_ctu),
     is_ctp: Boolean(professional.is_ctp),
+    work_media: (workMedia ?? [])
+      .filter(
+        (media) => media.file_type === "image" || media.file_type === "video",
+      )
+      .map((media) => ({
+        id: media.id,
+        post_id: media.post_id,
+        public_url: media.file_url,
+        media_type: media.file_type as "image" | "video",
+        file_name: media.file_name,
+      })),
+    work_posts: (workPosts ?? []).map((post) => ({
+      id: post.id,
+      body: post.body,
+      created_at: post.created_at,
+      attachments: (workMedia ?? [])
+        .filter((media) => media.post_id === post.id)
+        .filter(
+          (media) => media.file_type === "image" || media.file_type === "video",
+        )
+        .map((media) => ({
+          id: media.id,
+          public_url: media.file_url,
+          media_type: media.file_type as "image" | "video",
+          file_name: media.file_name,
+        })),
+    })),
+    reviews: (reviews ?? []).map((review) => ({
+      id: review.id,
+      rating: Number(review.rating),
+      title: review.title ?? null,
+      body: review.body ?? null,
+      created_at: review.created_at,
+      professional_reply: review.professional_reply ?? null,
+      professional_replied_at: review.professional_replied_at ?? null,
+    })),
     rating_average: ratingAverage,
     reviews_count: reviewsCount,
     categories: (categories ?? []) as {

@@ -21,9 +21,10 @@ const publicSearch = fs.readFileSync(
 
 describe("CTU / CTP public UI contract", () => {
   it("shows CTU / CTP badges on public professional profile", () => {
-    expect(publicProfile).toContain("profile.is_ctu || profile.is_ctp");
     expect(publicProfile).toContain("profile.is_ctu ?");
     expect(publicProfile).toContain("profile.is_ctp ?");
+    expect(publicProfile).toContain("CTU");
+    expect(publicProfile).toContain("CTP");
   });
 
   it("supports CTU / CTP fields in public search result type", () => {

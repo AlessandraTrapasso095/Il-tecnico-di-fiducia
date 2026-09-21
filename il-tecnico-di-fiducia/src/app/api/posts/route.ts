@@ -57,35 +57,47 @@ export async function GET(request: NextRequest) {
       .eq("follower_id", user.id);
 
     if (followError) {
-      return NextResponse.json({ error: "Failed to load follows" }, { status: 500 });
+      return NextResponse.json(
+        { error: "Failed to load follows" },
+        { status: 500 },
+      );
     }
 
     const followed = (follows ?? []).map((f) => f.followed_id);
     authorIds = Array.from(new Set([user.id, ...followed]));
   } else if (authorId) {
-    // Profile view: customers can view if the pro is visible to them (RLS on professional_directory).
-    if (viewer.role === "professional" && authorId !== user.id) {
-      const { data: followRow } = await supabase
-        .from("professional_follows")
-        .select("followed_id")
-        .eq("follower_id", user.id)
-        .eq("followed_id", authorId)
-        .maybeSingle();
+    /*
+     * Profile view:
+     * following is a feed preference only.
+     *
+     * A professional does NOT need to follow another
+     * professional in order to view that professional's
+     * public profile posts.
+     *
+     * professional_directory remains the visibility source
+     * for non-owner profile access.
+     */
+    if (authorId !== user.id && viewer.role !== "admin") {
+      const { data: visibleProfessional, error: visibilityError } =
+        await supabase
+          .from("professional_directory")
+          .select("id")
+          .eq("id", authorId)
+          .maybeSingle();
 
-      if (!followRow) {
-        return NextResponse.json({ page, page_size: pageSize, posts: [] });
+      if (visibilityError) {
+        return NextResponse.json(
+          { error: "Failed to verify professional visibility" },
+          { status: 500 },
+        );
       }
-    }
 
-    if (viewer.role === "customer") {
-      const { data: proVisible } = await supabase
-        .from("professional_directory")
-        .select("id")
-        .eq("id", authorId)
-        .maybeSingle();
-
-      if (!proVisible) {
-        return NextResponse.json({ error: "Not found" }, { status: 404 });
+      if (!visibleProfessional) {
+        return NextResponse.json({
+          page,
+          page_size: pageSize,
+          posts: [],
+        });
       }
     }
 
@@ -105,25 +117,38 @@ export async function GET(request: NextRequest) {
   const { data: posts, error } = await builder;
 
   if (error) {
-    return NextResponse.json({ error: "Failed to load posts" }, { status: 500 });
+    return NextResponse.json(
+      { error: "Failed to load posts" },
+      { status: 500 },
+    );
   }
 
-  const authorIdSet = Array.from(new Set((posts ?? []).map((p) => p.author_id)));
+  const authorIdSet = Array.from(
+    new Set((posts ?? []).map((p) => p.author_id)),
+  );
   const postIds = (posts ?? []).map((p) => p.id);
 
   const { data: authors } =
     authorIdSet.length > 0
       ? await supabase
           .from("professional_directory")
-          .select("id, first_name, last_name, avatar_url, headline, province_code")
+          .select(
+            "id, first_name, last_name, avatar_url, headline, province_code",
+          )
           .in("id", authorIdSet)
       : { data: [] };
 
   const [{ data: likes }, { data: comments }] =
     postIds.length > 0
       ? await Promise.all([
-          supabase.from("post_likes").select("post_id, user_id").in("post_id", postIds),
-          supabase.from("post_comments").select("post_id").in("post_id", postIds),
+          supabase
+            .from("post_likes")
+            .select("post_id, user_id")
+            .in("post_id", postIds),
+          supabase
+            .from("post_comments")
+            .select("post_id")
+            .in("post_id", postIds),
         ])
       : [{ data: [] }, { data: [] }];
 
@@ -131,7 +156,9 @@ export async function GET(request: NextRequest) {
     postIds.length > 0
       ? await supabase
           .from("post_attachments")
-          .select("id, post_id, file_url, file_type, mime_type, file_name, file_size, created_at")
+          .select(
+            "id, post_id, file_url, file_type, mime_type, file_name, file_size, created_at",
+          )
           .in("post_id", postIds)
           .order("created_at", { ascending: true })
       : { data: [] };

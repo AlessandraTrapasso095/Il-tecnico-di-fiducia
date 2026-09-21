@@ -61,6 +61,31 @@ export async function POST(
     );
   }
 
+  const { count: existingAttachmentCount, error: existingAttachmentError } =
+    await supabase
+      .from("post_attachments")
+      .select("id", {
+        count: "exact",
+        head: true,
+      })
+      .eq("post_id", postId);
+
+  if (existingAttachmentError) {
+    return NextResponse.json(
+      { error: existingAttachmentError.message },
+      { status: 400 },
+    );
+  }
+
+  if ((existingAttachmentCount ?? 0) + files.length > MAX_FILES) {
+    return NextResponse.json(
+      {
+        error: `Puoi avere al massimo ${MAX_FILES} allegati per post.`,
+      },
+      { status: 400 },
+    );
+  }
+
   const attachments = [];
 
   for (const item of files) {

@@ -1,19 +1,15 @@
 import { notFound, redirect } from "next/navigation";
 
-import { Footer } from "@/components/site/footer";
-import { TopNav } from "@/components/site/top-nav";
-import { PublicProfessionalProfile } from "@/components/public-profile/public-professional-profile";
-import { createClient } from "@/lib/supabase/server";
-
 import ProfessionalShell from "@/app/professionista/professional-shell";
 import { AdminShell } from "@/components/admin/admin-shell";
 import { CustomerAreaShell } from "@/components/customer/customer-area-shell";
-import ProfessionalProfileClient from "@/components/professionals/professional-profile-client";
-import {
-  loadProfessionalProfile,
-  loadPublicProfessionalProfile,
-} from "@/lib/server/professional-profile";
+import { PublicProfessionalProfile } from "@/components/public-profile/public-professional-profile";
+import { Footer } from "@/components/site/footer";
+import { TopNav } from "@/components/site/top-nav";
+import { loadPublicProfessionalProfile } from "@/lib/server/professional-profile";
 import { requirePageAuth } from "@/lib/server/require-page-auth";
+import { loadUnifiedAuthenticatedProfessionalProfile } from "@/lib/server/unified-professional-profile";
+import { createClient } from "@/lib/supabase/server";
 
 export const dynamic = "force-dynamic";
 
@@ -27,6 +23,7 @@ export default async function ProfessionalProfilePage({
   const { id } = await params;
 
   const sessionClient = await createClient();
+
   const {
     data: { user: optionalUser },
   } = await sessionClient.auth.getUser();
@@ -41,9 +38,11 @@ export default async function ProfessionalProfilePage({
     return (
       <div className="flex min-h-dvh flex-col bg-surface">
         <TopNav />
+
         <main className="flex-1 pt-20 sm:pt-[100px]">
           <PublicProfessionalProfile profile={publicProfile} />
         </main>
+
         <Footer />
       </div>
     );
@@ -53,28 +52,28 @@ export default async function ProfessionalProfilePage({
     allowedRoles: ["customer", "professional", "admin"],
   });
 
+  /*
+   * Owner editing is migrated in the next step.
+   * Until then, keep the existing owner profile route.
+   */
   if (profile.role === "professional" && id === user.id) {
     redirect("/professionista/profilo");
   }
 
-  const data = await loadProfessionalProfile({
+  const unified = await loadUnifiedAuthenticatedProfessionalProfile({
     supabase,
-    viewer: profile,
     professionalId: id,
+    viewer: profile,
   });
 
-  if (!data) {
+  if (!unified) {
     notFound();
   }
 
   const profileView = (
-    <ProfessionalProfileClient
-      initialProfile={data.profile}
-      access={data.access}
-      viewer={{ id: user.id, role: profile.role }}
-      embeddedInProfessionalShell={profile.role === "professional"}
-      embeddedInCustomerShell={profile.role === "customer"}
-      embeddedInAdminShell={profile.role === "admin"}
+    <PublicProfessionalProfile
+      profile={unified.profile}
+      viewerContext={unified.viewerContext}
     />
   );
 

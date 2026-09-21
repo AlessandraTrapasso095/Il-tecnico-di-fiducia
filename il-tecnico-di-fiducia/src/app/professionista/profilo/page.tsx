@@ -1,32 +1,56 @@
 import { notFound } from "next/navigation";
 
-import ProfessionalProfileClient from "@/components/professionals/professional-profile-client";
-import { loadProfessionalProfile } from "@/lib/server/professional-profile";
+import { PublicProfessionalProfile } from "@/components/public-profile/public-professional-profile";
 import { requirePageAuth } from "@/lib/server/require-page-auth";
+import { loadUnifiedAuthenticatedProfessionalProfile } from "@/lib/server/unified-professional-profile";
 
 export const dynamic = "force-dynamic";
 
-export default async function OwnProfessionalProfilePage() {
+type OwnerProfilePageProps = {
+  searchParams: Promise<{
+    tab?: string;
+    review?: string;
+  }>;
+};
+
+function ownerInitialTab(
+  value: string | undefined,
+): "profile" | "works" | "reviews" {
+  if (value === "reviews") {
+    return "reviews";
+  }
+
+  if (value === "works") {
+    return "works";
+  }
+
+  return "profile";
+}
+
+export default async function OwnerProfessionalProfilePage({
+  searchParams,
+}: OwnerProfilePageProps) {
+  const params = await searchParams;
+
   const { supabase, user, profile } = await requirePageAuth({
     allowedRoles: ["professional"],
   });
 
-  const data = await loadProfessionalProfile({
+  const unified = await loadUnifiedAuthenticatedProfessionalProfile({
     supabase,
-    viewer: profile,
     professionalId: user.id,
+    viewer: profile,
   });
 
-  if (!data) {
+  if (!unified) {
     notFound();
   }
 
   return (
-    <ProfessionalProfileClient
-      initialProfile={data.profile}
-      access={data.access}
-      viewer={{ id: user.id, role: profile.role }}
-      embeddedInProfessionalShell
+    <PublicProfessionalProfile
+      profile={unified.profile}
+      viewerContext={unified.viewerContext}
+      initialTab={ownerInitialTab(params.tab)}
     />
   );
 }
