@@ -266,14 +266,13 @@ export const PROFESSION_CATEGORIES: ProfessionCategory[] = [
       "App Android",
       "App iOS",
       "App multipiattaforma",
-      "Sviluppo backend",
-      "Sviluppo frontend",
-      "Full Stack Development",
+      "Back End Developer",
+      "Front End Developer",
+      "Full Stack Web Developer",
       "API e integrazioni",
       "Database e progettazione dati",
       "Cloud e DevOps",
-      "Cybersecurity",
-      "Sicurezza informatica",
+      "Cybersecurity e sicurezza informatica",
       "Networking",
       "Sistemi e server",
       "Virtualizzazione",
@@ -398,8 +397,12 @@ export function professionCategoryKey(category: DbProfessionCategory) {
 }
 
 export function mergeProfessionCategories(categories: DbProfessionCategory[]) {
-  const bySlug = new Map(categories.map((category) => [category.slug, category]));
-  const knownSlugs = new Set(PROFESSION_CATEGORIES.map((category) => category.slug));
+  const bySlug = new Map(
+    categories.map((category) => [category.slug, category]),
+  );
+  const knownSlugs = new Set(
+    PROFESSION_CATEGORIES.map((category) => category.slug),
+  );
   const merged = PROFESSION_CATEGORIES.map((category) => {
     const databaseCategory = bySlug.get(category.slug);
 
@@ -427,9 +430,14 @@ export function mergeProfessionCategories(categories: DbProfessionCategory[]) {
   return [...merged, ...extraCategories];
 }
 
-export function normalizeProfessionCategories(categories: DbProfessionCategory[]) {
+export function normalizeProfessionCategories(
+  categories: DbProfessionCategory[],
+) {
   return categories
-    .filter((category) => category.is_active !== false && category.name && category.slug)
+    .filter(
+      (category) =>
+        category.is_active !== false && category.name && category.slug,
+    )
     .map<ProfessionCategory>((category) => ({
       ...category,
       image_url: category.image_url || CATEGORY_IMAGE_FALLBACK,
@@ -440,7 +448,9 @@ export function normalizeProfessionCategories(categories: DbProfessionCategory[]
       subcategories: (category.subcategories ?? [])
         .filter(
           (subcategory) =>
-            subcategory.is_active !== false && subcategory.name && subcategory.slug,
+            subcategory.is_active !== false &&
+            subcategory.name &&
+            subcategory.slug,
         )
         .sort(
           (left, right) =>
@@ -461,9 +471,14 @@ export function normalizeProfessionCategories(categories: DbProfessionCategory[]
     );
 }
 
-export function findProfessionCategory(categories: ProfessionCategory[], selectedKey: string) {
+export function findProfessionCategory(
+  categories: ProfessionCategory[],
+  selectedKey: string,
+) {
   return (
-    categories.find((category) => professionCategoryKey(category) === selectedKey) ?? null
+    categories.find(
+      (category) => professionCategoryKey(category) === selectedKey,
+    ) ?? null
   );
 }
 

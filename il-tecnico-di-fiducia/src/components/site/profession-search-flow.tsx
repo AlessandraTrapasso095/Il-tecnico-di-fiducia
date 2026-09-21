@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { FormEvent } from "react";
 import Image from "next/image";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 
 import { fetchJson } from "@/lib/api/fetch-json";
@@ -37,8 +38,7 @@ function isRenderableImage(url: string | null): url is string {
       "weodeayzidjftyzxmzgb.supabase.co",
     ];
     return (
-      parsed.protocol === "https:" &&
-      allowedHosts.includes(parsed.hostname)
+      parsed.protocol === "https:" && allowedHosts.includes(parsed.hostname)
     );
   } catch {
     return false;
@@ -82,7 +82,9 @@ export function ProfessionSearchFlow() {
   const [categoriesLoading, setCategoriesLoading] = useState(true);
   const [categoriesError, setCategoriesError] = useState<string | null>(null);
   const [reloadKey, setReloadKey] = useState(0);
-  const [provinces, setProvinces] = useState<ItalianProvince[]>(ITALIAN_PROVINCES_BY_NAME);
+  const [provinces, setProvinces] = useState<ItalianProvince[]>(
+    ITALIAN_PROVINCES_BY_NAME,
+  );
   const [selectedCategoryKey, setSelectedCategoryKey] = useState("");
   const [selectedSubcategoryKey, setSelectedSubcategoryKey] = useState("");
   const [provinceCode, setProvinceCode] = useState("");
@@ -102,10 +104,16 @@ export function ProfessionSearchFlow() {
       if (!alive) return;
 
       if (categoriesResult.status === "fulfilled") {
-        setCategories(normalizeProfessionCategories(categoriesResult.value.categories ?? []));
+        setCategories(
+          normalizeProfessionCategories(
+            categoriesResult.value.categories ?? [],
+          ),
+        );
       } else {
         setCategories([]);
-        setCategoriesError("Non è stato possibile caricare le professioni. Riprova.");
+        setCategoriesError(
+          "Non è stato possibile caricare le professioni. Riprova.",
+        );
       }
 
       if (
@@ -126,13 +134,16 @@ export function ProfessionSearchFlow() {
     };
   }, [reloadKey]);
 
-  const currentCategory = findProfessionCategory(categories, selectedCategoryKey);
+  const currentCategory = findProfessionCategory(
+    categories,
+    selectedCategoryKey,
+  );
   const currentSubcategories = currentCategory?.subcategories ?? [];
   const currentSubcategory =
     currentSubcategories.find(
-      (subcategory) => subcategoryOptionValue(subcategory) === selectedSubcategoryKey,
-    ) ??
-    null;
+      (subcategory) =>
+        subcategoryOptionValue(subcategory) === selectedSubcategoryKey,
+    ) ?? null;
   const categoryLabel = currentCategory?.name ?? "";
 
   function selectCategory(nextCategory: ProfessionCategory) {
@@ -161,14 +172,18 @@ export function ProfessionSearchFlow() {
   }
 
   return (
-    <section id="professioni" tabIndex={-1} className="scroll-mt-24 py-20 outline-none">
+    <section
+      id="professioni"
+      tabIndex={-1}
+      className="scroll-mt-24 py-20 outline-none"
+    >
       <div className="text-center mb-12">
         <h2 className="font-headline-md text-headline-md text-primary mb-3">
           Sfoglia professioni
         </h2>
         <p className="text-on-surface-variant max-w-[680px] mx-auto">
-          Scegli una categoria, aggiungi una specializzazione e filtra per zona o
-          disponibilità.
+          Scegli una categoria, aggiungi una specializzazione e filtra per zona
+          o disponibilità.
         </p>
       </div>
 
@@ -200,48 +215,69 @@ export function ProfessionSearchFlow() {
           </div>
         ) : null}
 
-        {!categoriesLoading ? categories.map((category) => {
-          const selected = professionCategoryKey(category) === selectedCategoryKey;
-          const imageUrl = isRenderableImage(category.image_url)
-            ? category.image_url
-            : CATEGORY_IMAGE_FALLBACK;
+        {!categoriesLoading
+          ? categories.map((category) => {
+              const selected =
+                professionCategoryKey(category) === selectedCategoryKey;
+              const imageUrl = isRenderableImage(category.image_url)
+                ? category.image_url
+                : CATEGORY_IMAGE_FALLBACK;
 
-          return (
-            <button
-              key={professionCategoryKey(category)}
-              type="button"
-              className={[
-                "group relative h-[168px] overflow-hidden rounded-[22px] text-left shadow-[0_10px_32px_rgba(8,43,95,0.12)] sm:h-[230px] sm:rounded-[26px]",
-                "border border-white/40 transition-all duration-300 hover:-translate-y-1 hover:shadow-[0_16px_42px_rgba(8,43,95,0.18)]",
-                "focus:outline-none focus:ring-4 focus:ring-on-tertiary-container/30",
-                selected ? "ring-4 ring-on-tertiary-container" : "",
-              ].join(" ")}
-              onClick={() => selectCategory(category)}
-              aria-pressed={selected}
-            >
-              <Image
-                src={imageUrl}
-                alt={category.name}
-                fill
-                sizes="(min-width: 1280px) 25vw, (min-width: 768px) 33vw, 50vw"
-                className="object-cover saturate-[1.04] transition-transform duration-500 group-hover:scale-110"
-              />
-              <div className="absolute inset-0 bg-gradient-to-t from-[#001b3e]/95 via-[#001b3e]/48 to-[#001b3e]/12" />
-              <div className="absolute inset-0 bg-[radial-gradient(circle_at_20%_10%,rgba(255,255,255,0.16),transparent_32%),linear-gradient(120deg,rgba(255,255,255,0.08)_0%,transparent_36%,rgba(255,255,255,0.06)_74%,transparent_100%)]" />
-              <div className="absolute right-3 top-3 flex h-10 w-10 items-center justify-center rounded-[16px] border border-white/28 bg-white/14 text-white shadow-[0_10px_30px_rgba(0,0,0,0.18)] backdrop-blur-md transition-transform duration-300 group-hover:scale-105 sm:right-4 sm:top-4 sm:h-12 sm:w-12 sm:rounded-[18px]">
-                <ProfessionCardIcon
-                  name={category.icon}
-                  className="h-6 w-6 drop-shadow-[0_4px_14px_rgba(0,0,0,0.35)] sm:h-7 sm:w-7"
-                />
-              </div>
-              <div className="absolute bottom-4 left-4 right-4 sm:bottom-5 sm:left-5 sm:right-5">
-                <div className="font-headline-sm text-[20px] leading-tight text-white drop-shadow-[0_3px_10px_rgba(0,0,0,0.45)] [overflow-wrap:anywhere] sm:text-[30px]">
-                  {category.name}
-                </div>
-              </div>
-            </button>
-          );
-        }) : null}
+              return (
+                <button
+                  key={professionCategoryKey(category)}
+                  type="button"
+                  className={[
+                    "group relative h-[168px] overflow-hidden rounded-[22px] text-left shadow-[0_10px_32px_rgba(8,43,95,0.12)] sm:h-[230px] sm:rounded-[26px]",
+                    "border border-white/40 transition-all duration-300 hover:-translate-y-1 hover:shadow-[0_16px_42px_rgba(8,43,95,0.18)]",
+                    "focus:outline-none focus:ring-4 focus:ring-on-tertiary-container/30",
+                    selected ? "ring-4 ring-on-tertiary-container" : "",
+                  ].join(" ")}
+                  onClick={() => selectCategory(category)}
+                  aria-pressed={selected}
+                >
+                  <Image
+                    src={imageUrl}
+                    alt={category.name}
+                    fill
+                    sizes="(min-width: 1280px) 25vw, (min-width: 768px) 33vw, 50vw"
+                    className="object-cover saturate-[1.04] transition-transform duration-500 group-hover:scale-110"
+                  />
+                  <div className="absolute inset-0 bg-gradient-to-t from-[#001b3e]/95 via-[#001b3e]/48 to-[#001b3e]/12" />
+                  <div className="absolute inset-0 bg-[radial-gradient(circle_at_20%_10%,rgba(255,255,255,0.16),transparent_32%),linear-gradient(120deg,rgba(255,255,255,0.08)_0%,transparent_36%,rgba(255,255,255,0.06)_74%,transparent_100%)]" />
+                  <div className="absolute right-3 top-3 flex h-10 w-10 items-center justify-center rounded-[16px] border border-white/28 bg-white/14 text-white shadow-[0_10px_30px_rgba(0,0,0,0.18)] backdrop-blur-md transition-transform duration-300 group-hover:scale-105 sm:right-4 sm:top-4 sm:h-12 sm:w-12 sm:rounded-[18px]">
+                    <ProfessionCardIcon
+                      name={category.icon}
+                      className="h-6 w-6 drop-shadow-[0_4px_14px_rgba(0,0,0,0.35)] sm:h-7 sm:w-7"
+                    />
+                  </div>
+                  <div className="absolute bottom-4 left-4 right-4 sm:bottom-5 sm:left-5 sm:right-5">
+                    <div className="font-headline-sm text-[20px] leading-tight text-white drop-shadow-[0_3px_10px_rgba(0,0,0,0.45)] [overflow-wrap:anywhere] sm:text-[30px]">
+                      {category.name}
+                    </div>
+                  </div>
+                </button>
+              );
+            })
+          : null}
+      </div>
+
+      <div className="mt-7 flex justify-center sm:mt-9">
+        <div className="flex w-full flex-col items-center gap-3 rounded-[24px] border border-outline-variant/30 bg-surface-container-low px-4 py-5 text-center sm:w-auto sm:min-w-[520px] sm:flex-row sm:justify-between sm:gap-6 sm:px-6 sm:py-4">
+          <p className="font-label-md text-sm text-on-surface-variant sm:text-base">
+            Non trovi quello che stavi cercando?
+          </p>
+
+          <Link
+            href="/proponi-un-tecnico"
+            className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-full bg-primary px-6 py-3 font-button text-white transition hover:bg-primary/90 focus:outline-none focus:ring-4 focus:ring-primary/20 sm:w-auto"
+          >
+            <span className="material-symbols-outlined text-[20px]" aria-hidden>
+              add_circle
+            </span>
+            Proponi un tecnico
+          </Link>
+        </div>
       </div>
 
       <div
@@ -249,7 +285,10 @@ export function ProfessionSearchFlow() {
         id="ricerca-professionisti"
         className="mt-12 rounded-[32px] bg-surface-container-lowest p-5 sm:p-8 shadow-[0_4px_20px_rgba(8,43,95,0.08)] border border-outline-variant/30"
       >
-        <form className="grid grid-cols-1 lg:grid-cols-12 gap-4" onSubmit={submitSearch}>
+        <form
+          className="grid grid-cols-1 lg:grid-cols-12 gap-4"
+          onSubmit={submitSearch}
+        >
           <label className="lg:col-span-3 space-y-2">
             <span className="font-label-md text-label-md text-on-surface-variant">
               Macro-categoria
@@ -261,7 +300,10 @@ export function ProfessionSearchFlow() {
             >
               <option value="">Tutte le categorie</option>
               {categories.map((category) => (
-                <option key={professionCategoryKey(category)} value={professionCategoryKey(category)}>
+                <option
+                  key={professionCategoryKey(category)}
+                  value={professionCategoryKey(category)}
+                >
                   {category.name}
                 </option>
               ))}
@@ -275,11 +317,15 @@ export function ProfessionSearchFlow() {
             <select
               className="w-full px-4 py-3 bg-surface-container-lowest border border-outline-variant rounded-xl focus:ring-2 focus:ring-primary focus:border-primary outline-none transition-all font-body-md text-body-md disabled:bg-surface-container-low disabled:text-outline"
               value={selectedSubcategoryKey}
-              onChange={(event) => setSelectedSubcategoryKey(event.target.value)}
+              onChange={(event) =>
+                setSelectedSubcategoryKey(event.target.value)
+              }
               disabled={!currentCategory || currentSubcategories.length === 0}
             >
               <option value="">
-                {currentCategory ? "Tutte le sottocategorie" : "Seleziona prima una categoria"}
+                {currentCategory
+                  ? "Tutte le sottocategorie"
+                  : "Seleziona prima una categoria"}
               </option>
               {currentSubcategories.map((subcategory) => (
                 <option
@@ -330,7 +376,9 @@ export function ProfessionSearchFlow() {
                 checked={travel}
                 onChange={(event) => setTravel(event.target.checked)}
               />
-              <span className="font-body-md text-body-md">In presenza / trasferte</span>
+              <span className="font-body-md text-body-md">
+                In presenza / trasferte
+              </span>
             </label>
           </div>
 

@@ -43,7 +43,6 @@ describe("LoginClient", () => {
     render(
       <LoginClient
         initialRole="customer"
-        nextPath={null}
         infoMessage={null}
       />,
     );
@@ -118,7 +117,6 @@ describe("LoginClient", () => {
     render(
       <LoginClient
         initialRole="customer"
-        nextPath={null}
         infoMessage={null}
       />,
     );
@@ -165,7 +163,7 @@ describe("LoginClient", () => {
     });
   });
 
-  it("mantiene un nextPath valido per il ruolo", async () => {
+  it("ignora percorsi precedenti e porta sempre alla dashboard del ruolo", async () => {
     fetchJsonMock.mockResolvedValue({
       user: {
         id: "user-1",
@@ -184,7 +182,6 @@ describe("LoginClient", () => {
     render(
       <LoginClient
         initialRole="customer"
-        nextPath="/customer?section=messages"
         infoMessage={null}
       />,
     );
@@ -205,9 +202,7 @@ describe("LoginClient", () => {
     );
 
     await waitFor(() => {
-      expect(navigateAfterLoginMock).toHaveBeenCalledWith(
-        "/customer?section=messages",
-      );
+      expect(navigateAfterLoginMock).toHaveBeenCalledWith("/customer");
     });
   });
 });

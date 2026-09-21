@@ -5,7 +5,10 @@ import { ProfessionSearchFlow } from "@/components/site/profession-search-flow";
 import { PublicReviewsCarousel } from "@/components/site/public-reviews-carousel";
 import { SmoothAnchorLink } from "@/components/site/smooth-anchor-link";
 import { getPublicHomepageReviews } from "@/lib/server/public-reviews";
+import { nextPathByRole, type AppRole } from "@/lib/routes/role-paths";
+import { createClient } from "@/lib/supabase/server";
 import Image from "next/image";
+import { redirect } from "next/navigation";
 
 export const dynamic = "force-dynamic";
 
@@ -40,6 +43,39 @@ const professionalSteps = [
 ];
 
 export default async function Home() {
+  const supabase = await createClient();
+
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (user) {
+    const { data: isActive } = await supabase.rpc("is_active_user");
+
+    if (isActive) {
+      const { data: rootAuthenticatedProfile } = await supabase
+        .from("profiles")
+        .select("role, must_change_password")
+        .eq("id", user.id)
+        .maybeSingle();
+
+      if (
+        rootAuthenticatedProfile?.role === "customer" ||
+        rootAuthenticatedProfile?.role === "professional" ||
+        rootAuthenticatedProfile?.role === "admin"
+      ) {
+        if (
+          rootAuthenticatedProfile.role === "admin" &&
+          rootAuthenticatedProfile.must_change_password
+        ) {
+          redirect("/auth/change-password");
+        }
+
+        redirect(nextPathByRole(rootAuthenticatedProfile.role as AppRole));
+      }
+    }
+  }
+
   const publicReviews = await getPublicHomepageReviews();
 
   return (
@@ -67,7 +103,8 @@ export default async function Home() {
               </span>
             </h1>
             <p className="font-body-lg text-body-lg text-surface-container-highest mb-10 max-w-[740px] mx-auto">
-              La piattaforma che mette in contatto clienti e professionisti qualificati in tutta Italia
+              La piattaforma che mette in contatto clienti e professionisti
+              qualificati in tutta Italia
             </p>
 
             <div className="flex flex-col sm:flex-row items-center justify-center gap-4 mb-10">
@@ -88,15 +125,21 @@ export default async function Home() {
             <div className="flex flex-wrap justify-center gap-8 text-surface-container-highest/90">
               <div className="flex items-center gap-2">
                 <span className="text-on-tertiary-container">●</span>
-                <span className="font-label-md text-label-md">Professionisti verificati</span>
+                <span className="font-label-md text-label-md">
+                  Professionisti verificati
+                </span>
               </div>
               <div className="flex items-center gap-2">
                 <span className="text-on-tertiary-container">●</span>
-                <span className="font-label-md text-label-md">Contatto diretto</span>
+                <span className="font-label-md text-label-md">
+                  Contatto diretto
+                </span>
               </div>
               <div className="flex items-center gap-2">
                 <span className="text-on-tertiary-container">●</span>
-                <span className="font-label-md text-label-md">Preventivi gratuiti</span>
+                <span className="font-label-md text-label-md">
+                  Preventivi gratuiti
+                </span>
               </div>
             </div>
           </Container>
@@ -115,7 +158,10 @@ export default async function Home() {
             <div className="grid grid-cols-1 gap-8 lg:grid-cols-2">
               <article className="rounded-[32px] border border-outline-variant/30 bg-surface-container-lowest p-6 shadow-[0_10px_32px_rgba(8,43,95,0.08)] sm:p-8">
                 <div className="mb-8 flex flex-col items-center justify-center gap-2 text-center sm:flex-row sm:justify-start sm:gap-3 sm:text-left">
-                  <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-[#FF8500] text-white" aria-hidden>
+                  <span
+                    className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-[#FF8500] text-white"
+                    aria-hidden
+                  >
                     <span className="material-symbols-outlined block text-[26px] leading-none">
                       search
                     </span>
@@ -128,7 +174,9 @@ export default async function Home() {
                   {customerSteps.map((step, index) => (
                     <div key={step.title} className="text-center">
                       <div className="w-16 h-16 bg-[#FF8500] text-white rounded-full flex items-center justify-center mx-auto mb-5 shadow-md">
-                        <span className="font-headline-md text-[28px]">{index + 1}</span>
+                        <span className="font-headline-md text-[28px]">
+                          {index + 1}
+                        </span>
                       </div>
                       <h4 className="font-headline-sm text-headline-sm text-primary mb-2">
                         {step.title}
@@ -143,7 +191,10 @@ export default async function Home() {
 
               <article className="rounded-[32px] border border-primary/10 bg-white p-6 shadow-[0_10px_32px_rgba(8,43,95,0.08)] sm:p-8">
                 <div className="mb-8 flex flex-col items-center justify-center gap-2 text-center sm:flex-row sm:justify-start sm:gap-3 sm:text-left">
-                  <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-primary text-white" aria-hidden>
+                  <span
+                    className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-primary text-white"
+                    aria-hidden
+                  >
                     <span className="material-symbols-outlined block text-[26px] leading-none">
                       engineering
                     </span>
@@ -156,7 +207,9 @@ export default async function Home() {
                   {professionalSteps.map((step, index) => (
                     <div key={step.title} className="text-center">
                       <div className="w-16 h-16 bg-primary text-white rounded-full flex items-center justify-center mx-auto mb-5 shadow-md">
-                        <span className="font-headline-md text-[28px]">{index + 1}</span>
+                        <span className="font-headline-md text-[28px]">
+                          {index + 1}
+                        </span>
                       </div>
                       <h4 className="font-headline-sm text-headline-sm text-primary mb-2">
                         {step.title}
@@ -192,9 +245,18 @@ export default async function Home() {
                   title: "Sicurezza",
                   body: "Ogni professionista passa un processo di verifica.",
                 },
-                { title: "Comunicazione", body: "Chat integrata per parlare direttamente." },
-                { title: "Vicinanza", body: "Trova professionisti attivi nella tua zona." },
-                { title: "Qualità", body: "Strumenti per una scelta più consapevole." },
+                {
+                  title: "Comunicazione",
+                  body: "Chat integrata per parlare direttamente.",
+                },
+                {
+                  title: "Vicinanza",
+                  body: "Trova professionisti attivi nella tua zona.",
+                },
+                {
+                  title: "Qualità",
+                  body: "Strumenti per una scelta più consapevole.",
+                },
               ].map((a) => (
                 <div
                   key={a.title}

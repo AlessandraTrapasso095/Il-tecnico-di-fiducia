@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 
 import type { PublicProfessionalProfileDetails } from "@/lib/server/professional-profile";
 
@@ -13,6 +13,10 @@ export type OwnerProfileContacts = {
 type OwnerProfileEditDraft = {
   first_name: string;
   last_name: string;
+  headline: string;
+  specializations: string;
+  category_id: string;
+  subcategory_id: string;
   bio: string;
   province_code: string;
   phone: string;
@@ -29,11 +33,34 @@ type OwnerProfileEditDraft = {
   is_ctp: boolean;
 };
 
+type TaxonomySubcategory = {
+  id: string;
+  category_id: string | number;
+  name: string;
+  slug: string;
+};
+
+type TaxonomyCategory = {
+  id: string | number;
+  name: string;
+  slug: string;
+  subcategories: TaxonomySubcategory[];
+};
+
+type CategoriesResponse = {
+  categories?: TaxonomyCategory[];
+  error?: string;
+};
+
 function lines(value: string) {
   return value
     .split(/\r?\n/)
     .map((item) => item.trim())
     .filter(Boolean);
+}
+
+function jsonFromLines(value: string) {
+  return lines(value).map((text) => ({ text }));
 }
 
 function normalizeWebsite(value: string): string | null {
@@ -62,6 +89,12 @@ export function OwnerProfileEditModal({
   const [draft, setDraft] = useState<OwnerProfileEditDraft>(() => ({
     first_name: profile.first_name ?? "",
     last_name: profile.last_name ?? "",
+    headline: profile.headline ?? "",
+    specializations: profile.specializations.join("\n"),
+    category_id: String(
+      profile.subcategory?.category_id ?? profile.categories[0]?.id ?? "",
+    ),
+    subcategory_id: profile.subcategory?.id ?? "",
     bio: profile.bio ?? "",
     province_code: profile.province_code ?? "",
     phone: contacts?.phone ?? "",
@@ -80,6 +113,11 @@ export function OwnerProfileEditModal({
 
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [taxonomyCategories, setTaxonomyCategories] = useState<
+    TaxonomyCategory[]
+  >([]);
+  const [taxonomyLoading, setTaxonomyLoading] = useState(true);
+  const [taxonomyError, setTaxonomyError] = useState<string | null>(null);
 
   function setValue<K extends keyof OwnerProfileEditDraft>(
     key: K,
@@ -91,6 +129,72 @@ export function OwnerProfileEditModal({
     }));
   }
 
+  useEffect(() => {
+    let active = true;
+
+    async function loadTaxonomy() {
+      setTaxonomyLoading(true);
+      setTaxonomyError(null);
+
+      try {
+        const response = await fetch("/api/categories", {
+          method: "GET",
+          cache: "no-store",
+        });
+
+        const body = (await response
+          .json()
+          .catch(() => null)) as CategoriesResponse | null;
+
+        if (!response.ok) {
+          throw new Error(
+            body?.error ??
+              "Non è stato possibile caricare categorie e sottocategorie.",
+          );
+        }
+
+        if (!active) return;
+
+        setTaxonomyCategories(
+          Array.isArray(body?.categories) ? body.categories : [],
+        );
+      } catch (cause) {
+        if (!active) return;
+
+        setTaxonomyError(
+          cause instanceof Error
+            ? cause.message
+            : "Non è stato possibile caricare categorie e sottocategorie.",
+        );
+      } finally {
+        if (active) {
+          setTaxonomyLoading(false);
+        }
+      }
+    }
+
+    void loadTaxonomy();
+
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  const selectedCategory = taxonomyCategories.find(
+    (category) => String(category.id) === draft.category_id,
+  );
+
+  const availableSubcategories = selectedCategory?.subcategories ?? [];
+
+  const qualificationCategorySlug = taxonomyLoading
+    ? profile.categories[0]?.slug
+    : selectedCategory?.slug;
+
+  const supportsCtuCtp = Boolean(
+    qualificationCategorySlug &&
+    qualificationCategorySlug !== "interior-designer",
+  );
+
   async function save() {
     if (saving || !draft.first_name.trim() || !draft.last_name.trim()) {
       return;
@@ -100,31 +204,128 @@ export function OwnerProfileEditModal({
     setError(null);
 
     try {
+      const initialDraft: OwnerProfileEditDraft = {
+        first_name: profile.first_name ?? "",
+        last_name: profile.last_name ?? "",
+        headline: profile.headline ?? "",
+        specializations: profile.specializations.join("\n"),
+        category_id: String(
+          profile.subcategory?.category_id ?? profile.categories[0]?.id ?? "",
+        ),
+        subcategory_id: profile.subcategory?.id ?? "",
+        bio: profile.bio ?? "",
+        province_code: profile.province_code ?? "",
+        phone: contacts?.phone ?? "",
+        public_email: contacts?.email ?? "",
+        website_url: contacts?.websiteUrl ?? "",
+        services_offered: profile.services_offered.join("\n"),
+        operational_provinces: profile.operational_provinces.join("\n"),
+        education: profile.education.join("\n"),
+        work_experiences: profile.work_experiences.join("\n"),
+        certifications: profile.certifications.join("\n"),
+        available_remote: profile.available_remote,
+        available_travel: profile.available_travel,
+        is_ctu: profile.is_ctu,
+        is_ctp: profile.is_ctp,
+      };
+
+      const payload: Record<string, unknown> = {};
+
+      if (draft.first_name !== initialDraft.first_name) {
+        payload.first_name = draft.first_name.trim();
+      }
+
+      if (draft.last_name !== initialDraft.last_name) {
+        payload.last_name = draft.last_name.trim();
+      }
+
+      if (draft.headline !== initialDraft.headline) {
+        payload.headline = draft.headline.trim() || null;
+      }
+
+      if (draft.specializations !== initialDraft.specializations) {
+        payload.specializations = lines(draft.specializations);
+      }
+
+      if (
+        draft.category_id !== initialDraft.category_id ||
+        draft.subcategory_id !== initialDraft.subcategory_id
+      ) {
+        payload.category_id = draft.category_id || null;
+        payload.subcategory_id = draft.subcategory_id || null;
+      }
+
+      if (draft.bio !== initialDraft.bio) {
+        payload.bio = draft.bio.trim() || null;
+      }
+
+      if (draft.province_code !== initialDraft.province_code) {
+        payload.province_code =
+          draft.province_code.trim().toUpperCase() || null;
+      }
+
+      if (draft.phone !== initialDraft.phone) {
+        payload.phone = draft.phone.trim() || null;
+      }
+
+      if (draft.public_email !== initialDraft.public_email) {
+        payload.public_email = draft.public_email.trim() || null;
+      }
+
+      if (draft.website_url !== initialDraft.website_url) {
+        payload.website_url = normalizeWebsite(draft.website_url);
+      }
+
+      if (draft.services_offered !== initialDraft.services_offered) {
+        payload.services_offered = lines(draft.services_offered);
+      }
+
+      if (draft.operational_provinces !== initialDraft.operational_provinces) {
+        payload.operational_provinces = lines(draft.operational_provinces).map(
+          (value) => value.toUpperCase(),
+        );
+      }
+
+      if (draft.education !== initialDraft.education) {
+        payload.education = jsonFromLines(draft.education);
+      }
+
+      if (draft.work_experiences !== initialDraft.work_experiences) {
+        payload.work_experiences = jsonFromLines(draft.work_experiences);
+      }
+
+      if (draft.certifications !== initialDraft.certifications) {
+        payload.certifications = jsonFromLines(draft.certifications);
+      }
+
+      if (draft.available_remote !== initialDraft.available_remote) {
+        payload.available_remote = draft.available_remote;
+      }
+
+      if (draft.available_travel !== initialDraft.available_travel) {
+        payload.available_travel = draft.available_travel;
+      }
+
+      if (draft.is_ctu !== initialDraft.is_ctu) {
+        payload.is_ctu = draft.is_ctu;
+      }
+
+      if (draft.is_ctp !== initialDraft.is_ctp) {
+        payload.is_ctp = draft.is_ctp;
+      }
+
+      if (Object.keys(payload).length === 0) {
+        setSaving(false);
+        onClose();
+        return;
+      }
+
       const response = await fetch(`/api/professionals/${profile.id}`, {
         method: "PATCH",
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({
-          first_name: draft.first_name.trim(),
-          last_name: draft.last_name.trim(),
-          bio: draft.bio.trim() || null,
-          province_code: draft.province_code.trim().toUpperCase() || null,
-          phone: draft.phone.trim() || null,
-          public_email: draft.public_email.trim() || null,
-          website_url: normalizeWebsite(draft.website_url),
-          services_offered: lines(draft.services_offered),
-          operational_provinces: lines(draft.operational_provinces).map(
-            (value) => value.toUpperCase(),
-          ),
-          education: lines(draft.education),
-          work_experiences: lines(draft.work_experiences),
-          certifications: lines(draft.certifications),
-          available_remote: draft.available_remote,
-          available_travel: draft.available_travel,
-          is_ctu: draft.is_ctu,
-          is_ctp: draft.is_ctp,
-        }),
+        body: JSON.stringify(payload),
       });
 
       if (!response.ok) {
@@ -211,6 +412,118 @@ export function OwnerProfileEditModal({
               </div>
 
               <EditInput
+                label="Titolo professionale"
+                value={draft.headline}
+                placeholder="Es. Full Stack Web Developer"
+                onChange={(value) => setValue("headline", value)}
+              />
+
+              <div className="grid gap-4 md:grid-cols-2">
+                <label className="block min-w-0">
+                  <span className="text-sm font-bold text-primary">
+                    Categoria
+                  </span>
+
+                  <select
+                    value={draft.category_id}
+                    disabled={taxonomyLoading || saving}
+                    onChange={(event) => {
+                      const nextCategoryId = event.target.value;
+                      const nextCategory = taxonomyCategories.find(
+                        (category) => String(category.id) === nextCategoryId,
+                      );
+                      const keepsQualifications =
+                        nextCategory?.slug !== "interior-designer";
+
+                      setDraft((current) => ({
+                        ...current,
+                        category_id: nextCategoryId,
+                        subcategory_id: "",
+                        is_ctu: keepsQualifications ? current.is_ctu : false,
+                        is_ctp: keepsQualifications ? current.is_ctp : false,
+                      }));
+                    }}
+                    className="mt-2 min-h-11 w-full rounded-2xl border border-outline-variant bg-surface-container-lowest px-4 py-2.5 text-on-surface outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/20 disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    <option value="">
+                      {taxonomyLoading
+                        ? "Caricamento categorie…"
+                        : "Seleziona categoria"}
+                    </option>
+
+                    {taxonomyCategories.map((category) => (
+                      <option
+                        key={String(category.id)}
+                        value={String(category.id)}
+                      >
+                        {category.name}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+
+                <label className="block min-w-0">
+                  <span className="text-sm font-bold text-primary">
+                    Sottocategoria
+                  </span>
+
+                  <select
+                    value={draft.subcategory_id}
+                    disabled={
+                      taxonomyLoading ||
+                      saving ||
+                      !draft.category_id ||
+                      availableSubcategories.length === 0
+                    }
+                    onChange={(event) =>
+                      setValue("subcategory_id", event.target.value)
+                    }
+                    className="mt-2 min-h-11 w-full rounded-2xl border border-outline-variant bg-surface-container-lowest px-4 py-2.5 text-on-surface outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/20 disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    <option value="">
+                      {!draft.category_id
+                        ? "Seleziona prima una categoria"
+                        : availableSubcategories.length === 0
+                          ? "Nessuna sottocategoria disponibile"
+                          : "Nessuna sottocategoria"}
+                    </option>
+
+                    {availableSubcategories.map((subcategory) => (
+                      <option key={subcategory.id} value={subcategory.id}>
+                        {subcategory.name}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              </div>
+
+              {taxonomyLoading ? (
+                <div className="flex items-center gap-2 rounded-2xl bg-surface-container-low px-4 py-3 text-sm text-on-surface-variant">
+                  <span className="material-symbols-outlined animate-spin text-[18px]">
+                    progress_activity
+                  </span>
+                  Caricamento categorie…
+                </div>
+              ) : null}
+
+              {taxonomyError ? (
+                <div
+                  role="alert"
+                  className="rounded-2xl bg-error-container px-4 py-3 text-sm text-on-error-container"
+                >
+                  {taxonomyError}
+                </div>
+              ) : null}
+
+              <EditTextarea
+                label="Specializzazioni"
+                hint="Una voce per riga"
+                value={draft.specializations}
+                rows={4}
+                onChange={(value) => setValue("specializations", value)}
+              />
+
+              <EditInput
                 label="Provincia"
                 value={draft.province_code}
                 placeholder="CZ"
@@ -241,17 +554,21 @@ export function OwnerProfileEditModal({
                   onChange={(value) => setValue("available_travel", value)}
                 />
 
-                <EditToggle
-                  label="CTU"
-                  checked={draft.is_ctu}
-                  onChange={(value) => setValue("is_ctu", value)}
-                />
+                {supportsCtuCtp ? (
+                  <>
+                    <EditToggle
+                      label="CTU"
+                      checked={draft.is_ctu}
+                      onChange={(value) => setValue("is_ctu", value)}
+                    />
 
-                <EditToggle
-                  label="CTP"
-                  checked={draft.is_ctp}
-                  onChange={(value) => setValue("is_ctp", value)}
-                />
+                    <EditToggle
+                      label="CTP"
+                      checked={draft.is_ctp}
+                      onChange={(value) => setValue("is_ctp", value)}
+                    />
+                  </>
+                ) : null}
               </div>
             </EditSection>
 

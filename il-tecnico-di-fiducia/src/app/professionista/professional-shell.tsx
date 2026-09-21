@@ -406,54 +406,97 @@ export default function ProfessionalShell({ profile, children }: ProfessionalShe
     if (!profile.id) return;
 
     const channelName = `db:notifications:${profile.id}`;
-    logRealtimeDev("channel.created", {
-      scope: "notifications",
-      channelName,
-      owner: "professional",
-    });
-    const channel = supabase
-      .channel(channelName)
-      .on(
-        "postgres_changes",
-        {
-          event: "*",
-          schema: "public",
-          table: "notifications",
-          filter: `recipient_id=eq.${profile.id}`,
-        },
-        (payload) => {
-          logRealtimeDev("postgres.notifications", {
+    let disposed = false;
+    let channel: ReturnType<typeof supabase.channel> | null = null;
+
+    async function initializeNotificationsChannel() {
+      try {
+        const staleChannels = supabase
+          .getChannels()
+          .filter((candidate) => candidate.topic === `realtime:${channelName}`);
+
+        for (const staleChannel of staleChannels) {
+          logRealtimeDev("channel.removed", {
             scope: "notifications",
-            eventType: payload.eventType,
+            channelName,
             owner: "professional",
+            reason: "stale-before-initialize",
           });
-          if (payload.eventType === "INSERT" || payload.eventType === "UPDATE") {
-            mergeRealtimeNotification(payload.new as NotificationRealtimeRow);
-          }
-          if (payload.eventType === "DELETE") {
-            const deleted = payload.old as Partial<NotificationRealtimeRow>;
-            setNotifications((current) =>
-              current.filter((notification) => notification.id !== deleted.id),
-            );
-          }
-        },
-      )
-      .subscribe((status) => {
-        logRealtimeDev("subscription.notifications", {
+          await supabase.removeChannel(staleChannel);
+        }
+
+        if (disposed) return;
+
+        logRealtimeDev("channel.created", {
           scope: "notifications",
-          status,
           channelName,
           owner: "professional",
         });
-      });
+
+        channel = supabase
+          .channel(channelName)
+          .on(
+            "postgres_changes",
+            {
+              event: "*",
+              schema: "public",
+              table: "notifications",
+              filter: `recipient_id=eq.${profile.id}`,
+            },
+            (payload) => {
+              if (disposed) return;
+
+              logRealtimeDev("postgres.notifications", {
+                scope: "notifications",
+                eventType: payload.eventType,
+                owner: "professional",
+              });
+
+              if (payload.eventType === "INSERT" || payload.eventType === "UPDATE") {
+                mergeRealtimeNotification(payload.new as NotificationRealtimeRow);
+              }
+
+              if (payload.eventType === "DELETE") {
+                const deleted = payload.old as Partial<NotificationRealtimeRow>;
+                setNotifications((current) =>
+                  current.filter((notification) => notification.id !== deleted.id),
+                );
+              }
+            },
+          )
+          .subscribe((status) => {
+            if (disposed) return;
+
+            logRealtimeDev("subscription.notifications", {
+              scope: "notifications",
+              status,
+              channelName,
+              owner: "professional",
+            });
+          });
+      } catch (error) {
+        if (disposed) return;
+        console.error(
+          "[professional-shell] Failed to initialize notifications realtime",
+          error,
+        );
+      }
+    }
+
+    void initializeNotificationsChannel();
 
     return () => {
+      disposed = true;
+      if (!channel) return;
+
       logRealtimeDev("channel.removed", {
         scope: "notifications",
         channelName,
         owner: "professional",
+        reason: "effect-cleanup",
       });
-      supabase.removeChannel(channel);
+
+      void supabase.removeChannel(channel);
     };
   }, [mergeRealtimeNotification, profile.id, supabase]);
 
@@ -605,12 +648,12 @@ export default function ProfessionalShell({ profile, children }: ProfessionalShe
             : null
         }
       >
-      <header className="fixed left-0 right-0 top-0 z-50 h-20 border-b border-outline-variant/30 bg-surface-container-lowest/90 backdrop-blur-md">
-        <div className="mx-auto flex h-full max-w-[1440px] items-center justify-between gap-2 px-3 sm:gap-4 sm:px-6 lg:px-8">
-          <div className="flex min-w-0 items-center gap-1.5 sm:gap-3 lg:-ml-4 xl:-ml-8 2xl:-ml-12">
+      <header className="fixed left-0 right-0 top-0 z-50 h-16 border-b border-outline-variant/30 bg-surface-container-lowest/90 backdrop-blur-md sm:h-20">
+        <div className="mx-auto flex h-full max-w-[1440px] items-center justify-between gap-1 px-2 sm:gap-4 sm:px-6 lg:px-8">
+          <div className="flex min-w-0 items-center gap-1 sm:gap-3 lg:-ml-4 xl:-ml-8 2xl:-ml-12">
             <button
               type="button"
-              className="rounded-full p-2 text-primary hover:bg-surface-container-high lg:hidden"
+              className="shrink-0 rounded-full p-1.5 text-primary hover:bg-surface-container-high sm:p-2 lg:hidden"
               aria-label="Apri menu"
               onClick={() => setSidebarOpen(true)}
             >
@@ -623,7 +666,7 @@ export default function ProfessionalShell({ profile, children }: ProfessionalShe
             <LogoWordmark />
           </div>
 
-          <div className="flex shrink-0 items-center gap-1 sm:gap-3">
+          <div className="flex shrink-0 items-center gap-0.5 sm:gap-3">
             <div ref={searchRef} className="relative">
               <button
                 type="button"

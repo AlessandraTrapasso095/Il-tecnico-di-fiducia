@@ -6,7 +6,7 @@ import Link from "next/link";
 import { PasswordField } from "@/components/auth/password-field";
 import { fetchJson } from "@/lib/api/fetch-json";
 import { navigateAfterLogin } from "@/lib/auth/post-login-navigation";
-import { nextPathByRole, routeBelongsToRole } from "@/lib/routes/role-paths";
+import { nextPathByRole } from "@/lib/routes/role-paths";
 import { normalizeEmail } from "@/lib/auth/normalize-email";
 
 type UserRole = "customer" | "professional" | "admin";
@@ -17,24 +17,13 @@ type SignInResponse = {
 };
 
 
-function safeNextPath(raw: string | null | undefined, role: UserRole) {
-  if (!raw) return null;
-  if (!raw.startsWith("/") || raw.startsWith("//")) return null;
-  if (/[\r\n]/.test(raw)) return null;
-  if (raw === "/auth/login" || raw.startsWith("/auth/login?")) return null;
-  if (!routeBelongsToRole(raw, role)) return null;
-  return raw;
-}
-
 type LoginClientProps = {
   initialRole: "customer" | "professional";
-  nextPath?: string | null;
   infoMessage?: string | null;
 };
 
 export default function LoginClient({
   initialRole,
-  nextPath,
   infoMessage = null,
 }: LoginClientProps) {
   const [roleHint, setRoleHint] = useState<"customer" | "professional">(initialRole);
@@ -61,11 +50,7 @@ export default function LoginClient({
         return;
       }
 
-      const destination =
-        safeNextPath(nextPath, res.profile.role) ??
-        nextPathByRole(res.profile.role);
-
-      navigateAfterLogin(destination);
+      navigateAfterLogin(nextPathByRole(res.profile.role));
     } catch (err) {
       setError(err instanceof Error ? err.message : "Errore imprevisto.");
       setLoading(false);

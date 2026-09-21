@@ -3,7 +3,10 @@ import { NextResponse } from "next/server";
 import { requireAuth } from "@/lib/api/auth";
 import { isNonEmptyString } from "@/lib/api/validation";
 import { normalizeItalianProvinceCode } from "@/lib/locations/italian-provinces";
-import { validateProfessionalTaxonomySelection } from "@/lib/server/professional-taxonomy";
+import {
+  professionalCategoryAllowsCtuCtp,
+  validateProfessionalTaxonomySelection,
+} from "@/lib/server/professional-taxonomy";
 import { isProfessionalVisibleToCustomers } from "@/lib/server/professional-visibility";
 import { createServiceClient } from "@/lib/supabase/service";
 import { normalizeWebsiteUrl } from "@/lib/validation/website-url";
@@ -146,13 +149,14 @@ export async function GET(
     );
   }
 
-  const { data: subcategory, error: subcategoryError } = professional.subcategory_id
-    ? await supabase
-        .from("subcategories")
-        .select("id, category_id, name, slug")
-        .eq("id", professional.subcategory_id)
-        .maybeSingle()
-    : { data: null, error: null };
+  const { data: subcategory, error: subcategoryError } =
+    professional.subcategory_id
+      ? await supabase
+          .from("subcategories")
+          .select("id, category_id, name, slug")
+          .eq("id", professional.subcategory_id)
+          .maybeSingle()
+      : { data: null, error: null };
 
   if (subcategoryError) {
     return NextResponse.json(
@@ -161,7 +165,11 @@ export async function GET(
     );
   }
 
-  let contactRequest: { id: string; status: string; created_at: string } | null = null;
+  let contactRequest: {
+    id: string;
+    status: string;
+    created_at: string;
+  } | null = null;
   let isFollowing: boolean | null = null;
   let isSaved: boolean | null = null;
 
@@ -244,18 +252,26 @@ export async function PATCH(
 
   if (firstName !== undefined) {
     if (!isNonEmptyString(firstName)) {
-      return NextResponse.json({ error: "first_name is required" }, { status: 400 });
+      return NextResponse.json(
+        { error: "first_name is required" },
+        { status: 400 },
+      );
     }
     profileUpdates.first_name = firstName;
   }
   if (lastName !== undefined) {
     if (!isNonEmptyString(lastName)) {
-      return NextResponse.json({ error: "last_name is required" }, { status: 400 });
+      return NextResponse.json(
+        { error: "last_name is required" },
+        { status: 400 },
+      );
     }
     profileUpdates.last_name = lastName;
   }
   if (provinceCode !== undefined) {
-    const normalizedProvince = provinceCode ? normalizeItalianProvinceCode(provinceCode) : null;
+    const normalizedProvince = provinceCode
+      ? normalizeItalianProvinceCode(provinceCode)
+      : null;
     if (provinceCode && !normalizedProvince) {
       return NextResponse.json({ error: "Invalid province" }, { status: 400 });
     }
@@ -266,14 +282,27 @@ export async function PATCH(
   const headline = optionalText(payload.headline, 140);
   const bio = optionalLongText(payload.bio, 3000);
   const publicEmail = optionalText(payload.public_email, 160);
-  const hasWebsiteUrl = Object.prototype.hasOwnProperty.call(payload, "website_url");
+  const hasWebsiteUrl = Object.prototype.hasOwnProperty.call(
+    payload,
+    "website_url",
+  );
   const websiteUrl = normalizeWebsiteUrl(payload.website_url);
-  const hasCategoryId = Object.prototype.hasOwnProperty.call(payload, "category_id");
-  const hasSubcategoryId = Object.prototype.hasOwnProperty.call(payload, "subcategory_id");
+  const hasCategoryId = Object.prototype.hasOwnProperty.call(
+    payload,
+    "category_id",
+  );
+  const hasSubcategoryId = Object.prototype.hasOwnProperty.call(
+    payload,
+    "subcategory_id",
+  );
   const categoryIds = optionalCategoryIds(payload.category_ids);
   const specializations = optionalStringArray(payload.specializations);
   const servicesOffered = optionalStringArray(payload.services_offered);
-  const operationalProvinces = optionalStringArray(payload.operational_provinces, 110, 2);
+  const operationalProvinces = optionalStringArray(
+    payload.operational_provinces,
+    110,
+    2,
+  );
   const education = optionalJsonList(payload.education);
   const workExperiences = optionalJsonList(payload.work_experiences);
   const isCtu =
@@ -308,15 +337,21 @@ export async function PATCH(
 
   if (headline !== undefined) professionalUpdates.headline = headline || null;
   if (bio !== undefined) professionalUpdates.bio = bio || null;
-  if (publicEmail !== undefined) professionalUpdates.public_email = publicEmail || null;
+  if (publicEmail !== undefined)
+    professionalUpdates.public_email = publicEmail || null;
   if (hasWebsiteUrl) {
     if (websiteUrl === undefined) {
-      return NextResponse.json({ error: "URL sito web non valido." }, { status: 400 });
+      return NextResponse.json(
+        { error: "URL sito web non valido." },
+        { status: 400 },
+      );
     }
     professionalUpdates.website_url = websiteUrl;
   }
-  if (specializations !== undefined) professionalUpdates.specializations = specializations;
-  if (servicesOffered !== undefined) professionalUpdates.services_offered = servicesOffered;
+  if (specializations !== undefined)
+    professionalUpdates.specializations = specializations;
+  if (servicesOffered !== undefined)
+    professionalUpdates.services_offered = servicesOffered;
   if (operationalProvinces !== undefined) {
     const normalizedOperationalProvinces = operationalProvinces.map((code) =>
       normalizeItalianProvinceCode(code),
@@ -330,10 +365,10 @@ export async function PATCH(
     professionalUpdates.operational_provinces = normalizedOperationalProvinces;
   }
   if (education !== undefined) professionalUpdates.education = education;
-  if (workExperiences !== undefined) professionalUpdates.work_experiences = workExperiences;
-  if (certifications !== undefined) professionalUpdates.certifications = certifications;
-  if (isCtu !== undefined) professionalUpdates.is_ctu = isCtu;
-  if (isCtp !== undefined) professionalUpdates.is_ctp = isCtp;
+  if (workExperiences !== undefined)
+    professionalUpdates.work_experiences = workExperiences;
+  if (certifications !== undefined)
+    professionalUpdates.certifications = certifications;
   if (typeof payload.available_remote === "boolean") {
     professionalUpdates.available_remote = payload.available_remote;
   }
@@ -345,14 +380,18 @@ export async function PATCH(
     categoryIds !== undefined || hasCategoryId || hasSubcategoryId
       ? createServiceClient()
       : null;
-  let savedCategories: { id: CategoryId; name: string; slug: string }[] | null = null;
+  let savedCategories: { id: CategoryId; name: string; slug: string }[] | null =
+    null;
   let savedSubcategory:
     | { id: string; category_id: CategoryId; name: string; slug: string }
     | null
     | undefined;
 
   if (!hasCategoryId && hasSubcategoryId) {
-    return NextResponse.json({ error: "Seleziona una categoria" }, { status: 400 });
+    return NextResponse.json(
+      { error: "Seleziona una categoria" },
+      { status: 400 },
+    );
   }
 
   if (hasCategoryId) {
@@ -362,7 +401,10 @@ export async function PATCH(
     });
 
     if (!taxonomy.ok) {
-      return NextResponse.json({ error: taxonomy.error }, { status: taxonomy.status });
+      return NextResponse.json(
+        { error: taxonomy.error },
+        { status: taxonomy.status },
+      );
     }
 
     const { error: deleteCategoryLinksError } = await service!
@@ -372,7 +414,9 @@ export async function PATCH(
 
     if (deleteCategoryLinksError) {
       return NextResponse.json(
-        { error: "Non è stato possibile aggiornare la categoria professionale." },
+        {
+          error: "Non è stato possibile aggiornare la categoria professionale.",
+        },
         { status: 400 },
       );
     }
@@ -391,19 +435,21 @@ export async function PATCH(
       );
     }
 
-    professionalUpdates.subcategory_id = taxonomy.selection.subcategory?.id ?? null;
+    professionalUpdates.subcategory_id =
+      taxonomy.selection.subcategory?.id ?? null;
     savedCategories = [taxonomy.selection.category];
     savedSubcategory = taxonomy.selection.subcategory;
   }
 
   if (!hasCategoryId && categoryIds !== undefined) {
-    const { data: validCategories, error: validCategoriesError } = categoryIds.length
-      ? await service!
-          .from("categories")
-          .select("id, name, slug")
-          .in("id", categoryIds)
-          .eq("is_active", true)
-      : { data: [], error: null };
+    const { data: validCategories, error: validCategoriesError } =
+      categoryIds.length
+        ? await service!
+            .from("categories")
+            .select("id, name, slug")
+            .in("id", categoryIds)
+            .eq("is_active", true)
+        : { data: [], error: null };
 
     if (validCategoriesError) {
       return NextResponse.json(
@@ -412,11 +458,18 @@ export async function PATCH(
       );
     }
 
-    const validCategoryIds = new Set((validCategories ?? []).map((category) => String(category.id)));
-    const hasInvalidCategory = categoryIds.some((categoryId) => !validCategoryIds.has(String(categoryId)));
+    const validCategoryIds = new Set(
+      (validCategories ?? []).map((category) => String(category.id)),
+    );
+    const hasInvalidCategory = categoryIds.some(
+      (categoryId) => !validCategoryIds.has(String(categoryId)),
+    );
     if (hasInvalidCategory) {
       return NextResponse.json(
-        { error: "Una o più categorie selezionate non sono valide o non sono attive." },
+        {
+          error:
+            "Una o più categorie selezionate non sono valide o non sono attive.",
+        },
         { status: 400 },
       );
     }
@@ -428,7 +481,9 @@ export async function PATCH(
 
     if (deleteCategoryLinksError) {
       return NextResponse.json(
-        { error: "Non è stato possibile aggiornare le categorie professionali." },
+        {
+          error: "Non è stato possibile aggiornare le categorie professionali.",
+        },
         { status: 400 },
       );
     }
@@ -445,7 +500,9 @@ export async function PATCH(
 
       if (insertCategoryLinksError) {
         return NextResponse.json(
-          { error: "Non è stato possibile salvare le categorie professionali." },
+          {
+            error: "Non è stato possibile salvare le categorie professionali.",
+          },
           { status: 400 },
         );
       }
@@ -458,20 +515,127 @@ export async function PATCH(
     }[];
   }
 
+  /*
+   * CTU e CTP sono qualifiche professionali, non categorie.
+   * La validazione viene applicata anche server-side per impedire
+   * che una chiamata API aggiri la logica dell'interfaccia.
+   */
+  let effectiveQualificationCategorySlugs: string[] = [];
+
+  if (savedCategories !== null) {
+    effectiveQualificationCategorySlugs = savedCategories.map(
+      (category) => category.slug,
+    );
+  } else if (isCtu !== undefined || isCtp !== undefined) {
+    const qualificationClient = service ?? createServiceClient();
+
+    const { data: currentCategoryLinks, error: currentCategoryLinksError } =
+      await qualificationClient
+        .from("professional_categories")
+        .select("category_id")
+        .eq("professional_id", id);
+
+    if (currentCategoryLinksError) {
+      return NextResponse.json(
+        {
+          error: "Non è stato possibile verificare la categoria per CTU/CTP.",
+        },
+        { status: 500 },
+      );
+    }
+
+    const currentCategoryIds = (currentCategoryLinks ?? []).map(
+      (link) => link.category_id,
+    );
+
+    if (currentCategoryIds.length > 0) {
+      const {
+        data: currentQualificationCategories,
+        error: currentQualificationCategoriesError,
+      } = await qualificationClient
+        .from("categories")
+        .select("slug")
+        .in("id", currentCategoryIds)
+        .eq("is_active", true);
+
+      if (currentQualificationCategoriesError) {
+        return NextResponse.json(
+          {
+            error: "Non è stato possibile verificare la categoria per CTU/CTP.",
+          },
+          { status: 500 },
+        );
+      }
+
+      effectiveQualificationCategorySlugs = (
+        currentQualificationCategories ?? []
+      )
+        .map((category) => category.slug)
+        .filter(
+          (slug): slug is string => typeof slug === "string" && slug.length > 0,
+        );
+    }
+  }
+
+  const supportsCtuCtp =
+    effectiveQualificationCategorySlugs.length > 0 &&
+    effectiveQualificationCategorySlugs.some((slug) =>
+      professionalCategoryAllowsCtuCtp(slug),
+    );
+
+  if (
+    (isCtu !== undefined || isCtp !== undefined || savedCategories !== null) &&
+    !supportsCtuCtp
+  ) {
+    professionalUpdates.is_ctu = false;
+    professionalUpdates.is_ctp = false;
+  } else {
+    if (isCtu !== undefined) {
+      professionalUpdates.is_ctu = isCtu;
+    }
+
+    if (isCtp !== undefined) {
+      professionalUpdates.is_ctp = isCtp;
+    }
+  }
+
   if (Object.keys(profileUpdates).length > 0) {
-    const { error } = await supabase.from("profiles").update(profileUpdates).eq("id", id);
+    const { data: savedProfile, error } = await supabase
+      .from("profiles")
+      .update(profileUpdates)
+      .eq("id", id)
+      .select("id")
+      .maybeSingle();
+
     if (error) {
       return NextResponse.json({ error: error.message }, { status: 400 });
+    }
+
+    if (!savedProfile) {
+      return NextResponse.json(
+        { error: "Il profilo personale non è stato aggiornato." },
+        { status: 409 },
+      );
     }
   }
 
   if (Object.keys(professionalUpdates).length > 0) {
-    const { error } = await supabase
+    const { data: savedProfessional, error } = await supabase
       .from("professional_profiles")
       .update(professionalUpdates)
-      .eq("id", id);
+      .eq("id", id)
+      .select("id")
+      .maybeSingle();
+
     if (error) {
       return NextResponse.json({ error: error.message }, { status: 400 });
+    }
+
+    if (!savedProfessional) {
+      return NextResponse.json(
+        { error: "Il profilo professionale non è stato aggiornato." },
+        { status: 409 },
+      );
     }
   }
 

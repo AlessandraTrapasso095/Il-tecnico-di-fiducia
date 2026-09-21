@@ -103,6 +103,15 @@ export function PublicProfessionalProfile({
 
   const [ownerEditOpen, setOwnerEditOpen] = useState(false);
 
+  const [reviews, setReviews] = useState(() => profile.reviews);
+  const [replyDrafts, setReplyDrafts] = useState<Record<string, string>>({});
+  const [replyErrors, setReplyErrors] = useState<Record<string, string | null>>(
+    {},
+  );
+  const [replySubmitting, setReplySubmitting] = useState<
+    Record<string, boolean>
+  >({});
+
   const [postSocialState, setPostSocialState] = useState<
     Record<
       string,
@@ -255,6 +264,88 @@ export function PublicProfessionalProfile({
     }
   }
 
+  async function replyToReview(reviewId: string) {
+    if (!viewerContext?.isOwner || replySubmitting[reviewId]) {
+      return;
+    }
+
+    const body = (replyDrafts[reviewId] ?? "").replace(/\s+/g, " ").trim();
+
+    if (!body) {
+      setReplyErrors((current) => ({
+        ...current,
+        [reviewId]: "Scrivi una risposta prima di inviare.",
+      }));
+      return;
+    }
+
+    setReplySubmitting((current) => ({
+      ...current,
+      [reviewId]: true,
+    }));
+
+    setReplyErrors((current) => ({
+      ...current,
+      [reviewId]: null,
+    }));
+
+    try {
+      const response = await fetch(`/api/reviews/${reviewId}/reply`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ body }),
+      });
+
+      const payload = (await response.json().catch(() => null)) as {
+        error?: string;
+        review?: {
+          id: string;
+          professional_reply: string | null;
+          professional_replied_at: string | null;
+        };
+      } | null;
+
+      if (!response.ok || !payload?.review) {
+        throw new Error(
+          payload?.error ?? "Non è stato possibile salvare la risposta.",
+        );
+      }
+
+      setReviews((current) =>
+        current.map((review) =>
+          review.id === reviewId
+            ? {
+                ...review,
+                professional_reply: payload.review?.professional_reply ?? null,
+                professional_replied_at:
+                  payload.review?.professional_replied_at ?? null,
+              }
+            : review,
+        ),
+      );
+
+      setReplyDrafts((current) => ({
+        ...current,
+        [reviewId]: "",
+      }));
+    } catch (error) {
+      setReplyErrors((current) => ({
+        ...current,
+        [reviewId]:
+          error instanceof Error
+            ? error.message
+            : "Non è stato possibile salvare la risposta.",
+      }));
+    } finally {
+      setReplySubmitting((current) => ({
+        ...current,
+        [reviewId]: false,
+      }));
+    }
+  }
+
   function scrollWorksCarousel(direction: -1 | 1) {
     const carousel = worksCarouselRef.current;
     if (!carousel) return;
@@ -390,13 +481,13 @@ export function PublicProfessionalProfile({
 
       previousTime = time;
 
-      const loopWidth = activeCarousel.scrollWidth / 2;
+      const maxScroll = activeCarousel.scrollWidth - activeCarousel.clientWidth;
 
-      if (loopWidth > 1) {
+      if (maxScroll > 1) {
         scrollPosition += (pixelsPerSecond * elapsed) / 1000;
 
-        while (scrollPosition >= loopWidth) {
-          scrollPosition -= loopWidth;
+        if (scrollPosition >= maxScroll) {
+          scrollPosition = 0;
         }
 
         activeCarousel.scrollLeft = Math.floor(scrollPosition);
@@ -415,16 +506,6 @@ export function PublicProfessionalProfile({
   return (
     <main className="w-full">
       <div className="mx-auto w-full max-w-[1440px] px-4 pb-16 pt-4 sm:px-6 sm:pb-20 sm:pt-5 lg:px-10 xl:px-14">
-        <Link
-          href="/cerca"
-          className="inline-flex items-center gap-1 py-2 text-sm font-bold text-primary transition hover:opacity-70"
-        >
-          <span className="material-symbols-outlined text-[18px]">
-            arrow_back
-          </span>
-          Torna alla ricerca
-        </Link>
-
         <section className="mt-4 border-b border-outline-variant/30 pb-7 sm:mt-5 sm:pb-8 lg:pb-10">
           <div className="flex flex-col gap-6 md:flex-row md:items-start md:justify-between lg:gap-10">
             <div className="flex min-w-0 flex-col gap-5 sm:flex-row sm:items-start sm:gap-6 lg:gap-8">
@@ -601,47 +682,45 @@ export function PublicProfessionalProfile({
               ref={worksCarouselRef}
               className="flex gap-3 overflow-x-auto scroll-smooth [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
             >
-              {[...profile.work_media, ...profile.work_media].map(
-                (media, index) => (
-                  <button
-                    key={`${media.id}-${index}`}
-                    type="button"
-                    onClick={() => openWorkPost(media.post_id)}
-                    className="relative aspect-[4/3] w-[82%] shrink-0 overflow-hidden rounded-xl bg-surface-container-low text-left sm:w-[48%] md:w-[32%] lg:w-[24%]"
-                    aria-label="Apri il lavoro collegato"
-                  >
-                    {media.media_type === "image" ? (
-                      <Image
+              {profile.work_media.map((media, index) => (
+                <button
+                  key={`${media.id}-${index}`}
+                  type="button"
+                  onClick={() => openWorkPost(media.post_id)}
+                  className="relative aspect-[4/3] w-[82%] shrink-0 overflow-hidden rounded-xl bg-surface-container-low text-left sm:w-[48%] md:w-[32%] lg:w-[24%]"
+                  aria-label="Apri il lavoro collegato"
+                >
+                  {media.media_type === "image" ? (
+                    <Image
+                      src={media.public_url}
+                      alt={media.file_name ?? "Lavoro del professionista"}
+                      fill
+                      sizes="(max-width: 639px) 82vw, (max-width: 767px) 48vw, (max-width: 1023px) 32vw, 24vw"
+                      unoptimized
+                      className="object-cover transition duration-300 hover:scale-[1.02]"
+                    />
+                  ) : (
+                    <>
+                      <video
                         src={media.public_url}
-                        alt={media.file_name ?? "Lavoro del professionista"}
-                        fill
-                        sizes="(max-width: 639px) 82vw, (max-width: 767px) 48vw, (max-width: 1023px) 32vw, 24vw"
-                        unoptimized
-                        className="object-cover transition duration-300 hover:scale-[1.02]"
+                        preload="metadata"
+                        muted
+                        playsInline
+                        className="h-full w-full bg-black object-cover"
                       />
-                    ) : (
-                      <>
-                        <video
-                          src={media.public_url}
-                          preload="metadata"
-                          muted
-                          playsInline
-                          className="h-full w-full bg-black object-cover"
-                        />
-                        <span className="pointer-events-none absolute inset-0 flex items-center justify-center">
-                          <span className="flex size-12 items-center justify-center rounded-full bg-white/90 text-primary shadow-lg">
-                            <span className="material-symbols-outlined text-[28px]">
-                              play_arrow
-                            </span>
+                      <span className="pointer-events-none absolute inset-0 flex items-center justify-center">
+                        <span className="flex size-12 items-center justify-center rounded-full bg-white/90 text-primary shadow-lg">
+                          <span className="material-symbols-outlined text-[28px]">
+                            play_arrow
                           </span>
                         </span>
-                      </>
-                    )}
+                      </span>
+                    </>
+                  )}
 
-                    <span className="pointer-events-none absolute inset-0 bg-primary/0 transition hover:bg-primary/5" />
-                  </button>
-                ),
-              )}
+                  <span className="pointer-events-none absolute inset-0 bg-primary/0 transition hover:bg-primary/5" />
+                </button>
+              ))}
             </div>
 
             {profile.work_media.length > 1 ? (
@@ -933,9 +1012,9 @@ export function PublicProfessionalProfile({
                   </p>
                 </div>
 
-                {profile.reviews.length > 0 ? (
+                {reviews.length > 0 ? (
                   <div className="space-y-6">
-                    {profile.reviews.map((review) => (
+                    {reviews.map((review) => (
                       <article
                         key={review.id}
                         className="border-b border-outline-variant/30 pb-7"
@@ -982,9 +1061,80 @@ export function PublicProfessionalProfile({
                             <div className="text-sm font-bold">
                               Risposta del professionista
                             </div>
-                            <p className="mt-2 leading-6">
+                            <p className="mt-2 whitespace-pre-wrap leading-6">
                               {review.professional_reply}
                             </p>
+                          </div>
+                        ) : review.professional_replied_at ? (
+                          <div className="mt-5 rounded-2xl bg-primary-fixed/70 p-4 text-sm text-on-primary-fixed-variant sm:p-5">
+                            Hai già risposto a questa recensione.
+                          </div>
+                        ) : viewerContext?.isOwner ? (
+                          <div className="mt-5 rounded-[20px] border border-outline-variant/30 bg-surface-container-low p-4 sm:p-5">
+                            <label
+                              htmlFor={`review-reply-${review.id}`}
+                              className="font-label-md text-sm font-bold text-primary"
+                            >
+                              Rispondi alla recensione
+                            </label>
+
+                            <textarea
+                              id={`review-reply-${review.id}`}
+                              value={replyDrafts[review.id] ?? ""}
+                              onChange={(event) =>
+                                setReplyDrafts((current) => ({
+                                  ...current,
+                                  [review.id]: event.target.value,
+                                }))
+                              }
+                              disabled={Boolean(replySubmitting[review.id])}
+                              maxLength={2000}
+                              placeholder="Rispondi a questa recensione..."
+                              className="mt-3 min-h-24 w-full resize-none rounded-2xl border border-outline-variant bg-surface-container-lowest px-4 py-3 text-on-surface outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/20 disabled:cursor-not-allowed disabled:opacity-60"
+                            />
+
+                            {replyErrors[review.id] ? (
+                              <div
+                                className="mt-3 rounded-2xl bg-error-container p-3 text-sm text-on-error-container"
+                                role="alert"
+                              >
+                                {replyErrors[review.id]}
+                              </div>
+                            ) : null}
+
+                            <div className="mt-3 flex justify-stretch sm:justify-end">
+                              <button
+                                type="button"
+                                onClick={() => void replyToReview(review.id)}
+                                disabled={
+                                  Boolean(replySubmitting[review.id]) ||
+                                  !(replyDrafts[review.id] ?? "").trim()
+                                }
+                                className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-full bg-[#FF8500] px-6 py-3 font-button text-white shadow-md transition hover:bg-[#FF9A2B] disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto"
+                              >
+                                {replySubmitting[review.id] ? (
+                                  <>
+                                    <span
+                                      className="material-symbols-outlined animate-spin text-[20px]"
+                                      aria-hidden
+                                    >
+                                      progress_activity
+                                    </span>
+                                    Invio in corso…
+                                  </>
+                                ) : (
+                                  <>
+                                    <span
+                                      className="material-symbols-outlined text-[20px]"
+                                      aria-hidden
+                                    >
+                                      reply
+                                    </span>
+                                    Rispondi
+                                  </>
+                                )}
+                              </button>
+                            </div>
                           </div>
                         ) : null}
                       </article>

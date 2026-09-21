@@ -27,24 +27,24 @@ const api = fs.readFileSync(
 describe("unified owner profile editing", () => {
   it("shows the edit UI only through owner context", () => {
     expect(profileComponent).toContain("viewerContext?.isOwner");
-
     expect(profileComponent).toContain('aria-label="Modifica il tuo profilo"');
-
     expect(profileComponent).toContain("<OwnerProfileEditModal");
   });
 
   it("uses the existing professional PATCH API", () => {
     expect(editModal).toContain("`/api/professionals/${profile.id}`");
-
     expect(editModal).toContain('method: "PATCH"');
-
     expect(api).toContain("export async function PATCH");
   });
 
-  it("preserves existing editable data", () => {
+  it("preserves all editable owner fields", () => {
     for (const field of [
       "first_name",
       "last_name",
+      "headline",
+      "specializations",
+      "category_id",
+      "subcategory_id",
       "bio",
       "province_code",
       "phone",
@@ -64,27 +64,49 @@ describe("unified owner profile editing", () => {
     }
   });
 
+  it("loads taxonomy with visible feedback", () => {
+    expect(editModal).toContain('fetch("/api/categories"');
+    expect(editModal).toContain("taxonomyCategories.map");
+    expect(editModal).toContain("availableSubcategories");
+    expect(editModal).toContain("Caricamento categorie…");
+    expect(editModal).toContain("taxonomyError");
+  });
+
+  it("saves professional fields only when changed", () => {
+    expect(editModal).toContain("draft.headline !== initialDraft.headline");
+    expect(editModal).toContain("draft.specializations !==");
+    expect(editModal).toContain("payload.headline");
+    expect(editModal).toContain("payload.specializations");
+    expect(editModal).toContain("payload.category_id");
+    expect(editModal).toContain("payload.subcategory_id");
+  });
+
   it("gets private contacts from owner context", () => {
     expect(editModal).toContain("contacts?.phone");
-
     expect(editModal).toContain("contacts?.email");
-
     expect(editModal).toContain("contacts?.websiteUrl");
   });
 
-  it("normalizes multiline fields", () => {
-    expect(editModal).toContain("lines(draft.services_offered)");
-
-    expect(editModal).toContain("draft.operational_provinces");
-
-    expect(editModal).toContain("lines(draft.education)");
-
-    expect(editModal).toContain("draft.work_experiences");
-
-    expect(editModal).toContain("draft.certifications");
+  it("normalizes multiline curriculum fields", () => {
+    expect(editModal).toContain("function jsonFromLines(value: string)");
+    expect(editModal).toContain(
+      "payload.education = jsonFromLines(draft.education)",
+    );
+    expect(editModal).toContain(
+      "payload.work_experiences = jsonFromLines(draft.work_experiences)",
+    );
+    expect(editModal).toContain(
+      "payload.certifications = jsonFromLines(draft.certifications)",
+    );
   });
 
   it("reloads server-derived data after save", () => {
     expect(editModal).toContain("window.location.reload()");
+  });
+
+  it("verifies database updates return the updated rows", () => {
+    expect(api).toContain('.select("id")');
+    expect(api).toContain("Il profilo personale non è stato aggiornato.");
+    expect(api).toContain("Il profilo professionale non è stato aggiornato.");
   });
 });

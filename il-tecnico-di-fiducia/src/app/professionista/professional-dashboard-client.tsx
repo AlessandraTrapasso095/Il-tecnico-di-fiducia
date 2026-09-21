@@ -460,29 +460,29 @@ export default function ProfessionalDashboardClient({
   }
 
   return (
-    <div className="mx-auto max-w-[1040px] px-3 py-5 sm:px-6 sm:py-6 lg:px-8">
+    <div className="mx-auto w-full max-w-[1040px] px-4 py-4 sm:px-6 sm:py-6 lg:px-8">
       <section
-        className={`mb-6 rounded-[28px] border p-5 shadow-[0_4px_20px_rgba(8,43,95,0.08)] sm:p-6 ${subscriptionCopy.className}`}
+        className={`mb-5 rounded-[24px] border p-4 shadow-[0_4px_20px_rgba(8,43,95,0.08)] sm:mb-6 sm:rounded-[28px] sm:p-6 ${subscriptionCopy.className}`}
       >
-        <div className="flex flex-col gap-5 md:flex-row md:items-center md:justify-between">
-          <div className="flex gap-4">
+        <div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
+          <div className="flex min-w-0 items-start gap-3 sm:gap-4">
             <div
-              className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-full ${subscriptionCopy.iconClassName}`}
+              className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full sm:h-12 sm:w-12 ${subscriptionCopy.iconClassName}`}
             >
               <span className="material-symbols-outlined">{subscriptionCopy.icon}</span>
             </div>
             <div>
-              <h1 className="font-headline-sm text-[22px] sm:text-headline-sm">
+              <h1 className="font-headline-sm text-[20px] leading-tight sm:text-[24px]">
                 {subscriptionCopy.title}
               </h1>
-              <p className="mt-1 max-w-2xl font-body-md text-body-md opacity-85">
+              <p className="mt-1 max-w-2xl text-sm leading-6 opacity-85 sm:text-base">
                 {subscriptionCopy.body}
               </p>
             </div>
           </div>
 
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-            <div className="rounded-2xl bg-white/65 px-4 py-3 text-sm">
+          <div className="flex w-full flex-col gap-3 sm:flex-row sm:items-stretch lg:w-auto lg:items-center">
+            <div className="min-w-0 flex-1 rounded-2xl bg-white/65 px-4 py-3 text-sm sm:flex-none">
               <div className="font-label-md text-[11px] uppercase tracking-[0.14em] opacity-70">
                 {subscriptionCopy.dateLabel}
               </div>
@@ -492,7 +492,7 @@ export default function ProfessionalDashboardClient({
             </div>
             <Link
               href={SUBSCRIPTION_SETTINGS_PATH}
-              className="min-h-11 rounded-full bg-[#FF8500] px-6 py-3 text-center font-button text-button text-white shadow-md transition hover:bg-[#FF9A2B]"
+              className="inline-flex min-h-11 w-full shrink-0 items-center justify-center whitespace-nowrap rounded-full bg-[#FF8500] px-6 py-3 text-center font-button text-button text-white shadow-md transition hover:bg-[#FF9A2B] sm:w-auto"
             >
               {subscriptionCopy.buttonLabel}
             </Link>
@@ -538,9 +538,9 @@ export default function ProfessionalDashboardClient({
       <section className="space-y-5">
         <form
           onSubmit={createPost}
-          className="rounded-[28px] border border-outline-variant/30 bg-surface-container-lowest p-5 shadow-[0_4px_20px_rgba(8,43,95,0.08)] sm:p-6"
+          className="rounded-[24px] border border-outline-variant/30 bg-surface-container-lowest p-4 shadow-[0_4px_20px_rgba(8,43,95,0.08)] sm:rounded-[28px] sm:p-6"
         >
-          <div className="flex gap-3 sm:gap-4">
+          <div className="flex min-w-0 items-start gap-3 sm:gap-4">
             <Avatar person={composerProfile} size="sm" />
             <div className="min-w-0 flex-1">
               <label className="sr-only" htmlFor="post-body">
@@ -572,12 +572,12 @@ export default function ProfessionalDashboardClient({
               {[...photoFiles, ...videoFiles].map((file) => file.name).join(", ")}
             </div>
           ) : null}
-          <div className="mt-4 flex flex-col gap-4 border-t border-outline-variant/30 pt-4 sm:flex-row sm:items-center sm:justify-between">
-            <div>
-              <div className="flex flex-wrap items-center gap-2">
+          <div className="mt-4 flex flex-col gap-4 border-t border-outline-variant/30 pt-4 md:flex-row md:items-end md:justify-between">
+            <div className="min-w-0 flex-1">
+                <div className="flex flex-wrap items-center gap-1 sm:gap-2">
               <label
                 htmlFor="post-photos"
-                className="flex cursor-pointer items-center gap-2 rounded-full px-4 py-2 text-sm font-bold text-secondary transition hover:bg-surface-container-low"
+                className="flex cursor-pointer items-center gap-2 whitespace-nowrap rounded-full px-3 py-2 text-sm font-bold text-secondary transition hover:bg-surface-container-low sm:px-4"
               >
                 <span className="material-symbols-outlined text-[20px]">image</span>
                 Foto
@@ -596,7 +596,7 @@ export default function ProfessionalDashboardClient({
               />
               <label
                 htmlFor="post-videos"
-                className="flex cursor-pointer items-center gap-2 rounded-full px-4 py-2 text-sm font-bold text-secondary transition hover:bg-surface-container-low"
+                className="flex cursor-pointer items-center gap-2 whitespace-nowrap rounded-full px-3 py-2 text-sm font-bold text-secondary transition hover:bg-surface-container-low sm:px-4"
               >
                 <span className="material-symbols-outlined text-[20px]">videocam</span>
                 Video
@@ -614,18 +614,18 @@ export default function ProfessionalDashboardClient({
                 }}
               />
               </div>
-              <p className="mt-1 px-2 text-xs text-on-surface-variant">
+              <p className="mt-2 px-1 text-xs leading-5 text-on-surface-variant sm:px-2">
                 Massimo 4 contenuti per post. Le foto vengono ottimizzate automaticamente. Video massimo 4 MB, uno per post.
               </p>
             </div>
-            <div className="flex items-center justify-between gap-3 sm:justify-end">
-              <span className="text-sm text-on-surface-variant">
-                {postBody.trim().length}/1200
-              </span>
+            <div className="flex w-full items-center justify-between gap-3 md:w-auto md:shrink-0 md:justify-end">
+              <span className="shrink-0 whitespace-nowrap text-sm tabular-nums text-on-surface-variant">
+                  {postBody.trim().length}/1200
+                </span>
               <button
                 type="submit"
                 disabled={posting || optimizingMedia}
-              className="min-h-11 rounded-full bg-[#FF8500] px-7 py-3 font-button text-button text-white shadow-md transition hover:bg-[#FF9A2B] disabled:opacity-60"
+              className="min-h-11 shrink-0 whitespace-nowrap rounded-full bg-[#FF8500] px-7 py-3 font-button text-button text-white shadow-md transition hover:bg-[#FF9A2B] disabled:opacity-60"
               >
                 {optimizingMedia ? "Ottimizzazione…" : posting ? "Pubblicazione…" : "Pubblica"}
               </button>
@@ -639,7 +639,7 @@ export default function ProfessionalDashboardClient({
               <span className="font-label-md text-[12px] uppercase tracking-[0.16em] text-on-tertiary-container">
                 Feed
               </span>
-              <h2 className="font-headline-md text-headline-md text-primary">
+              <h2 className="font-headline-md text-[28px] leading-tight text-primary sm:text-headline-md">
                 Post dei professionisti
               </h2>
             </div>
@@ -649,7 +649,7 @@ export default function ProfessionalDashboardClient({
           </div>
 
           {posts.length === 0 ? (
-            <div className="rounded-[24px] border-2 border-dashed border-outline-variant p-8 text-center">
+            <div className="rounded-[24px] border-2 border-dashed border-outline-variant p-6 text-center sm:p-8">
               <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-primary-fixed text-primary">
                 <span className="material-symbols-outlined">article</span>
               </div>

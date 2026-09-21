@@ -65,4 +65,30 @@ describe("technical profession taxonomy contract", () => {
       expect(migration).toContain(`'${slug}'`);
     }
   });
+
+  it("keeps canonical engineering and IT taxonomy", () => {
+    for (const label of [
+      "Ingegneria civile e strutturale",
+      "Ingegneria edile",
+      "Ingegneria geotecnica",
+      "Pratiche sismiche",
+      "Full Stack Web Developer",
+      "Front End Developer",
+      "Back End Developer",
+      "Cybersecurity e sicurezza informatica",
+      "Cloud e DevOps",
+      "Networking",
+      "Consulenza IT",
+      "Domotica e IoT",
+      "Computer Vision",
+      "Prompt Engineering",
+    ]) {
+      expect(source).toContain(`"${label}"`);
+    }
+
+    expect(source).not.toContain(
+      `"Cybersecurity",
+      "Sicurezza informatica"`,
+    );
+  });
 });

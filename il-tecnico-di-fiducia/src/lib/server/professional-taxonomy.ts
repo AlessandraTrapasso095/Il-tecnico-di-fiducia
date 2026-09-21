@@ -2,6 +2,22 @@ import "server-only";
 
 import type { SupabaseClient } from "@supabase/supabase-js";
 
+const CTU_CTP_CATEGORY_SLUGS = new Set([
+  "ingegneri",
+  "architetti",
+  "geometri",
+  "periti-industriali",
+  "geologi",
+  "agronomi",
+  "informatici",
+]);
+
+export function professionalCategoryAllowsCtuCtp(
+  slug: string | null | undefined,
+) {
+  return Boolean(slug && CTU_CTP_CATEGORY_SLUGS.has(slug));
+}
+
 export type ProfessionalCategoryId = string | number;
 
 export type ProfessionalCategorySelection = {

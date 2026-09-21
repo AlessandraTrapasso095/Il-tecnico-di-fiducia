@@ -40,12 +40,13 @@ type AuthenticatedPresenceContextValue = {
   setActiveConversationId: (conversationId: string | null) => void;
 };
 
-const AuthenticatedPresenceContext = createContext<AuthenticatedPresenceContextValue>({
-  onlineUserIds: EMPTY_ONLINE_USER_IDS,
-  presenceReady: false,
-  isUserOnline: () => false,
-  setActiveConversationId: () => {},
-});
+const AuthenticatedPresenceContext =
+  createContext<AuthenticatedPresenceContextValue>({
+    onlineUserIds: EMPTY_ONLINE_USER_IDS,
+    presenceReady: false,
+    isUserOnline: () => false,
+    setActiveConversationId: () => {},
+  });
 
 export function useAuthenticatedPresence() {
   return useContext(AuthenticatedPresenceContext);
@@ -62,7 +63,9 @@ export function AuthenticatedPresence({
   const activeConversationRef = useRef<string | null>(activeConversationId);
   const heartbeatRef = useRef<number | null>(null);
   const subscribedRef = useRef(false);
-  const [onlineUserIds, setOnlineUserIds] = useState<Set<string>>(() => new Set());
+  const [onlineUserIds, setOnlineUserIds] = useState<Set<string>>(
+    () => new Set(),
+  );
   const [presenceReady, setPresenceReady] = useState(false);
 
   const payload = useCallback((): PresencePayload => {
@@ -101,7 +104,10 @@ export function AuthenticatedPresence({
 
   const syncPresenceState = useCallback((channel: RealtimeChannel) => {
     try {
-      const state = channel.presenceState() as Record<string, PresencePayload[]>;
+      const state = channel.presenceState() as Record<
+        string,
+        PresencePayload[]
+      >;
       const nextOnlineUserIds = new Set<string>();
 
       Object.entries(state).forEach(([key, presences]) => {
@@ -138,63 +144,86 @@ export function AuthenticatedPresence({
     if (!userId || !role) return;
 
     let channel: RealtimeChannel | null = null;
+    let disposed = false;
 
-    try {
-      logRealtimeDev("channel.created", {
-        scope: "presence",
-        channelName: GLOBAL_PRESENCE_CHANNEL,
-      });
-      channel = supabase.channel(GLOBAL_PRESENCE_CHANNEL, {
-        config: { presence: { key: userId } },
-      });
-      channelRef.current = channel;
+    async function initializePresence() {
+      try {
+        const staleChannels = supabase
+          .getChannels()
+          .filter(
+            (candidate) =>
+              candidate.topic === `realtime:${GLOBAL_PRESENCE_CHANNEL}`,
+          );
 
-      channel
-        .on("presence", { event: "sync" }, () => {
-          logRealtimeDev("presence.event", {
+        for (const staleChannel of staleChannels) {
+          logRealtimeDev("channel.removed", {
             scope: "presence",
-            eventType: "sync",
             channelName: GLOBAL_PRESENCE_CHANNEL,
+            reason: "stale-before-initialize",
           });
-          if (channel) syncPresenceState(channel);
-        })
-        .on("presence", { event: "join" }, () => {
-          logRealtimeDev("presence.event", {
-            scope: "presence",
-            eventType: "join",
-            channelName: GLOBAL_PRESENCE_CHANNEL,
-          });
-          if (channel) syncPresenceState(channel);
-        })
-        .on("presence", { event: "leave" }, () => {
-          logRealtimeDev("presence.event", {
-            scope: "presence",
-            eventType: "leave",
-            channelName: GLOBAL_PRESENCE_CHANNEL,
-          });
-          if (channel) syncPresenceState(channel);
-        })
-        .subscribe((status) => {
-          logRealtimeDev("subscription.presence", {
-            scope: "presence",
-            status,
-            channelName: GLOBAL_PRESENCE_CHANNEL,
-          });
-          if (status === "SUBSCRIBED") {
-            subscribedRef.current = true;
-            trackPresence();
-            touchActivity("subscribed");
-            if (channel) syncPresenceState(channel);
-          } else if (status === "CHANNEL_ERROR" || status === "TIMED_OUT" || status === "CLOSED") {
-            subscribedRef.current = false;
-            setPresenceReady(false);
-          }
+
+          await supabase.removeChannel(staleChannel);
+        }
+
+        if (disposed) return;
+
+        logRealtimeDev("channel.created", {
+          scope: "presence",
+          channelName: GLOBAL_PRESENCE_CHANNEL,
         });
-    } catch (error) {
-      console.error("[presence] Initialization failed", error);
-      subscribedRef.current = false;
-      return;
+
+        channel = supabase.channel(GLOBAL_PRESENCE_CHANNEL, {
+          config: { presence: { key: userId } },
+        });
+
+        channelRef.current = channel;
+
+        channel
+          .on("presence", { event: "sync" }, () => {
+            if (channel) syncPresenceState(channel);
+          })
+          .on("presence", { event: "join" }, () => {
+            if (channel) syncPresenceState(channel);
+          })
+          .on("presence", { event: "leave" }, () => {
+            if (channel) syncPresenceState(channel);
+          })
+          .subscribe((status) => {
+            if (disposed) return;
+
+            logRealtimeDev("subscription.presence", {
+              scope: "presence",
+              status,
+              channelName: GLOBAL_PRESENCE_CHANNEL,
+            });
+
+            if (status === "SUBSCRIBED") {
+              subscribedRef.current = true;
+              trackPresence();
+              touchActivity("subscribed");
+
+              if (channel) {
+                syncPresenceState(channel);
+              }
+            } else if (
+              status === "CHANNEL_ERROR" ||
+              status === "TIMED_OUT" ||
+              status === "CLOSED"
+            ) {
+              subscribedRef.current = false;
+              setPresenceReady(false);
+            }
+          });
+      } catch (error) {
+        if (disposed) return;
+
+        console.error("[presence] Initialization failed", error);
+        subscribedRef.current = false;
+        setPresenceReady(false);
+      }
     }
+
+    void initializePresence();
 
     heartbeatRef.current = window.setInterval(() => {
       trackPresence();
@@ -208,7 +237,9 @@ export function AuthenticatedPresence({
     }
 
     function handlePageExit() {
-      if (channel) void channel.untrack();
+      if (channel) {
+        void channel.untrack();
+      }
     }
 
     window.addEventListener("pagehide", handlePageExit);
@@ -216,23 +247,26 @@ export function AuthenticatedPresence({
     document.addEventListener("visibilitychange", handleVisibleAgain);
 
     return () => {
+      disposed = true;
+
       if (heartbeatRef.current) {
         window.clearInterval(heartbeatRef.current);
         heartbeatRef.current = null;
       }
+
       window.removeEventListener("pagehide", handlePageExit);
       window.removeEventListener("beforeunload", handlePageExit);
       document.removeEventListener("visibilitychange", handleVisibleAgain);
+
       if (!channel) return;
+
       void channel.untrack();
-      logRealtimeDev("channel.removed", {
-        scope: "presence",
-        channelName: GLOBAL_PRESENCE_CHANNEL,
-      });
-      supabase.removeChannel(channel);
+      void supabase.removeChannel(channel);
+
       if (channelRef.current === channel) {
         channelRef.current = null;
       }
+
       subscribedRef.current = false;
       setPresenceReady(false);
     };
@@ -251,7 +285,9 @@ export function AuthenticatedPresence({
 
   return (
     <AuthenticatedPresenceContext.Provider value={value}>
-      <InactivityTimeoutProvider role={role as "customer" | "professional" | "admin"}>
+      <InactivityTimeoutProvider
+        role={role as "customer" | "professional" | "admin"}
+      >
         {children}
       </InactivityTimeoutProvider>
     </AuthenticatedPresenceContext.Provider>

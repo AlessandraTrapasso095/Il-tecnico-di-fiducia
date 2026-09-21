@@ -9,7 +9,6 @@ export const dynamic = "force-dynamic";
 export default async function LoginPage({ searchParams }: { searchParams: SearchParams }) {
   const sp = await searchParams;
   const roleRaw = typeof sp.role === "string" ? sp.role : null;
-  const nextPath = typeof sp.next === "string" ? sp.next : null;
   const reason = typeof sp.reason === "string" ? sp.reason : null;
   const initialRole = roleRaw === "professional" ? "professional" : "customer";
 
@@ -17,7 +16,6 @@ export default async function LoginPage({ searchParams }: { searchParams: Search
     <Suspense>
       <LoginClient
         initialRole={initialRole}
-        nextPath={nextPath}
         infoMessage={reason === "inactive" ? "Sessione terminata per inattività." : null}
       />
     </Suspense>
