@@ -99,17 +99,20 @@ export default function AccountSettingsClient({
     setError(null);
     setMessage(null);
     try {
-      const response = await fetchJson<SettingsResponse>("/api/account/settings", {
-        method: "PATCH",
-        body: JSON.stringify({
-          first_name: cleanFirstName,
-          last_name: cleanLastName,
-          email: cleanEmail,
-          province_code: provinceCode || null,
-          phone: cleanPhone || null,
-          notifications: notificationSettings,
-        }),
-      });
+      const response = await fetchJson<SettingsResponse>(
+        "/api/account/settings",
+        {
+          method: "PATCH",
+          body: JSON.stringify({
+            first_name: cleanFirstName,
+            last_name: cleanLastName,
+            email: cleanEmail,
+            province_code: provinceCode || null,
+            phone: cleanPhone || null,
+            notifications: notificationSettings,
+          }),
+        },
+      );
 
       setFirstName(cleanFirstName);
       setLastName(cleanLastName);
@@ -121,7 +124,11 @@ export default function AccountSettingsClient({
           : "Impostazioni salvate.",
       );
     } catch (saveError) {
-      setError(saveError instanceof Error ? saveError.message : "Salvataggio non riuscito.");
+      setError(
+        saveError instanceof Error
+          ? saveError.message
+          : "Salvataggio non riuscito.",
+      );
     } finally {
       setSaving(false);
     }
@@ -135,7 +142,9 @@ export default function AccountSettingsClient({
 
     try {
       if (newPassword.length < PASSWORD_MIN_LENGTH) {
-        throw new Error(`La password deve contenere almeno ${PASSWORD_MIN_LENGTH} caratteri.`);
+        throw new Error(
+          `La password deve contenere almeno ${PASSWORD_MIN_LENGTH} caratteri.`,
+        );
       }
       if (newPassword !== confirmPassword) {
         throw new Error("Le password non coincidono.");
@@ -150,7 +159,9 @@ export default function AccountSettingsClient({
       setMessage("Password aggiornata correttamente.");
     } catch (passwordError) {
       setError(
-        passwordError instanceof Error ? passwordError.message : "Cambio password non riuscito.",
+        passwordError instanceof Error
+          ? passwordError.message
+          : "Cambio password non riuscito.",
       );
     } finally {
       setPasswordSaving(false);
@@ -169,14 +180,19 @@ export default function AccountSettingsClient({
       router.replace("/");
     } catch (accountError) {
       setDeleteError(
-        accountError instanceof Error ? accountError.message : "Eliminazione non riuscita.",
+        accountError instanceof Error
+          ? accountError.message
+          : "Eliminazione non riuscita.",
       );
       setDeleting(false);
     }
   }
 
   function toggleNotification(key: keyof NotificationPreferences) {
-    setNotificationSettings((current) => ({ ...current, [key]: !current[key] }));
+    setNotificationSettings((current) => ({
+      ...current,
+      [key]: !current[key],
+    }));
   }
 
   return (
@@ -185,24 +201,50 @@ export default function AccountSettingsClient({
         <p className="font-label-md text-label-md uppercase tracking-[0.18em] text-on-tertiary-container">
           {areaLabel}
         </p>
-        <h1 className="mt-2 font-headline-md text-headline-md text-primary">{title}</h1>
+        <h1 className="mt-2 font-headline-md text-headline-md text-primary">
+          {title}
+        </h1>
         <p className="mt-2 max-w-2xl text-on-surface-variant">{description}</p>
       </div>
 
       <form className="space-y-6" onSubmit={saveSettings}>
         <section className="rounded-[28px] border border-outline-variant/30 bg-surface-container-lowest p-5 shadow-[0_4px_20px_rgba(8,43,95,0.08)] sm:p-6">
           <div className="mb-5">
-            <h2 className="font-headline-sm text-[24px] text-primary">Dati account</h2>
+            <h2 className="font-headline-sm text-[24px] text-primary">
+              Dati account
+            </h2>
             <p className="text-on-surface-variant">
-              Email e password seguono i flussi sicuri Supabase con conferma via email.
+              Email e password seguono i flussi sicuri Supabase con conferma via
+              email.
             </p>
           </div>
 
           <div className="grid gap-4 sm:grid-cols-2">
-            <Field label="Nome" value={firstName} onChange={setFirstName} required />
-            <Field label="Cognome" value={lastName} onChange={setLastName} required />
-            <Field label="Email" value={email} onChange={setEmail} type="email" required />
-            <Field label="Telefono" value={phone} onChange={setPhone} type="tel" />
+            <Field
+              label="Nome"
+              value={firstName}
+              onChange={setFirstName}
+              required
+            />
+            <Field
+              label="Cognome"
+              value={lastName}
+              onChange={setLastName}
+              required
+            />
+            <Field
+              label="Email"
+              value={email}
+              onChange={setEmail}
+              type="email"
+              required
+            />
+            <Field
+              label="Telefono"
+              value={phone}
+              onChange={setPhone}
+              type="tel"
+            />
             <label className="block font-label-md text-primary sm:col-span-2">
               Provincia
               <select
@@ -212,7 +254,9 @@ export default function AccountSettingsClient({
                 required={requireProvince}
               >
                 <option value="">
-                  {requireProvince ? "Seleziona provincia" : "Provincia non indicata"}
+                  {requireProvince
+                    ? "Seleziona provincia"
+                    : "Provincia non indicata"}
                 </option>
                 {ITALIAN_PROVINCES_BY_NAME.map((province) => (
                   <option key={province.code} value={province.code}>
@@ -225,7 +269,9 @@ export default function AccountSettingsClient({
         </section>
 
         <section className="rounded-[28px] border border-outline-variant/30 bg-surface-container-lowest p-5 shadow-[0_4px_20px_rgba(8,43,95,0.08)] sm:p-6">
-          <h2 className="font-headline-sm text-[24px] text-primary">Impostazioni notifiche</h2>
+          <h2 className="font-headline-sm text-[24px] text-primary">
+            Impostazioni notifiche
+          </h2>
           <div className="mt-5 grid gap-3 sm:grid-cols-2">
             <ToggleRow
               title="Nuove richieste"
@@ -269,10 +315,22 @@ export default function AccountSettingsClient({
         <div className="flex justify-end">
           <button
             type="submit"
-            className="rounded-full bg-[#FF8500] px-8 py-3 font-button text-white shadow-lg shadow-orange-500/20 transition hover:bg-[#FF9A2B] disabled:opacity-60"
+            className="inline-flex items-center justify-center gap-2 rounded-full bg-[#FF8500] px-8 py-3 font-button text-white shadow-lg shadow-orange-500/20 transition hover:bg-[#FF9A2B] disabled:cursor-wait disabled:opacity-60"
             disabled={saving}
           >
-            {saving ? "Salvataggio…" : "Salva impostazioni"}
+            {saving ? (
+              <>
+                <span
+                  className="material-symbols-outlined animate-spin text-[19px]"
+                  aria-hidden
+                >
+                  progress_activity
+                </span>
+                Caricamento…
+              </>
+            ) : (
+              "Salva impostazioni"
+            )}
           </button>
         </div>
       </form>
@@ -304,20 +362,35 @@ export default function AccountSettingsClient({
         <div className="mt-5 flex justify-end">
           <button
             type="submit"
-            className="rounded-full border-2 border-primary px-6 py-3 font-button text-primary transition hover:bg-primary hover:text-white disabled:opacity-60"
+            className="inline-flex items-center justify-center gap-2 rounded-full border-2 border-primary px-6 py-3 font-button text-primary transition hover:bg-primary hover:text-white disabled:cursor-wait disabled:opacity-60"
             disabled={passwordSaving}
           >
-            {passwordSaving ? "Aggiornamento…" : "Aggiorna password"}
+            {passwordSaving ? (
+              <>
+                <span
+                  className="material-symbols-outlined animate-spin text-[19px]"
+                  aria-hidden
+                >
+                  progress_activity
+                </span>
+                Caricamento…
+              </>
+            ) : (
+              "Aggiorna password"
+            )}
           </button>
         </div>
       </form>
 
       <section className="mt-8 rounded-[28px] border border-error/20 bg-error-container/40 p-5 sm:p-6">
-        <h2 className="font-headline-sm text-[24px] text-error">Eliminazione account</h2>
+        <h2 className="font-headline-sm text-[24px] text-error">
+          Eliminazione account
+        </h2>
         <p className="mt-2 max-w-2xl text-on-error-container">
-          Questa azione è definitiva. I dati collegati vengono rimossi secondo i vincoli reali
-          del database; eventuali conversazioni, ticket o log necessari alla sicurezza possono
-          restare anonimizzati o conservati se richiesto dalle regole tecniche.
+          Questa azione è definitiva. I dati collegati vengono rimossi secondo i
+          vincoli reali del database; eventuali conversazioni, ticket o log
+          necessari alla sicurezza possono restare anonimizzati o conservati se
+          richiesto dalle regole tecniche.
         </p>
         <button
           type="button"
@@ -410,7 +483,9 @@ function ToggleRow({
     >
       <span>
         <span className="block font-label-md text-primary">{title}</span>
-        <span className="mt-1 block text-sm text-on-surface-variant">{description}</span>
+        <span className="mt-1 block text-sm text-on-surface-variant">
+          {description}
+        </span>
       </span>
       <span
         className={[

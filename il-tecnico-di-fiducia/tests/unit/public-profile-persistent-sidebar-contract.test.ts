@@ -40,7 +40,7 @@ describe("public professional profile persistent sidebar contract", () => {
   it("keeps reviews, specializations and services in the shared sidebar", () => {
     expect(component).toContain("Specializzazioni");
     expect(component).toContain("Servizi offerti");
-    expect(component).toContain('onClick={() => setTab("reviews")}');
+    expect(component).toContain('onClick={() => selectProfileTab("reviews")}');
   });
 
   it("keeps the divider on tablet and desktop", () => {

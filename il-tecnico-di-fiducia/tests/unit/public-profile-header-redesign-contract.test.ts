@@ -12,10 +12,9 @@ const source = fs.readFileSync(
 );
 
 describe("public professional profile header redesign", () => {
-  it("keeps the back link outside the identity block", () => {
-    expect(source).toContain('href="/cerca"');
-
-    expect(source).toContain("Torna alla ricerca");
+  it("does not restore the obsolete back-to-search control", () => {
+    expect(source).not.toContain('href="/cerca"');
+    expect(source).not.toContain("Torna alla ricerca");
   });
 
   it("uses the large professional avatar", () => {

@@ -5,8 +5,11 @@ import { isNonEmptyString } from "@/lib/api/validation";
 import { createServiceClient } from "@/lib/supabase/service";
 
 type UpdatePayload = {
+  title: string;
   body: string;
 };
+
+const MAX_POST_TITLE_LENGTH = 120;
 
 export async function PATCH(
   request: Request,
@@ -33,11 +36,29 @@ export async function PATCH(
     return NextResponse.json({ error: "body is required" }, { status: 400 });
   }
 
+  if (!isNonEmptyString(payload.title)) {
+    return NextResponse.json({ error: "title is required" }, { status: 400 });
+  }
+
+  const title = payload.title.trim();
+
+  if (title.length > MAX_POST_TITLE_LENGTH) {
+    return NextResponse.json(
+      { error: `title must be at most ${MAX_POST_TITLE_LENGTH} characters` },
+      { status: 400 },
+    );
+  }
+
+  const updates = {
+    title,
+    body: payload.body.trim(),
+  };
+
   const { data, error } = await supabase
     .from("posts")
-    .update({ body: payload.body.trim() })
+    .update(updates)
     .eq("id", id)
-    .select("id, author_id, body, created_at, updated_at")
+    .select("id, author_id, title, body, created_at, updated_at")
     .single();
 
   if (error) {
@@ -67,7 +88,10 @@ export async function DELETE(
     .eq("post_id", id);
 
   if (attachmentError) {
-    return NextResponse.json({ error: attachmentError.message }, { status: 400 });
+    return NextResponse.json(
+      { error: attachmentError.message },
+      { status: 400 },
+    );
   }
 
   const { error } = await supabase.from("posts").delete().eq("id", id);
@@ -88,7 +112,9 @@ export async function DELETE(
 
     if (storageError) {
       return NextResponse.json(
-        { error: `Post deleted, but storage cleanup failed: ${storageError.message}` },
+        {
+          error: `Post deleted, but storage cleanup failed: ${storageError.message}`,
+        },
         { status: 500 },
       );
     }

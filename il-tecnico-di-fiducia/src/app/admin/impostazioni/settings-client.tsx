@@ -37,6 +37,9 @@ export default function AdminSettingsClient({
   const [notificationPrefs, setNotificationPrefs] =
     useState<NotificationPreferences>(preferences);
   const [loading, setLoading] = useState(false);
+  const [loadingAction, setLoadingAction] = useState<
+    "profile" | "notifications" | null
+  >(null);
   const [passwordLoading, setPasswordLoading] = useState(false);
   const [deleteLoading, setDeleteLoading] = useState(false);
   const [deleteModalOpen, setDeleteModalOpen] = useState(false);
@@ -48,6 +51,7 @@ export default function AdminSettingsClient({
   async function saveProfile(event: React.FormEvent) {
     event.preventDefault();
     setLoading(true);
+    setLoadingAction("profile");
     setMessage(null);
     setError(null);
     try {
@@ -69,14 +73,18 @@ export default function AdminSettingsClient({
           : "Dati admin salvati.",
       );
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Salvataggio non riuscito.");
+      setError(
+        err instanceof Error ? err.message : "Salvataggio non riuscito.",
+      );
     } finally {
       setLoading(false);
+      setLoadingAction(null);
     }
   }
 
   async function saveNotifications() {
     setLoading(true);
+    setLoadingAction("notifications");
     setMessage(null);
     setError(null);
     try {
@@ -86,9 +94,14 @@ export default function AdminSettingsClient({
       });
       setMessage("Preferenze notifiche salvate.");
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Salvataggio notifiche non riuscito.");
+      setError(
+        err instanceof Error
+          ? err.message
+          : "Salvataggio notifiche non riuscito.",
+      );
     } finally {
       setLoading(false);
+      setLoadingAction(null);
     }
   }
 
@@ -112,7 +125,9 @@ export default function AdminSettingsClient({
       setConfirmPassword("");
       setMessage("Password aggiornata correttamente.");
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Cambio password non riuscito.");
+      setError(
+        err instanceof Error ? err.message : "Cambio password non riuscito.",
+      );
     } finally {
       setPasswordLoading(false);
     }
@@ -131,7 +146,11 @@ export default function AdminSettingsClient({
       router.push("/");
       router.refresh();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Eliminazione account non riuscita.");
+      setError(
+        err instanceof Error
+          ? err.message
+          : "Eliminazione account non riuscita.",
+      );
     } finally {
       setDeleteLoading(false);
     }
@@ -140,28 +159,67 @@ export default function AdminSettingsClient({
   return (
     <div className="mx-auto max-w-4xl space-y-5">
       {message ? (
-        <div className="rounded-2xl bg-emerald-50 p-4 text-emerald-700">{message}</div>
+        <div className="rounded-2xl bg-emerald-50 p-4 text-emerald-700">
+          {message}
+        </div>
       ) : null}
       {error ? (
-        <div className="rounded-2xl bg-error-container p-4 text-on-error-container">{error}</div>
+        <div className="rounded-2xl bg-error-container p-4 text-on-error-container">
+          {error}
+        </div>
       ) : null}
 
       <section className="rounded-[24px] border border-outline-variant/30 bg-surface-container-lowest p-5 shadow-[0_4px_20px_rgba(8,43,95,0.08)]">
-        <h2 className="font-headline-sm text-[26px] text-primary">Dati profilo admin</h2>
+        <h2 className="font-headline-sm text-[26px] text-primary">
+          Dati profilo admin
+        </h2>
         <form className="mt-5 space-y-4" onSubmit={saveProfile}>
           <div className="grid gap-4 sm:grid-cols-2">
-            <TextField label="Nome" value={firstName} onChange={setFirstName} required />
-            <TextField label="Cognome" value={lastName} onChange={setLastName} required />
-            <TextField label="Telefono" value={phone} onChange={setPhone} type="tel" />
+            <TextField
+              label="Nome"
+              value={firstName}
+              onChange={setFirstName}
+              required
+            />
+            <TextField
+              label="Cognome"
+              value={lastName}
+              onChange={setLastName}
+              required
+            />
+            <TextField
+              label="Telefono"
+              value={phone}
+              onChange={setPhone}
+              type="tel"
+            />
           </div>
-          <TextField label="Email" value={email} onChange={setEmail} type="email" required />
+          <TextField
+            label="Email"
+            value={email}
+            onChange={setEmail}
+            type="email"
+            required
+          />
           <div className="flex flex-wrap gap-3">
             <button
               type="submit"
-              className="rounded-full bg-primary px-5 py-3 font-button text-white transition hover:bg-primary-container disabled:opacity-60"
+              className="inline-flex items-center justify-center gap-2 rounded-full bg-primary px-5 py-3 font-button text-white transition hover:bg-primary-container disabled:cursor-wait disabled:opacity-60"
               disabled={loading}
             >
-              {loading ? "Salvataggio…" : "Salva dati"}
+              {loadingAction === "profile" ? (
+                <>
+                  <span
+                    className="material-symbols-outlined animate-spin text-[19px]"
+                    aria-hidden
+                  >
+                    progress_activity
+                  </span>
+                  Caricamento…
+                </>
+              ) : (
+                "Salva dati"
+              )}
             </button>
           </div>
         </form>
@@ -191,36 +249,59 @@ export default function AdminSettingsClient({
           </div>
           <button
             type="submit"
-            className="rounded-full border border-primary px-5 py-3 font-button text-primary transition hover:bg-primary-fixed disabled:opacity-60"
+            className="inline-flex items-center justify-center gap-2 rounded-full border border-primary px-5 py-3 font-button text-primary transition hover:bg-primary-fixed disabled:cursor-wait disabled:opacity-60"
             disabled={passwordLoading}
           >
-            {passwordLoading ? "Aggiornamento…" : "Aggiorna password"}
+            {passwordLoading ? (
+              <>
+                <span
+                  className="material-symbols-outlined animate-spin text-[19px]"
+                  aria-hidden
+                >
+                  progress_activity
+                </span>
+                Caricamento…
+              </>
+            ) : (
+              "Aggiorna password"
+            )}
           </button>
         </form>
       </section>
 
       <section className="rounded-[24px] border border-outline-variant/30 bg-surface-container-lowest p-5 shadow-[0_4px_20px_rgba(8,43,95,0.08)]">
-        <h2 className="font-headline-sm text-[26px] text-primary">Impostazioni notifiche</h2>
+        <h2 className="font-headline-sm text-[26px] text-primary">
+          Impostazioni notifiche
+        </h2>
         <div className="mt-5 grid gap-3 sm:grid-cols-2">
           <ToggleField
             label="Nuove richieste"
             checked={notificationPrefs.new_requests}
             onChange={(value) =>
-              setNotificationPrefs((current) => ({ ...current, new_requests: value }))
+              setNotificationPrefs((current) => ({
+                ...current,
+                new_requests: value,
+              }))
             }
           />
           <ToggleField
             label="Messaggi"
             checked={notificationPrefs.messages}
             onChange={(value) =>
-              setNotificationPrefs((current) => ({ ...current, messages: value }))
+              setNotificationPrefs((current) => ({
+                ...current,
+                messages: value,
+              }))
             }
           />
           <ToggleField
             label="Recensioni"
             checked={notificationPrefs.reviews}
             onChange={(value) =>
-              setNotificationPrefs((current) => ({ ...current, reviews: value }))
+              setNotificationPrefs((current) => ({
+                ...current,
+                reviews: value,
+              }))
             }
           />
           <ToggleField
@@ -237,15 +318,29 @@ export default function AdminSettingsClient({
           disabled={loading}
           onClick={() => void saveNotifications()}
         >
-          Salva notifiche
+          {loadingAction === "notifications" ? (
+            <>
+              <span
+                className="material-symbols-outlined animate-spin text-[19px]"
+                aria-hidden
+              >
+                progress_activity
+              </span>
+              Caricamento…
+            </>
+          ) : (
+            "Salva notifiche"
+          )}
         </button>
       </section>
 
       <section className="rounded-[24px] border border-error/30 bg-error-container/50 p-5">
-        <h2 className="font-headline-sm text-[26px] text-error">Eliminazione account</h2>
+        <h2 className="font-headline-sm text-[26px] text-error">
+          Eliminazione account
+        </h2>
         <p className="mt-2 text-on-error-container">
-          L’eliminazione è definitiva e rimuove anche l’utente da Supabase Auth. Non è consentita
-          se questo è l’ultimo admin.
+          L’eliminazione è definitiva e rimuove anche l’utente da Supabase Auth.
+          Non è consentita se questo è l’ultimo admin.
         </p>
         <button
           type="button"

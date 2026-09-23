@@ -39,17 +39,4 @@ describe("contact resume flow contract", () => {
       "const contactLoginPath = `/auth/login?next=${encodeURIComponent(contactPath)}`;",
     );
   });
-
-  it("does not modify the authenticated profile client yet", () => {
-    const source = fs.readFileSync(
-      path.join(
-        root,
-        "src/components/professionals/professional-profile-client.tsx",
-      ),
-      "utf8",
-    );
-
-    expect(source).not.toContain("resumeContactAction");
-    expect(source).not.toContain("shouldShowResumeContact");
-  });
 });

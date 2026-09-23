@@ -1,6 +1,12 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+  type FormEvent,
+} from "react";
 
 import { fetchJson } from "@/lib/api/fetch-json";
 
@@ -43,11 +49,21 @@ function formatDate(value: string | null | undefined) {
 }
 
 function statusLabel(discount: DiscountCode) {
-  if (!discount.is_active) return { text: "Disattivato", className: "bg-outline-variant text-on-surface" };
-  if (discount.expires_at && new Date(discount.expires_at).getTime() <= Date.now()) {
+  if (!discount.is_active)
+    return {
+      text: "Disattivato",
+      className: "bg-outline-variant text-on-surface",
+    };
+  if (
+    discount.expires_at &&
+    new Date(discount.expires_at).getTime() <= Date.now()
+  ) {
     return { text: "Scaduto", className: "bg-error-container text-error" };
   }
-  if (discount.starts_at && new Date(discount.starts_at).getTime() > Date.now()) {
+  if (
+    discount.starts_at &&
+    new Date(discount.starts_at).getTime() > Date.now()
+  ) {
     return { text: "Programmato", className: "bg-primary-fixed text-primary" };
   }
   return { text: "Attivo", className: "bg-emerald-100 text-emerald-700" };
@@ -71,6 +87,7 @@ export default function DiscountCodesClient() {
   const [discounts, setDiscounts] = useState<DiscountCode[]>([]);
   const [form, setForm] = useState(initialFormState);
   const [loading, setLoading] = useState(true);
+  const [manualReloading, setManualReloading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
@@ -87,10 +104,14 @@ export default function DiscountCodesClient() {
     setLoading(true);
     setError(null);
     try {
-      const response = await fetchJson<DiscountsResponse>("/api/admin/subscription-discounts");
+      const response = await fetchJson<DiscountsResponse>(
+        "/api/admin/subscription-discounts",
+      );
       setDiscounts(response.discounts ?? []);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Impossibile caricare gli sconti.");
+      setError(
+        err instanceof Error ? err.message : "Impossibile caricare gli sconti.",
+      );
     } finally {
       setLoading(false);
     }
@@ -102,6 +123,17 @@ export default function DiscountCodesClient() {
     }, 0);
     return () => window.clearTimeout(handle);
   }, [loadDiscounts]);
+
+  async function manualReload() {
+    if (manualReloading) return;
+
+    setManualReloading(true);
+    try {
+      await loadDiscounts();
+    } finally {
+      setManualReloading(false);
+    }
+  }
 
   async function createDiscount(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -121,7 +153,9 @@ export default function DiscountCodesClient() {
             starts_at: form.startsAt || null,
             expires_at: form.expiresAt || null,
             applies_to_all: form.appliesToAll,
-            professional_email: form.appliesToAll ? null : form.professionalEmail,
+            professional_email: form.appliesToAll
+              ? null
+              : form.professionalEmail,
             is_active: form.isActive,
           }),
         },
@@ -132,7 +166,9 @@ export default function DiscountCodesClient() {
       setForm(initialFormState());
       await loadDiscounts();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Creazione codice non riuscita.");
+      setError(
+        err instanceof Error ? err.message : "Creazione codice non riuscita.",
+      );
     } finally {
       setSubmitting(false);
     }
@@ -147,10 +183,16 @@ export default function DiscountCodesClient() {
         method: "PATCH",
         body: JSON.stringify({ is_active: !discount.is_active }),
       });
-      setMessage(discount.is_active ? "Codice disattivato." : "Codice riattivato.");
+      setMessage(
+        discount.is_active ? "Codice disattivato." : "Codice riattivato.",
+      );
       await loadDiscounts();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Aggiornamento codice non riuscito.");
+      setError(
+        err instanceof Error
+          ? err.message
+          : "Aggiornamento codice non riuscito.",
+      );
     } finally {
       setBusyId(null);
     }
@@ -170,7 +212,8 @@ export default function DiscountCodesClient() {
             Crea sconto Stripe
           </h2>
           <p className="mt-2 text-sm text-on-surface-variant">
-            Il codice viene creato su Stripe e salvato nel database per mostrarlo solo ai professionisti idonei.
+            Il codice viene creato su Stripe e salvato nel database per
+            mostrarlo solo ai professionisti idonei.
           </p>
         </div>
 
@@ -182,7 +225,10 @@ export default function DiscountCodesClient() {
               className="mt-2 w-full rounded-2xl border border-outline-variant bg-surface-container-low px-4 py-3 outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
               value={form.title}
               onChange={(event) =>
-                setForm((current) => ({ ...current, title: event.target.value }))
+                setForm((current) => ({
+                  ...current,
+                  title: event.target.value,
+                }))
               }
               placeholder="Es. Black Friday Professionisti"
             />
@@ -203,12 +249,17 @@ export default function DiscountCodesClient() {
 
           <div className="grid gap-4 sm:grid-cols-2">
             <label className="block">
-              <span className="font-label-md text-sm text-primary">Percentuale</span>
+              <span className="font-label-md text-sm text-primary">
+                Percentuale
+              </span>
               <select
                 className="mt-2 w-full rounded-2xl border border-outline-variant bg-surface-container-low px-4 py-3 outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
                 value={form.percentPreset}
                 onChange={(event) =>
-                  setForm((current) => ({ ...current, percentPreset: event.target.value }))
+                  setForm((current) => ({
+                    ...current,
+                    percentPreset: event.target.value,
+                  }))
                 }
               >
                 {PERCENT_PRESETS.map((preset) => (
@@ -220,7 +271,9 @@ export default function DiscountCodesClient() {
             </label>
             {form.percentPreset === "custom" ? (
               <label className="block">
-                <span className="font-label-md text-sm text-primary">Valore custom</span>
+                <span className="font-label-md text-sm text-primary">
+                  Valore custom
+                </span>
                 <input
                   required
                   min={1}
@@ -229,7 +282,10 @@ export default function DiscountCodesClient() {
                   className="mt-2 w-full rounded-2xl border border-outline-variant bg-surface-container-low px-4 py-3 outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
                   value={form.customPercent}
                   onChange={(event) =>
-                    setForm((current) => ({ ...current, customPercent: event.target.value }))
+                    setForm((current) => ({
+                      ...current,
+                      customPercent: event.target.value,
+                    }))
                   }
                   placeholder="25"
                 />
@@ -239,37 +295,51 @@ export default function DiscountCodesClient() {
 
           <div className="grid gap-4 sm:grid-cols-2">
             <label className="block">
-              <span className="font-label-md text-sm text-primary">Inizio validità</span>
+              <span className="font-label-md text-sm text-primary">
+                Inizio validità
+              </span>
               <input
                 type="date"
                 className="mt-2 w-full rounded-2xl border border-outline-variant bg-surface-container-low px-4 py-3 outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
                 value={form.startsAt}
                 onChange={(event) =>
-                  setForm((current) => ({ ...current, startsAt: event.target.value }))
+                  setForm((current) => ({
+                    ...current,
+                    startsAt: event.target.value,
+                  }))
                 }
               />
             </label>
             <label className="block">
-              <span className="font-label-md text-sm text-primary">Fine validità</span>
+              <span className="font-label-md text-sm text-primary">
+                Fine validità
+              </span>
               <input
                 type="date"
                 className="mt-2 w-full rounded-2xl border border-outline-variant bg-surface-container-low px-4 py-3 outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
                 value={form.expiresAt}
                 onChange={(event) =>
-                  setForm((current) => ({ ...current, expiresAt: event.target.value }))
+                  setForm((current) => ({
+                    ...current,
+                    expiresAt: event.target.value,
+                  }))
                 }
               />
             </label>
           </div>
 
           <fieldset className="rounded-2xl border border-outline-variant/40 p-4">
-            <legend className="px-2 font-label-md text-sm text-primary">Applicazione</legend>
+            <legend className="px-2 font-label-md text-sm text-primary">
+              Applicazione
+            </legend>
             <div className="space-y-3">
               <label className="flex cursor-pointer items-center gap-3">
                 <input
                   type="radio"
                   checked={form.appliesToAll}
-                  onChange={() => setForm((current) => ({ ...current, appliesToAll: true }))}
+                  onChange={() =>
+                    setForm((current) => ({ ...current, appliesToAll: true }))
+                  }
                 />
                 Tutti i professionisti non abbonati
               </label>
@@ -277,7 +347,9 @@ export default function DiscountCodesClient() {
                 <input
                   type="radio"
                   checked={!form.appliesToAll}
-                  onChange={() => setForm((current) => ({ ...current, appliesToAll: false }))}
+                  onChange={() =>
+                    setForm((current) => ({ ...current, appliesToAll: false }))
+                  }
                 />
                 Singolo professionista
               </label>
@@ -304,11 +376,16 @@ export default function DiscountCodesClient() {
               type="checkbox"
               checked={form.isActive}
               onChange={(event) =>
-                setForm((current) => ({ ...current, isActive: event.target.checked }))
+                setForm((current) => ({
+                  ...current,
+                  isActive: event.target.checked,
+                }))
               }
             />
             <span>
-              <span className="block font-label-md text-primary">Codice attivo</span>
+              <span className="block font-label-md text-primary">
+                Codice attivo
+              </span>
               <span className="text-sm text-on-surface-variant">
                 Se disattivato, viene salvato ma non mostrato ai professionisti.
               </span>
@@ -316,15 +393,35 @@ export default function DiscountCodesClient() {
           </label>
         </div>
 
-        {message ? <div className="mt-5 rounded-2xl bg-emerald-50 p-4 text-emerald-700">{message}</div> : null}
-        {error ? <div className="mt-5 rounded-2xl bg-error-container p-4 text-on-error-container">{error}</div> : null}
+        {message ? (
+          <div className="mt-5 rounded-2xl bg-emerald-50 p-4 text-emerald-700">
+            {message}
+          </div>
+        ) : null}
+        {error ? (
+          <div className="mt-5 rounded-2xl bg-error-container p-4 text-on-error-container">
+            {error}
+          </div>
+        ) : null}
 
         <button
           type="submit"
           disabled={submitting}
-          className="mt-6 min-h-11 w-full rounded-full bg-[#FF8500] px-6 py-3 font-button text-button text-white shadow-md transition hover:bg-[#FF9A2B] disabled:cursor-not-allowed disabled:opacity-60"
+          className="mt-6 inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-full bg-[#FF8500] px-6 py-3 font-button text-button text-white shadow-md transition hover:bg-[#FF9A2B] disabled:cursor-wait disabled:opacity-60"
         >
-          {submitting ? "Creazione…" : "Crea codice sconto"}
+          {submitting ? (
+            <>
+              <span
+                className="material-symbols-outlined animate-spin text-[19px]"
+                aria-hidden
+              >
+                progress_activity
+              </span>
+              Caricamento…
+            </>
+          ) : (
+            "Crea codice sconto"
+          )}
         </button>
       </form>
 
@@ -340,10 +437,23 @@ export default function DiscountCodesClient() {
           </div>
           <button
             type="button"
-            onClick={() => void loadDiscounts()}
-            className="min-h-10 rounded-full border border-primary px-5 py-2 font-button text-primary transition hover:bg-primary hover:text-white"
+            onClick={() => void manualReload()}
+            disabled={manualReloading}
+            className="inline-flex min-h-10 items-center justify-center gap-2 rounded-full border border-primary px-5 py-2 font-button text-primary transition hover:bg-primary hover:text-white disabled:cursor-wait disabled:opacity-60"
           >
-            Ricarica
+            {manualReloading ? (
+              <>
+                <span
+                  className="material-symbols-outlined animate-spin text-[18px]"
+                  aria-hidden
+                >
+                  progress_activity
+                </span>
+                Caricamento…
+              </>
+            ) : (
+              "Ricarica"
+            )}
           </button>
         </div>
 
@@ -381,7 +491,9 @@ export default function DiscountCodesClient() {
                       <span className="rounded-full bg-primary px-3 py-1 font-label-md text-sm text-white">
                         {discount.code}
                       </span>
-                      <span className={`rounded-full px-3 py-1 text-xs font-bold ${status.className}`}>
+                      <span
+                        className={`rounded-full px-3 py-1 text-xs font-bold ${status.className}`}
+                      >
                         {status.text}
                       </span>
                     </div>
@@ -395,7 +507,8 @@ export default function DiscountCodesClient() {
                         : `Solo ${discount.professional_email ?? "professionista selezionato"}`}
                     </p>
                     <p className="mt-2 text-sm text-on-surface-variant">
-                      Dal {formatDate(discount.starts_at)} · Al {formatDate(discount.expires_at)}
+                      Dal {formatDate(discount.starts_at)} · Al{" "}
+                      {formatDate(discount.expires_at)}
                     </p>
                     <p className="mt-2 break-all text-xs text-on-surface-variant">
                       Stripe: {discount.stripe_promotion_code_id}
@@ -406,17 +519,27 @@ export default function DiscountCodesClient() {
                     disabled={busyId === discount.id}
                     onClick={() => void toggleDiscount(discount)}
                     className={[
-                      "min-h-10 rounded-full px-5 py-2 font-button transition disabled:cursor-not-allowed disabled:opacity-60",
+                      "inline-flex min-h-10 items-center justify-center gap-2 rounded-full px-5 py-2 font-button transition disabled:cursor-not-allowed disabled:opacity-60",
                       discount.is_active
                         ? "bg-error-container text-error hover:bg-error/10"
                         : "bg-primary text-white hover:bg-primary-container",
                     ].join(" ")}
                   >
-                    {busyId === discount.id
-                      ? "Aggiornamento…"
-                      : discount.is_active
-                        ? "Disattiva"
-                        : "Riattiva"}
+                    {busyId === discount.id ? (
+                      <>
+                        <span
+                          className="material-symbols-outlined animate-spin text-[18px]"
+                          aria-hidden
+                        >
+                          progress_activity
+                        </span>
+                        Caricamento…
+                      </>
+                    ) : discount.is_active ? (
+                      "Disattiva"
+                    ) : (
+                      "Riattiva"
+                    )}
                   </button>
                 </div>
               </article>

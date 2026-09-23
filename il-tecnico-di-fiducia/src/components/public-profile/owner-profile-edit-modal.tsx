@@ -14,6 +14,7 @@ type OwnerProfileEditDraft = {
   first_name: string;
   last_name: string;
   headline: string;
+  search_summary: string;
   specializations: string;
   category_id: string;
   subcategory_id: string;
@@ -90,6 +91,7 @@ export function OwnerProfileEditModal({
     first_name: profile.first_name ?? "",
     last_name: profile.last_name ?? "",
     headline: profile.headline ?? "",
+    search_summary: profile.search_summary ?? "",
     specializations: profile.specializations.join("\n"),
     category_id: String(
       profile.subcategory?.category_id ?? profile.categories[0]?.id ?? "",
@@ -200,6 +202,13 @@ export function OwnerProfileEditModal({
       return;
     }
 
+    if (!draft.search_summary.trim()) {
+      setError(
+        "La presentazione breve è obbligatoria. Inserisci massimo 180 caratteri.",
+      );
+      return;
+    }
+
     setSaving(true);
     setError(null);
 
@@ -208,6 +217,7 @@ export function OwnerProfileEditModal({
         first_name: profile.first_name ?? "",
         last_name: profile.last_name ?? "",
         headline: profile.headline ?? "",
+        search_summary: profile.search_summary ?? "",
         specializations: profile.specializations.join("\n"),
         category_id: String(
           profile.subcategory?.category_id ?? profile.categories[0]?.id ?? "",
@@ -243,6 +253,9 @@ export function OwnerProfileEditModal({
         payload.headline = draft.headline.trim() || null;
       }
 
+      if (draft.search_summary !== initialDraft.search_summary) {
+        payload.search_summary = draft.search_summary.trim();
+      }
       if (draft.specializations !== initialDraft.specializations) {
         payload.specializations = lines(draft.specializations);
       }
@@ -416,6 +429,18 @@ export function OwnerProfileEditModal({
                 value={draft.headline}
                 placeholder="Es. Full Stack Web Developer"
                 onChange={(value) => setValue("headline", value)}
+              />
+
+              <EditTextarea
+                label="Presentazione breve"
+                hint="Obbligatoria · Comparirà solo nei risultati di ricerca"
+                value={draft.search_summary}
+                rows={3}
+                maxLength={180}
+                showCount
+                required
+                placeholder="Racconta in poche parole cosa fai e cosa ti distingue."
+                onChange={(value) => setValue("search_summary", value)}
               />
 
               <div className="grid gap-4 md:grid-cols-2">
@@ -669,7 +694,7 @@ export function OwnerProfileEditModal({
                 <span className="material-symbols-outlined animate-spin text-[19px]">
                   progress_activity
                 </span>
-                Salvataggio…
+                Caricamento…
               </>
             ) : (
               <>
@@ -736,12 +761,20 @@ function EditTextarea({
   onChange,
   hint,
   rows = 4,
+  maxLength,
+  showCount = false,
+  placeholder,
+  required = false,
 }: {
   label: string;
   value: string;
   onChange: (value: string) => void;
   hint?: string;
   rows?: number;
+  maxLength?: number;
+  showCount?: boolean;
+  placeholder?: string;
+  required?: boolean;
 }) {
   return (
     <label className="block">
@@ -754,9 +787,19 @@ function EditTextarea({
       <textarea
         rows={rows}
         value={value}
+        maxLength={maxLength}
+        placeholder={placeholder}
+        required={required}
+        aria-required={required}
         onChange={(event) => onChange(event.target.value)}
         className="mt-2 w-full resize-y rounded-2xl border border-outline-variant bg-surface-container-lowest px-4 py-3 text-on-surface outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/20"
       />
+
+      {showCount && maxLength ? (
+        <span className="mt-1 block text-right text-xs text-on-surface-variant">
+          {value.length}/{maxLength}
+        </span>
+      ) : null}
     </label>
   );
 }

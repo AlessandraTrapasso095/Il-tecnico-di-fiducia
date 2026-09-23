@@ -19,6 +19,7 @@ type UpdateProfessionalPayload = {
   province_code?: string | null;
   phone?: string | null;
   headline?: string | null;
+  search_summary?: string | null;
   bio?: string | null;
   public_email?: string | null;
   website_url?: string | null;
@@ -106,7 +107,7 @@ export async function GET(
   const { data: professional, error: professionalError } = await supabase
     .from("professional_directory")
     .select(
-      "id, first_name, last_name, province_code, headline, bio, specializations, avatar_url, cover_url, subcategory_id, available_remote, available_travel, created_at, updated_at",
+      "id, first_name, last_name, province_code, headline, search_summary, bio, specializations, avatar_url, cover_url, subcategory_id, available_remote, available_travel, created_at, updated_at",
     )
     .eq("id", id)
     .maybeSingle();
@@ -280,6 +281,7 @@ export async function PATCH(
   if (phone !== undefined) profileUpdates.phone = phone || null;
 
   const headline = optionalText(payload.headline, 140);
+  const searchSummary = optionalText(payload.search_summary, 180);
   const bio = optionalLongText(payload.bio, 3000);
   const publicEmail = optionalText(payload.public_email, 160);
   const hasWebsiteUrl = Object.prototype.hasOwnProperty.call(
@@ -336,6 +338,18 @@ export async function PATCH(
   const certifications = optionalJsonList(payload.certifications);
 
   if (headline !== undefined) professionalUpdates.headline = headline || null;
+
+  if (searchSummary !== undefined) {
+    if (!isNonEmptyString(searchSummary)) {
+      return NextResponse.json(
+        { error: "La presentazione breve è obbligatoria." },
+        { status: 400 },
+      );
+    }
+
+    professionalUpdates.search_summary = searchSummary;
+  }
+
   if (bio !== undefined) professionalUpdates.bio = bio || null;
   if (publicEmail !== undefined)
     professionalUpdates.public_email = publicEmail || null;
@@ -642,7 +656,7 @@ export async function PATCH(
   const { data: professional } = await supabase
     .from("professional_profiles")
     .select(
-      "id, headline, bio, specializations, avatar_url, cover_url, public_email, website_url, subcategory_id, education, work_experiences, certifications, services_offered, operational_provinces, available_remote, available_travel, is_ctu, is_ctp, updated_at",
+      "id, headline, search_summary, bio, specializations, avatar_url, cover_url, public_email, website_url, subcategory_id, education, work_experiences, certifications, services_offered, operational_provinces, available_remote, available_travel, is_ctu, is_ctp, updated_at",
     )
     .eq("id", id)
     .maybeSingle();

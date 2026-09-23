@@ -4,8 +4,11 @@ import { requireAuth } from "@/lib/api/auth";
 import { clampInt, isNonEmptyString } from "@/lib/api/validation";
 
 type CreatePostPayload = {
+  title: string;
   body: string;
 };
+
+const MAX_POST_TITLE_LENGTH = 120;
 
 type PostAttachmentRow = {
   id: string;
@@ -106,7 +109,7 @@ export async function GET(request: NextRequest) {
 
   let builder = supabase
     .from("posts")
-    .select("id, author_id, body, created_at, updated_at")
+    .select("id, author_id, title, body, created_at, updated_at")
     .order("created_at", { ascending: false })
     .range(rangeFrom, rangeTo);
 
@@ -232,10 +235,27 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "body is required" }, { status: 400 });
   }
 
+  if (!isNonEmptyString(payload.title)) {
+    return NextResponse.json({ error: "title is required" }, { status: 400 });
+  }
+
+  const title = payload.title.trim();
+
+  if (title.length > MAX_POST_TITLE_LENGTH) {
+    return NextResponse.json(
+      { error: `title must be at most ${MAX_POST_TITLE_LENGTH} characters` },
+      { status: 400 },
+    );
+  }
+
   const { data, error } = await supabase
     .from("posts")
-    .insert({ author_id: user.id, body: payload.body.trim() })
-    .select("id, author_id, body, created_at, updated_at")
+    .insert({
+      author_id: user.id,
+      title,
+      body: payload.body.trim(),
+    })
+    .select("id, author_id, title, body, created_at, updated_at")
     .single();
 
   if (error) {

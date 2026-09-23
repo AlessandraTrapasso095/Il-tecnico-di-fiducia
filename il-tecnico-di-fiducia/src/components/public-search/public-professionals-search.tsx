@@ -48,7 +48,10 @@ type ProfessionalsResponse = {
 };
 
 function fullName(person: Professional) {
-  return `${person.first_name ?? ""} ${person.last_name ?? ""}`.trim() || "Professionista";
+  return (
+    `${person.first_name ?? ""} ${person.last_name ?? ""}`.trim() ||
+    "Professionista"
+  );
 }
 
 function categoryLabel(person: Professional) {
@@ -107,10 +110,7 @@ export function PublicProfessionalsSearch() {
 
   const apiQuery = searchParams.toString();
   const rawPage = Number(searchParams.get("page") ?? "1");
-  const page =
-    Number.isInteger(rawPage) && rawPage > 0
-      ? rawPage
-      : 1;
+  const page = Number.isInteger(rawPage) && rawPage > 0 ? rawPage : 1;
 
   useEffect(() => {
     let alive = true;
@@ -155,17 +155,10 @@ export function PublicProfessionalsSearch() {
     };
   }, [apiQuery, page]);
 
-  const totalPages = Math.max(
-    1,
-    Math.ceil(total / PUBLIC_SEARCH_PAGE_SIZE),
-  );
-
+  const totalPages = Math.max(1, Math.ceil(total / PUBLIC_SEARCH_PAGE_SIZE));
 
   function goToPage(nextPage: number) {
-    const safePage = Math.min(
-      Math.max(1, nextPage),
-      totalPages,
-    );
+    const safePage = Math.min(Math.max(1, nextPage), totalPages);
 
     const params = new URLSearchParams(searchParams.toString());
 

@@ -13,6 +13,7 @@ type WorkAttachment = {
 
 type WorkPost = {
   id: string;
+  title?: string | null;
   body: string;
   attachments: WorkAttachment[];
 };
@@ -27,6 +28,10 @@ const ALLOWED_TYPES = new Set([
   "video/mp4",
   "video/quicktime",
 ]);
+
+function cleanTitle(value: string) {
+  return value.replace(/\s+/g, " ").trim();
+}
 
 function cleanBody(value: string) {
   return value.replace(/\s+/g, " ").trim();
@@ -84,6 +89,7 @@ async function uploadFiles(postId: string, files: File[]) {
 
 export function OwnerNewWorkButton() {
   const [open, setOpen] = useState(false);
+  const [postTitle, setPostTitle] = useState("");
   const [body, setBody] = useState("");
   const [files, setFiles] = useState<File[]>([]);
   const [busy, setBusy] = useState(false);
@@ -106,10 +112,16 @@ export function OwnerNewWorkButton() {
   }
 
   async function createWork() {
+    const cleanPostTitle = cleanTitle(postTitle);
     const clean = cleanBody(body);
 
+    if (!cleanPostTitle) {
+      setError("Il titolo del lavoro non può essere vuoto.");
+      return;
+    }
+
     if (!clean) {
-      setError("Scrivi qualcosa prima di pubblicare.");
+      setError("Il corpo del lavoro non può essere vuoto.");
       return;
     }
 
@@ -131,6 +143,7 @@ export function OwnerNewWorkButton() {
         },
         credentials: "same-origin",
         body: JSON.stringify({
+          title: cleanPostTitle,
           body: clean,
         }),
       });
@@ -181,6 +194,8 @@ export function OwnerNewWorkButton() {
       {open ? (
         <WorkEditorModal
           title="Nuovo lavoro"
+          postTitle={postTitle}
+          setPostTitle={setPostTitle}
           body={body}
           setBody={setBody}
           files={files}
@@ -191,6 +206,7 @@ export function OwnerNewWorkButton() {
             if (busy) return;
 
             setOpen(false);
+            setPostTitle("");
             setBody("");
             setFiles([]);
             setError(null);
@@ -205,6 +221,7 @@ export function OwnerNewWorkButton() {
 
 export function OwnerPostActions({ post }: { post: WorkPost }) {
   const [editing, setEditing] = useState(false);
+  const [postTitle, setPostTitle] = useState(post.title ?? "");
   const [body, setBody] = useState(post.body);
   const [newFiles, setNewFiles] = useState<File[]>([]);
   const [removedIds, setRemovedIds] = useState<string[]>([]);
@@ -233,10 +250,16 @@ export function OwnerPostActions({ post }: { post: WorkPost }) {
   }
 
   async function updateWork() {
+    const cleanPostTitle = cleanTitle(postTitle);
     const clean = cleanBody(body);
 
+    if (!cleanPostTitle) {
+      setError("Il titolo del lavoro non può essere vuoto.");
+      return;
+    }
+
     if (!clean) {
-      setError("Il testo del lavoro non può essere vuoto.");
+      setError("Il corpo del lavoro non può essere vuoto.");
       return;
     }
 
@@ -328,6 +351,7 @@ export function OwnerPostActions({ post }: { post: WorkPost }) {
           type="button"
           disabled={busy}
           onClick={() => {
+            setPostTitle(post.title ?? "");
             setBody(post.body);
             setNewFiles([]);
             setRemovedIds([]);
@@ -357,6 +381,8 @@ export function OwnerPostActions({ post }: { post: WorkPost }) {
       {editing ? (
         <WorkEditorModal
           title="Modifica lavoro"
+          postTitle={postTitle}
+          setPostTitle={setPostTitle}
           body={body}
           setBody={setBody}
           files={newFiles}
@@ -371,6 +397,7 @@ export function OwnerPostActions({ post }: { post: WorkPost }) {
             if (busy) return;
 
             setEditing(false);
+            setPostTitle(post.title ?? "");
             setBody(post.body);
             setNewFiles([]);
             setRemovedIds([]);
@@ -402,6 +429,8 @@ export function OwnerPostActions({ post }: { post: WorkPost }) {
 
 function WorkEditorModal({
   title,
+  postTitle,
+  setPostTitle,
   body,
   setBody,
   files,
@@ -415,6 +444,8 @@ function WorkEditorModal({
   confirmLabel,
 }: {
   title: string;
+  postTitle: string;
+  setPostTitle: (value: string) => void;
   body: string;
   setBody: (value: string) => void;
   files: File[];
@@ -458,13 +489,36 @@ function WorkEditorModal({
           </button>
         </div>
 
-        <textarea
-          value={body}
-          maxLength={1200}
-          onChange={(event) => setBody(event.target.value)}
-          placeholder="Racconta un lavoro, un progetto o un aggiornamento professionale..."
-          className="mt-5 min-h-36 w-full resize-y rounded-2xl border border-outline-variant bg-surface-container-lowest px-4 py-3 outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/20"
-        />
+        <div className="mt-5 space-y-4">
+          <label className="block text-sm font-bold text-primary">
+            Titolo
+            <input
+              type="text"
+              value={postTitle}
+              maxLength={120}
+              onChange={(event) => setPostTitle(event.target.value)}
+              placeholder="Inserisci un titolo chiaro e sintetico"
+              className="mt-2 min-h-11 w-full rounded-2xl border border-outline-variant bg-surface-container-lowest px-4 py-3 font-normal text-on-surface outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/20"
+            />
+            <span className="mt-1 block text-right text-xs font-normal text-on-surface-variant">
+              {postTitle.length}/120
+            </span>
+          </label>
+
+          <label className="block text-sm font-bold text-primary">
+            Corpo
+            <textarea
+              value={body}
+              maxLength={1200}
+              onChange={(event) => setBody(event.target.value)}
+              placeholder="Racconta un lavoro, un progetto o un aggiornamento professionale..."
+              className="mt-2 min-h-36 w-full resize-y rounded-2xl border border-outline-variant bg-surface-container-lowest px-4 py-3 font-normal text-on-surface outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/20"
+            />
+            <span className="mt-1 block text-right text-xs font-normal text-on-surface-variant">
+              {body.length}/1200
+            </span>
+          </label>
+        </div>
 
         <div className="mt-5">
           <label className="inline-flex min-h-11 cursor-pointer items-center gap-2 rounded-full border border-primary px-4 py-2.5 text-sm font-bold text-primary transition hover:bg-primary-fixed">
@@ -566,7 +620,7 @@ function WorkEditorModal({
 
           <button
             type="button"
-            disabled={busy || !cleanBody(body)}
+            disabled={busy || !cleanTitle(postTitle) || !cleanBody(body)}
             onClick={onConfirm}
             className="inline-flex min-h-11 items-center justify-center gap-2 rounded-full bg-[#FF8500] px-7 py-2.5 font-bold text-white transition hover:bg-[#FF9A2B] disabled:opacity-50"
           >
@@ -575,7 +629,7 @@ function WorkEditorModal({
                 <span className="material-symbols-outlined animate-spin text-[19px]">
                   progress_activity
                 </span>
-                Salvataggio…
+                Caricamento…
               </>
             ) : (
               confirmLabel

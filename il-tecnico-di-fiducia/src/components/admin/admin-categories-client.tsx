@@ -142,7 +142,8 @@ function formatDateTime(value: string) {
 function orderedSubcategories(subcategories: ManagedSubcategory[]) {
   return [...subcategories].sort(
     (first, second) =>
-      first.sort_order - second.sort_order || first.name.localeCompare(second.name, "it"),
+      first.sort_order - second.sort_order ||
+      first.name.localeCompare(second.name, "it"),
   );
 }
 
@@ -190,7 +191,9 @@ function Field({
 }) {
   return (
     <label className="space-y-2">
-      <span className="font-label-md text-sm text-on-surface-variant">{label}</span>
+      <span className="font-label-md text-sm text-on-surface-variant">
+        {label}
+      </span>
       <input
         className="w-full rounded-xl border border-outline-variant bg-surface-container-lowest px-4 py-3 text-sm outline-none transition focus:border-primary focus:ring-2 focus:ring-primary disabled:cursor-not-allowed disabled:opacity-60"
         type={type}
@@ -214,7 +217,10 @@ function AdminModal({
   saving: boolean;
   onClose: () => void;
 }) {
-  const titleId = useMemo(() => `admin-dialog-${normalizeSlug(title)}`, [title]);
+  const titleId = useMemo(
+    () => `admin-dialog-${normalizeSlug(title)}`,
+    [title],
+  );
   const dialogRef = useRef<HTMLDivElement | null>(null);
   const previousFocusRef = useRef<HTMLElement | null>(null);
   const savingRef = useRef(saving);
@@ -227,11 +233,15 @@ function AdminModal({
 
   useEffect(() => {
     previousFocusRef.current =
-      document.activeElement instanceof HTMLElement ? document.activeElement : null;
+      document.activeElement instanceof HTMLElement
+        ? document.activeElement
+        : null;
     const previousOverflow = document.body.style.overflow;
     document.body.style.overflow = "hidden";
     window.setTimeout(() => {
-      dialogRef.current?.querySelector<HTMLElement>("[data-dialog-title]")?.focus();
+      dialogRef.current
+        ?.querySelector<HTMLElement>("[data-dialog-title]")
+        ?.focus();
     }, 0);
 
     function onKeyDown(event: KeyboardEvent) {
@@ -310,19 +320,15 @@ function AdminModal({
             </span>
           </button>
         </div>
-        <div className="min-h-0 flex-1 overflow-y-auto p-5 sm:p-6">{children}</div>
+        <div className="min-h-0 flex-1 overflow-y-auto p-5 sm:p-6">
+          {children}
+        </div>
       </div>
     </div>
   );
 }
 
-function InlinePanel({
-  id,
-  children,
-}: {
-  id: string;
-  children: ReactNode;
-}) {
+function InlinePanel({ id, children }: { id: string; children: ReactNode }) {
   return (
     <div
       id={id}
@@ -372,13 +378,18 @@ function CategoryFormFields({
           value={categoryForm.slug}
           disabled={saving}
           onChange={(value) =>
-            setCategoryForm((current) => ({ ...current, slug: normalizeSlug(value) }))
+            setCategoryForm((current) => ({
+              ...current,
+              slug: normalizeSlug(value),
+            }))
           }
           placeholder="es. ingegneri"
         />
       </div>
       <label className="space-y-2">
-        <span className="font-label-md text-sm text-on-surface-variant">Descrizione</span>
+        <span className="font-label-md text-sm text-on-surface-variant">
+          Descrizione
+        </span>
         <textarea
           className="min-h-28 w-full rounded-xl border border-outline-variant bg-surface-container-lowest px-4 py-3 text-sm leading-6 outline-none transition focus:border-primary focus:ring-2 focus:ring-primary disabled:cursor-not-allowed disabled:opacity-60"
           value={categoryForm.description}
@@ -411,8 +422,8 @@ function CategoryFormFields({
         />
         <div className="space-y-3">
           <p className="text-sm leading-6 text-on-surface-variant">
-            Carica JPG, PNG o WebP fino a 5 MB. L’immagine viene salvata su Supabase
-            Storage e applicata al salvataggio.
+            Carica JPG, PNG o WebP fino a 5 MB. L’immagine viene salvata su
+            Supabase Storage e applicata al salvataggio.
           </p>
           <div className="grid gap-2 sm:grid-cols-2">
             <button
@@ -421,16 +432,33 @@ function CategoryFormFields({
               className="inline-flex min-h-11 items-center justify-center gap-2 rounded-full border border-outline-variant bg-white px-4 py-2 text-sm font-bold text-primary transition hover:bg-surface-container-high disabled:opacity-60"
               onClick={() => imageInputRef.current?.click()}
             >
-              <span className="material-symbols-outlined text-[18px]" aria-hidden>
-                upload
-              </span>
-              {imageUploading ? "Upload…" : "Carica immagine"}
+              {imageUploading ? (
+                <>
+                  <span
+                    className="material-symbols-outlined animate-spin text-[18px]"
+                    aria-hidden
+                  >
+                    progress_activity
+                  </span>
+                  Caricamento…
+                </>
+              ) : (
+                <>
+                  <span
+                    className="material-symbols-outlined text-[18px]"
+                    aria-hidden
+                  >
+                    upload
+                  </span>
+                  Carica immagine
+                </>
+              )}
             </button>
             {categoryForm.image_url ? (
               <button
                 type="button"
                 disabled={imageUploading || saving}
-                className="inline-flex min-h-11 items-center justify-center rounded-full border border-outline-variant bg-white px-4 py-2 text-sm font-bold text-on-surface-variant transition hover:bg-surface-container-high disabled:opacity-60"
+                className="inline-flex min-h-11 items-center justify-center gap-2 rounded-full border border-outline-variant bg-white px-4 py-2 text-sm font-bold text-on-surface-variant transition hover:bg-surface-container-high disabled:opacity-60"
                 onClick={onClearImageUrl}
               >
                 Rimuovi URL
@@ -443,7 +471,9 @@ function CategoryFormFields({
       isPreviewableImage(imagePreviewUrl || categoryForm.image_url) ? (
         <span
           className="block h-40 w-full rounded-2xl bg-cover bg-center"
-          style={{ backgroundImage: `url("${imagePreviewUrl || categoryForm.image_url}")` }}
+          style={{
+            backgroundImage: `url("${imagePreviewUrl || categoryForm.image_url}")`,
+          }}
           aria-label="Anteprima immagine categoria"
           role="img"
         />
@@ -453,7 +483,9 @@ function CategoryFormFields({
           label="Icona"
           value={categoryForm.icon}
           disabled={saving}
-          onChange={(value) => setCategoryForm((current) => ({ ...current, icon: value }))}
+          onChange={(value) =>
+            setCategoryForm((current) => ({ ...current, icon: value }))
+          }
           placeholder="engineering"
         />
         <Field
@@ -554,27 +586,40 @@ export function AdminCategoriesClient() {
   const [categories, setCategories] = useState<ManagedCategory[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [savingAction, setSavingAction] = useState<string | null>(null);
   const [imageUploading, setImageUploading] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [editingCategoryId, setEditingCategoryId] = useState<string | null>(null);
+  const [editingCategoryId, setEditingCategoryId] = useState<string | null>(
+    null,
+  );
   const [editingCategoryOriginalImageUrl, setEditingCategoryOriginalImageUrl] =
     useState<string | null>(null);
   const [categoryModalOpen, setCategoryModalOpen] = useState(false);
-  const [expandedCategoryId, setExpandedCategoryId] = useState<string | null>(null);
-  const [categoryForm, setCategoryForm] = useState<CategoryForm>(emptyCategoryForm);
+  const [expandedCategoryId, setExpandedCategoryId] = useState<string | null>(
+    null,
+  );
+  const [categoryForm, setCategoryForm] =
+    useState<CategoryForm>(emptyCategoryForm);
   const [imagePreviewUrl, setImagePreviewUrl] = useState<string | null>(null);
   const [subcategoryForm, setSubcategoryForm] =
     useState<SubcategoryForm>(emptySubcategoryForm);
-  const [editingSubcategoryId, setEditingSubcategoryId] = useState<string | null>(null);
-  const [subcategoryModalCategoryId, setSubcategoryModalCategoryId] = useState<string | null>(null);
-  const [highlightedSubcategoryId, setHighlightedSubcategoryId] = useState<string | null>(null);
+  const [editingSubcategoryId, setEditingSubcategoryId] = useState<
+    string | null
+  >(null);
+  const [subcategoryModalCategoryId, setSubcategoryModalCategoryId] = useState<
+    string | null
+  >(null);
+  const [highlightedSubcategoryId, setHighlightedSubcategoryId] = useState<
+    string | null
+  >(null);
 
   const sortedCategories = useMemo(
     () =>
       [...categories].sort(
         (first, second) =>
-          first.sort_order - second.sort_order || first.name.localeCompare(second.name, "it"),
+          first.sort_order - second.sort_order ||
+          first.name.localeCompare(second.name, "it"),
       ),
     [categories],
   );
@@ -586,13 +631,32 @@ export function AdminCategoriesClient() {
     (category) => fullId(category.id) === subcategoryModalCategoryId,
   );
 
+  function loadingContent(actionKey: string, label: string) {
+    return savingAction === actionKey ? (
+      <>
+        <span
+          className="material-symbols-outlined animate-spin text-[18px]"
+          aria-hidden
+        >
+          progress_activity
+        </span>
+        Caricamento…
+      </>
+    ) : (
+      label
+    );
+  }
+
   const loadCategories = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
-      const response = await fetchJson<CategoriesResponse>("/api/admin/categories", {
-        method: "GET",
-      });
+      const response = await fetchJson<CategoriesResponse>(
+        "/api/admin/categories",
+        {
+          method: "GET",
+        },
+      );
       setCategories(response.categories ?? []);
     } catch (loadError) {
       setError(
@@ -717,9 +781,7 @@ export function AdminCategoriesClient() {
         credentials: "same-origin",
       });
       const payload = (await response.json().catch(() => null)) as
-        | CategoryImageUploadResponse
-        | { error?: string }
-        | null;
+        CategoryImageUploadResponse | { error?: string } | null;
 
       if (!response.ok || !payload || !("image_url" in payload)) {
         const errorMessage =
@@ -729,8 +791,13 @@ export function AdminCategoriesClient() {
         throw new Error(errorMessage);
       }
 
-      setCategoryForm((current) => ({ ...current, image_url: payload.image_url }));
-      setMessage("Immagine caricata. Salva la categoria per applicarla al catalogo.");
+      setCategoryForm((current) => ({
+        ...current,
+        image_url: payload.image_url,
+      }));
+      setMessage(
+        "Immagine caricata. Salva la categoria per applicarla al catalogo.",
+      );
     } catch (uploadError) {
       setImagePreviewUrl(null);
       setError(
@@ -746,6 +813,11 @@ export function AdminCategoriesClient() {
   async function saveCategory(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setSaving(true);
+    setSavingAction(
+      editingCategoryId
+        ? `category-save:${editingCategoryId}`
+        : "category-create",
+    );
     setMessage(null);
     setError(null);
 
@@ -760,23 +832,31 @@ export function AdminCategoriesClient() {
 
     try {
       if (editingCategoryId) {
-        await fetchJson(`/api/admin/categories/${encodeURIComponent(editingCategoryId)}`, {
-          method: "PATCH",
-          body: JSON.stringify(payload),
-        });
+        await fetchJson(
+          `/api/admin/categories/${encodeURIComponent(editingCategoryId)}`,
+          {
+            method: "PATCH",
+            body: JSON.stringify(payload),
+          },
+        );
         if (
           editingCategoryOriginalImageUrl &&
           editingCategoryOriginalImageUrl !== payload.image_url
         ) {
-          await removeCategoryImage(editingCategoryOriginalImageUrl).catch(() => undefined);
+          await removeCategoryImage(editingCategoryOriginalImageUrl).catch(
+            () => undefined,
+          );
         }
         setMessage("Categoria aggiornata.");
         setEditingCategoryId(null);
       } else {
-        const response = await fetchJson<{ category: ManagedCategory }>("/api/admin/categories", {
-          method: "POST",
-          body: JSON.stringify(payload),
-        });
+        const response = await fetchJson<{ category: ManagedCategory }>(
+          "/api/admin/categories",
+          {
+            method: "POST",
+            body: JSON.stringify(payload),
+          },
+        );
         setMessage("Categoria creata.");
         setExpandedCategoryId(fullId(response.category.id));
         setCategoryModalOpen(false);
@@ -791,6 +871,7 @@ export function AdminCategoriesClient() {
       );
     } finally {
       setSaving(false);
+      setSavingAction(null);
     }
   }
 
@@ -804,15 +885,20 @@ export function AdminCategoriesClient() {
     }
 
     setSaving(true);
+    setSavingAction(`category-delete:${fullId(category.id)}`);
     setError(null);
     setMessage(null);
     try {
-      await fetchJson(`/api/admin/categories/${encodeURIComponent(fullId(category.id))}`, {
-        method: "DELETE",
-      });
+      await fetchJson(
+        `/api/admin/categories/${encodeURIComponent(fullId(category.id))}`,
+        {
+          method: "DELETE",
+        },
+      );
       await removeCategoryImage(category.image_url).catch(() => undefined);
       setMessage("Categoria eliminata.");
-      if (expandedCategoryId === fullId(category.id)) setExpandedCategoryId(null);
+      if (expandedCategoryId === fullId(category.id))
+        setExpandedCategoryId(null);
       if (editingCategoryId === fullId(category.id)) resetCategoryDraft();
       await loadCategories();
     } catch (deleteError) {
@@ -823,6 +909,7 @@ export function AdminCategoriesClient() {
       );
     } finally {
       setSaving(false);
+      setSavingAction(null);
     }
   }
 
@@ -838,17 +925,23 @@ export function AdminCategoriesClient() {
     }
 
     setSaving(true);
+    setSavingAction(`category-toggle:${fullId(category.id)}`);
     setError(null);
     setMessage(null);
     try {
-      await fetchJson(`/api/admin/categories/${encodeURIComponent(fullId(category.id))}`, {
-        method: "PATCH",
-        body: JSON.stringify({
-          ...categoryFormFrom(category),
-          is_active: nextActive,
-        }),
-      });
-      setMessage(nextActive ? "Categoria riattivata." : "Categoria disattivata.");
+      await fetchJson(
+        `/api/admin/categories/${encodeURIComponent(fullId(category.id))}`,
+        {
+          method: "PATCH",
+          body: JSON.stringify({
+            ...categoryFormFrom(category),
+            is_active: nextActive,
+          }),
+        },
+      );
+      setMessage(
+        nextActive ? "Categoria riattivata." : "Categoria disattivata.",
+      );
       await loadCategories();
     } catch (toggleError) {
       setError(
@@ -858,12 +951,15 @@ export function AdminCategoriesClient() {
       );
     } finally {
       setSaving(false);
+      setSavingAction(null);
     }
   }
 
   function toggleSubcategoryPanel(category: ManagedCategory) {
     const categoryId = fullId(category.id);
-    setExpandedCategoryId((current) => (current === categoryId ? null : categoryId));
+    setExpandedCategoryId((current) =>
+      current === categoryId ? null : categoryId,
+    );
     setEditingSubcategoryId(null);
     setSubcategoryForm(emptySubcategoryForm());
   }
@@ -879,7 +975,10 @@ export function AdminCategoriesClient() {
     setSubcategoryModalCategoryId(fullId(category.id));
   }
 
-  function startEditSubcategory(category: ManagedCategory, subcategory: ManagedSubcategory) {
+  function startEditSubcategory(
+    category: ManagedCategory,
+    subcategory: ManagedSubcategory,
+  ) {
     setExpandedCategoryId(fullId(category.id));
     setEditingCategoryId(null);
     setCategoryModalOpen(false);
@@ -903,6 +1002,11 @@ export function AdminCategoriesClient() {
     if (!targetCategory) return;
 
     setSaving(true);
+    setSavingAction(
+      editingSubcategoryId
+        ? `subcategory-save:${editingSubcategoryId}`
+        : `subcategory-create:${fullId(targetCategory.id)}`,
+    );
     setMessage(null);
     setError(null);
 
@@ -914,10 +1018,13 @@ export function AdminCategoriesClient() {
 
     try {
       if (editingSubcategoryId) {
-        await fetchJson(`/api/admin/subcategories/${encodeURIComponent(editingSubcategoryId)}`, {
-          method: "PATCH",
-          body: JSON.stringify(payload),
-        });
+        await fetchJson(
+          `/api/admin/subcategories/${encodeURIComponent(editingSubcategoryId)}`,
+          {
+            method: "PATCH",
+            body: JSON.stringify(payload),
+          },
+        );
         setMessage("Sottocategoria aggiornata.");
         setEditingSubcategoryId(null);
       } else {
@@ -932,7 +1039,8 @@ export function AdminCategoriesClient() {
         setSubcategoryModalCategoryId(null);
         setExpandedCategoryId(fullId(targetCategory.id));
         setHighlightedSubcategoryId(response.subcategory.id);
-        if (highlightTimeoutRef.current) window.clearTimeout(highlightTimeoutRef.current);
+        if (highlightTimeoutRef.current)
+          window.clearTimeout(highlightTimeoutRef.current);
         highlightTimeoutRef.current = window.setTimeout(() => {
           setHighlightedSubcategoryId(null);
         }, 2400);
@@ -947,6 +1055,7 @@ export function AdminCategoriesClient() {
       );
     } finally {
       setSaving(false);
+      setSavingAction(null);
     }
   }
 
@@ -962,17 +1071,25 @@ export function AdminCategoriesClient() {
     }
 
     setSaving(true);
+    setSavingAction(`subcategory-toggle:${subcategory.id}`);
     setError(null);
     setMessage(null);
     try {
-      await fetchJson(`/api/admin/subcategories/${encodeURIComponent(subcategory.id)}`, {
-        method: "PATCH",
-        body: JSON.stringify({
-          ...subcategoryFormFrom(subcategory),
-          is_active: nextActive,
-        }),
-      });
-      setMessage(nextActive ? "Sottocategoria riattivata." : "Sottocategoria disattivata.");
+      await fetchJson(
+        `/api/admin/subcategories/${encodeURIComponent(subcategory.id)}`,
+        {
+          method: "PATCH",
+          body: JSON.stringify({
+            ...subcategoryFormFrom(subcategory),
+            is_active: nextActive,
+          }),
+        },
+      );
+      setMessage(
+        nextActive
+          ? "Sottocategoria riattivata."
+          : "Sottocategoria disattivata.",
+      );
       await loadCategories();
     } catch (toggleError) {
       setError(
@@ -982,6 +1099,7 @@ export function AdminCategoriesClient() {
       );
     } finally {
       setSaving(false);
+      setSavingAction(null);
     }
   }
 
@@ -991,12 +1109,16 @@ export function AdminCategoriesClient() {
     }
 
     setSaving(true);
+    setSavingAction(`subcategory-delete:${subcategory.id}`);
     setError(null);
     setMessage(null);
     try {
-      await fetchJson(`/api/admin/subcategories/${encodeURIComponent(subcategory.id)}`, {
-        method: "DELETE",
-      });
+      await fetchJson(
+        `/api/admin/subcategories/${encodeURIComponent(subcategory.id)}`,
+        {
+          method: "DELETE",
+        },
+      );
       setMessage("Sottocategoria eliminata.");
       if (editingSubcategoryId === subcategory.id) {
         cancelEditSubcategory();
@@ -1010,6 +1132,7 @@ export function AdminCategoriesClient() {
       );
     } finally {
       setSaving(false);
+      setSavingAction(null);
     }
   }
 
@@ -1018,7 +1141,12 @@ export function AdminCategoriesClient() {
       (currentCategory) => fullId(currentCategory.id) === fullId(category.id),
     );
     const targetIndex = currentIndex + direction;
-    if (currentIndex < 0 || targetIndex < 0 || targetIndex >= sortedCategories.length) return;
+    if (
+      currentIndex < 0 ||
+      targetIndex < 0 ||
+      targetIndex >= sortedCategories.length
+    )
+      return;
 
     const nextCategories = [...sortedCategories];
     [nextCategories[currentIndex], nextCategories[targetIndex]] = [
@@ -1027,6 +1155,7 @@ export function AdminCategoriesClient() {
     ];
 
     setSaving(true);
+    setSavingAction(`category-move:${fullId(category.id)}:${direction}`);
     setMessage(null);
     setError(null);
     try {
@@ -1049,14 +1178,26 @@ export function AdminCategoriesClient() {
       );
     } finally {
       setSaving(false);
+      setSavingAction(null);
     }
   }
 
-  async function moveSubcategory(category: ManagedCategory, subcategory: ManagedSubcategory, direction: -1 | 1) {
+  async function moveSubcategory(
+    category: ManagedCategory,
+    subcategory: ManagedSubcategory,
+    direction: -1 | 1,
+  ) {
     const sortedSubcategories = orderedSubcategories(category.subcategories);
-    const currentIndex = sortedSubcategories.findIndex((item) => item.id === subcategory.id);
+    const currentIndex = sortedSubcategories.findIndex(
+      (item) => item.id === subcategory.id,
+    );
     const targetIndex = currentIndex + direction;
-    if (currentIndex < 0 || targetIndex < 0 || targetIndex >= sortedSubcategories.length) return;
+    if (
+      currentIndex < 0 ||
+      targetIndex < 0 ||
+      targetIndex >= sortedSubcategories.length
+    )
+      return;
 
     const nextSubcategories = [...sortedSubcategories];
     [nextSubcategories[currentIndex], nextSubcategories[targetIndex]] = [
@@ -1065,6 +1206,7 @@ export function AdminCategoriesClient() {
     ];
 
     setSaving(true);
+    setSavingAction(`subcategory-move:${subcategory.id}:${direction}`);
     setMessage(null);
     setError(null);
     try {
@@ -1090,6 +1232,7 @@ export function AdminCategoriesClient() {
       );
     } finally {
       setSaving(false);
+      setSavingAction(null);
     }
   }
 
@@ -1105,8 +1248,9 @@ export function AdminCategoriesClient() {
               Categorie e professioni
             </h2>
             <p className="mt-2 max-w-3xl text-sm leading-6 text-on-surface-variant">
-              Gestisci il catalogo usato dal sito pubblico. Le categorie inattive restano
-              disponibili nell’admin, ma non vengono mostrate a clienti e visitatori.
+              Gestisci il catalogo usato dal sito pubblico. Le categorie
+              inattive restano disponibili nell’admin, ma non vengono mostrate a
+              clienti e visitatori.
             </p>
           </div>
           <button
@@ -1140,7 +1284,8 @@ export function AdminCategoriesClient() {
 
         {!loading && sortedCategories.length === 0 ? (
           <div className="mt-6 rounded-2xl bg-surface-container-low p-5 text-on-surface-variant">
-            Nessuna categoria configurata. Esegui il seed o crea una nuova categoria.
+            Nessuna categoria configurata. Esegui il seed o crea una nuova
+            categoria.
           </div>
         ) : null}
 
@@ -1154,7 +1299,8 @@ export function AdminCategoriesClient() {
             const subcategories = orderedSubcategories(category.subcategories);
             const previewSubcategories = subcategories.slice(0, 5);
             const canDelete =
-              category.subcategories.length === 0 && (category.professional_count ?? 0) === 0;
+              category.subcategories.length === 0 &&
+              (category.professional_count ?? 0) === 0;
 
             return (
               <article
@@ -1174,15 +1320,21 @@ export function AdminCategoriesClient() {
                     aria-expanded={expanded}
                     aria-controls={subcategoryPanelId}
                   >
-                    {category.image_url && isPreviewableImage(category.image_url) ? (
+                    {category.image_url &&
+                    isPreviewableImage(category.image_url) ? (
                       <span
                         className="h-28 w-full shrink-0 rounded-[22px] bg-cover bg-center sm:h-24 sm:w-24"
-                        style={{ backgroundImage: `url("${category.image_url}")` }}
+                        style={{
+                          backgroundImage: `url("${category.image_url}")`,
+                        }}
                         aria-hidden
                       />
                     ) : (
                       <span className="flex h-28 w-full shrink-0 items-center justify-center rounded-[22px] bg-primary-fixed text-primary sm:h-24 sm:w-24">
-                        <span className="material-symbols-outlined text-[34px]" aria-hidden>
+                        <span
+                          className="material-symbols-outlined text-[34px]"
+                          aria-hidden
+                        >
                           {category.icon || "category"}
                         </span>
                       </span>
@@ -1198,8 +1350,14 @@ export function AdminCategoriesClient() {
                         slug: {category.slug}
                       </span>
                       <span className="mt-3 grid gap-2 text-sm text-on-surface-variant sm:grid-cols-2 xl:grid-cols-4">
-                        <span>{compactNumber(category.subcategories.length)} sottocategorie</span>
-                        <span>{compactNumber(category.professional_count)} professionisti</span>
+                        <span>
+                          {compactNumber(category.subcategories.length)}{" "}
+                          sottocategorie
+                        </span>
+                        <span>
+                          {compactNumber(category.professional_count)}{" "}
+                          professionisti
+                        </span>
                         <span>Ordine {category.sort_order}</span>
                         <span>Agg. {formatDateTime(category.updated_at)}</span>
                       </span>
@@ -1215,7 +1373,9 @@ export function AdminCategoriesClient() {
                               key={subcategory.id}
                               className="inline-flex max-w-full rounded-full bg-surface-container-low px-3 py-1 text-xs font-semibold text-on-surface-variant"
                             >
-                              <span className="truncate">{subcategory.name}</span>
+                              <span className="truncate">
+                                {subcategory.name}
+                              </span>
                             </span>
                           ))
                         ) : (
@@ -1225,7 +1385,8 @@ export function AdminCategoriesClient() {
                         )}
                         {subcategories.length > previewSubcategories.length ? (
                           <span className="rounded-full bg-primary-fixed px-3 py-1 text-xs font-bold text-primary">
-                            +{subcategories.length - previewSubcategories.length}
+                            +
+                            {subcategories.length - previewSubcategories.length}
                           </span>
                         ) : null}
                       </span>
@@ -1235,7 +1396,7 @@ export function AdminCategoriesClient() {
                   <div className="grid gap-2 sm:grid-cols-2 xl:w-[250px] xl:grid-cols-1">
                     <button
                       type="button"
-                      className="inline-flex min-h-10 items-center justify-center rounded-full border border-outline-variant px-4 py-2 text-sm font-bold text-primary transition hover:bg-surface-container-high focus:outline-none focus:ring-4 focus:ring-primary/20"
+                      className="inline-flex min-h-10 items-center justify-center gap-2 rounded-full border border-outline-variant px-4 py-2 text-sm font-bold text-primary transition hover:bg-surface-container-high focus:outline-none focus:ring-4 focus:ring-primary/20"
                       onClick={() => startEditCategory(category)}
                       aria-expanded={editing}
                       aria-controls={categoryEditPanelId}
@@ -1244,17 +1405,19 @@ export function AdminCategoriesClient() {
                     </button>
                     <button
                       type="button"
-                      className="inline-flex min-h-10 items-center justify-center rounded-full border border-outline-variant px-4 py-2 text-sm font-bold text-primary transition hover:bg-surface-container-high focus:outline-none focus:ring-4 focus:ring-primary/20"
+                      className="inline-flex min-h-10 items-center justify-center gap-2 rounded-full border border-outline-variant px-4 py-2 text-sm font-bold text-primary transition hover:bg-surface-container-high focus:outline-none focus:ring-4 focus:ring-primary/20"
                       onClick={() => toggleSubcategoryPanel(category)}
                       aria-expanded={expanded}
                       aria-controls={subcategoryPanelId}
                     >
-                      {expanded ? "Chiudi sottocategorie" : "Gestisci sottocategorie"}
+                      {expanded
+                        ? "Chiudi sottocategorie"
+                        : "Gestisci sottocategorie"}
                     </button>
                     <div className="grid grid-cols-2 gap-2">
                       <button
                         type="button"
-                        className="inline-flex min-h-10 items-center justify-center rounded-full border border-outline-variant px-3 py-2 text-sm font-bold text-on-surface-variant transition hover:bg-surface-container-high disabled:cursor-not-allowed disabled:opacity-40"
+                        className="inline-flex min-h-10 items-center justify-center gap-2 rounded-full border border-outline-variant px-3 py-2 text-sm font-bold text-on-surface-variant transition hover:bg-surface-container-high disabled:cursor-not-allowed disabled:opacity-40"
                         disabled={saving || index === 0}
                         onClick={() => void moveCategory(category, -1)}
                       >
@@ -1262,8 +1425,10 @@ export function AdminCategoriesClient() {
                       </button>
                       <button
                         type="button"
-                        className="inline-flex min-h-10 items-center justify-center rounded-full border border-outline-variant px-3 py-2 text-sm font-bold text-on-surface-variant transition hover:bg-surface-container-high disabled:cursor-not-allowed disabled:opacity-40"
-                        disabled={saving || index === sortedCategories.length - 1}
+                        className="inline-flex min-h-10 items-center justify-center gap-2 rounded-full border border-outline-variant px-3 py-2 text-sm font-bold text-on-surface-variant transition hover:bg-surface-container-high disabled:cursor-not-allowed disabled:opacity-40"
+                        disabled={
+                          saving || index === sortedCategories.length - 1
+                        }
                         onClick={() => void moveCategory(category, 1)}
                       >
                         Giù
@@ -1271,7 +1436,7 @@ export function AdminCategoriesClient() {
                     </div>
                     <button
                       type="button"
-                      className="inline-flex min-h-10 items-center justify-center rounded-full border border-outline-variant px-4 py-2 text-sm font-bold text-on-surface-variant transition hover:bg-surface-container-high disabled:cursor-not-allowed disabled:opacity-50"
+                      className="inline-flex min-h-10 items-center justify-center gap-2 rounded-full border border-outline-variant px-4 py-2 text-sm font-bold text-on-surface-variant transition hover:bg-surface-container-high disabled:cursor-not-allowed disabled:opacity-50"
                       disabled={saving}
                       onClick={() => void toggleCategory(category)}
                     >
@@ -1279,7 +1444,7 @@ export function AdminCategoriesClient() {
                     </button>
                     <button
                       type="button"
-                      className="inline-flex min-h-10 items-center justify-center rounded-full border border-error/30 px-4 py-2 text-sm font-bold text-error transition hover:bg-error-container disabled:cursor-not-allowed disabled:opacity-50"
+                      className="inline-flex min-h-10 items-center justify-center gap-2 rounded-full border border-error/30 px-4 py-2 text-sm font-bold text-error transition hover:bg-error-container disabled:cursor-not-allowed disabled:opacity-50"
                       disabled={saving || !canDelete}
                       title={
                         canDelete
@@ -1314,21 +1479,26 @@ export function AdminCategoriesClient() {
                         imageUploading={imageUploading}
                         saving={saving}
                         imageInputRef={imageInputRef}
-                        uploadCategoryImage={(event) => void uploadCategoryImage(event)}
+                        uploadCategoryImage={(event) =>
+                          void uploadCategoryImage(event)
+                        }
                         onClearImageUrl={clearCategoryImageUrl}
                       />
                       <div className="mt-5 grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto]">
                         <button
                           type="submit"
                           disabled={saving}
-                          className="inline-flex min-h-11 items-center justify-center rounded-full bg-[#FF8500] px-5 py-2 font-button text-white transition hover:bg-[#FF9A2B] disabled:opacity-60"
+                          className="inline-flex min-h-11 items-center justify-center gap-2 rounded-full bg-[#FF8500] px-5 py-2 font-button text-white transition hover:bg-[#FF9A2B] disabled:opacity-60"
                         >
-                          {saving ? "Salvataggio…" : "Salva modifiche"}
+                          {loadingContent(
+                            `category-save:${categoryId}`,
+                            "Salva modifiche",
+                          )}
                         </button>
                         <button
                           type="button"
                           disabled={saving}
-                          className="inline-flex min-h-11 items-center justify-center rounded-full border border-outline-variant bg-white px-5 py-2 font-button text-primary transition hover:bg-surface-container-high disabled:opacity-60"
+                          className="inline-flex min-h-11 items-center justify-center gap-2 rounded-full border border-outline-variant bg-white px-5 py-2 font-button text-primary transition hover:bg-surface-container-high disabled:opacity-60"
                           onClick={cancelEditCategory}
                         >
                           Annulla
@@ -1352,7 +1522,8 @@ export function AdminCategoriesClient() {
                           {category.name}
                         </h3>
                         <p className="mt-2 text-sm leading-6 text-on-surface-variant">
-                          Aggiungi, modifica, riordina o disattiva le specializzazioni.
+                          Aggiungi, modifica, riordina o disattiva le
+                          specializzazioni.
                         </p>
                       </div>
                       <button
@@ -1360,7 +1531,10 @@ export function AdminCategoriesClient() {
                         className="inline-flex min-h-11 shrink-0 items-center justify-center gap-2 rounded-full bg-primary px-5 py-2 font-button text-white transition hover:bg-primary/90 focus:outline-none focus:ring-4 focus:ring-primary/20"
                         onClick={() => startCreateSubcategory(category)}
                       >
-                        <span className="material-symbols-outlined text-[18px]" aria-hidden>
+                        <span
+                          className="material-symbols-outlined text-[18px]"
+                          aria-hidden
+                        >
                           add
                         </span>
                         Nuova sottocategoria
@@ -1374,9 +1548,11 @@ export function AdminCategoriesClient() {
                         </div>
                       ) : null}
                       {subcategories.map((subcategory, subcategoryIndex) => {
-                        const subcategoryEditing = editingSubcategoryId === subcategory.id;
+                        const subcategoryEditing =
+                          editingSubcategoryId === subcategory.id;
                         const subcategoryEditPanelId = `subcategory-edit-${subcategory.id}`;
-                        const highlighted = highlightedSubcategoryId === subcategory.id;
+                        const highlighted =
+                          highlightedSubcategoryId === subcategory.id;
 
                         return (
                           <div key={subcategory.id}>
@@ -1394,17 +1570,25 @@ export function AdminCategoriesClient() {
                                     <h4 className="font-label-md leading-snug text-primary">
                                       {subcategory.name}
                                     </h4>
-                                    <StatusPill active={subcategory.is_active} />
+                                    <StatusPill
+                                      active={subcategory.is_active}
+                                    />
                                   </div>
                                   <p className="mt-2 max-w-full overflow-hidden text-ellipsis whitespace-nowrap rounded-full bg-surface-container-low px-3 py-1 text-xs text-on-surface-variant">
-                                    {subcategory.slug} · ordine {subcategory.sort_order}
+                                    {subcategory.slug} · ordine{" "}
+                                    {subcategory.sort_order}
                                   </p>
                                 </div>
                                 <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:w-[340px]">
                                   <button
                                     type="button"
                                     className="rounded-full border border-outline-variant px-3 py-2 text-xs font-bold text-primary transition hover:bg-surface-container-high"
-                                    onClick={() => startEditSubcategory(category, subcategory)}
+                                    onClick={() =>
+                                      startEditSubcategory(
+                                        category,
+                                        subcategory,
+                                      )
+                                    }
                                     aria-expanded={subcategoryEditing}
                                     aria-controls={subcategoryEditPanelId}
                                   >
@@ -1413,23 +1597,43 @@ export function AdminCategoriesClient() {
                                   <button
                                     type="button"
                                     className="rounded-full border border-outline-variant px-3 py-2 text-xs font-bold text-on-surface-variant transition hover:bg-surface-container-high"
-                                    onClick={() => void toggleSubcategory(subcategory)}
+                                    onClick={() =>
+                                      void toggleSubcategory(subcategory)
+                                    }
                                   >
-                                    {subcategory.is_active ? "Disattiva" : "Riattiva"}
+                                    {subcategory.is_active
+                                      ? "Disattiva"
+                                      : "Riattiva"}
                                   </button>
                                   <button
                                     type="button"
                                     className="rounded-full border border-outline-variant px-3 py-2 text-xs font-bold text-on-surface-variant transition hover:bg-surface-container-high disabled:opacity-40"
                                     disabled={saving || subcategoryIndex === 0}
-                                    onClick={() => void moveSubcategory(category, subcategory, -1)}
+                                    onClick={() =>
+                                      void moveSubcategory(
+                                        category,
+                                        subcategory,
+                                        -1,
+                                      )
+                                    }
                                   >
                                     Su
                                   </button>
                                   <button
                                     type="button"
                                     className="rounded-full border border-outline-variant px-3 py-2 text-xs font-bold text-on-surface-variant transition hover:bg-surface-container-high disabled:opacity-40"
-                                    disabled={saving || subcategoryIndex === subcategories.length - 1}
-                                    onClick={() => void moveSubcategory(category, subcategory, 1)}
+                                    disabled={
+                                      saving ||
+                                      subcategoryIndex ===
+                                        subcategories.length - 1
+                                    }
+                                    onClick={() =>
+                                      void moveSubcategory(
+                                        category,
+                                        subcategory,
+                                        1,
+                                      )
+                                    }
                                   >
                                     Giù
                                   </button>
@@ -1437,7 +1641,9 @@ export function AdminCategoriesClient() {
                                     type="button"
                                     className="col-span-2 rounded-full border border-error/30 px-3 py-2 text-xs font-bold text-error transition hover:bg-error-container disabled:opacity-50 sm:col-span-2"
                                     disabled={saving}
-                                    onClick={() => void deleteSubcategory(subcategory)}
+                                    onClick={() =>
+                                      void deleteSubcategory(subcategory)
+                                    }
                                   >
                                     Elimina
                                   </button>
@@ -1465,14 +1671,17 @@ export function AdminCategoriesClient() {
                                     <button
                                       type="submit"
                                       disabled={saving}
-                                      className="inline-flex min-h-11 items-center justify-center rounded-full bg-[#FF8500] px-5 py-2 font-button text-white transition hover:bg-[#FF9A2B] disabled:opacity-60"
+                                      className="inline-flex min-h-11 items-center justify-center gap-2 rounded-full bg-[#FF8500] px-5 py-2 font-button text-white transition hover:bg-[#FF9A2B] disabled:opacity-60"
                                     >
-                                      {saving ? "Salvataggio…" : "Salva modifiche"}
+                                      {loadingContent(
+                                        `subcategory-save:${subcategory.id}`,
+                                        "Salva modifiche",
+                                      )}
                                     </button>
                                     <button
                                       type="button"
                                       disabled={saving}
-                                      className="inline-flex min-h-11 items-center justify-center rounded-full border border-outline-variant bg-white px-5 py-2 font-button text-primary transition hover:bg-surface-container-high disabled:opacity-60"
+                                      className="inline-flex min-h-11 items-center justify-center gap-2 rounded-full border border-outline-variant bg-white px-5 py-2 font-button text-primary transition hover:bg-surface-container-high disabled:opacity-60"
                                       onClick={cancelEditSubcategory}
                                     >
                                       Annulla
@@ -1494,11 +1703,15 @@ export function AdminCategoriesClient() {
       </section>
 
       {categoryModalOpen ? (
-        <AdminModal title="Nuova categoria" saving={saving} onClose={closeCategoryModal}>
+        <AdminModal
+          title="Nuova categoria"
+          saving={saving}
+          onClose={closeCategoryModal}
+        >
           <form onSubmit={saveCategory}>
             <p className="mb-5 text-sm leading-6 text-on-surface-variant">
-              Crea una nuova categoria del catalogo. Dopo il salvataggio comparirà subito
-              nell’elenco amministrativo.
+              Crea una nuova categoria del catalogo. Dopo il salvataggio
+              comparirà subito nell’elenco amministrativo.
             </p>
             <CategoryFormFields
               categoryForm={categoryForm}
@@ -1514,14 +1727,14 @@ export function AdminCategoriesClient() {
               <button
                 type="submit"
                 disabled={saving}
-                className="inline-flex min-h-12 items-center justify-center rounded-full bg-[#FF8500] px-6 py-3 font-button text-white transition hover:bg-[#FF9A2B] disabled:opacity-60"
+                className="inline-flex min-h-12 items-center justify-center gap-2 rounded-full bg-[#FF8500] px-6 py-3 font-button text-white transition hover:bg-[#FF9A2B] disabled:opacity-60"
               >
-                {saving ? "Creazione…" : "Crea categoria"}
+                {loadingContent("category-create", "Crea categoria")}
               </button>
               <button
                 type="button"
                 disabled={saving}
-                className="inline-flex min-h-12 items-center justify-center rounded-full border border-outline-variant px-6 py-3 font-button text-primary transition hover:bg-surface-container-high disabled:opacity-60"
+                className="inline-flex min-h-12 items-center justify-center gap-2 rounded-full border border-outline-variant px-6 py-3 font-button text-primary transition hover:bg-surface-container-high disabled:opacity-60"
                 onClick={closeCategoryModal}
               >
                 Annulla
@@ -1540,7 +1753,10 @@ export function AdminCategoriesClient() {
           <form onSubmit={saveSubcategory}>
             <p className="mb-5 text-sm leading-6 text-on-surface-variant">
               La sottocategoria verrà associata a{" "}
-              <strong className="text-primary">{subcategoryModalCategory.name}</strong>.
+              <strong className="text-primary">
+                {subcategoryModalCategory.name}
+              </strong>
+              .
             </p>
             <SubcategoryFormFields
               subcategoryForm={subcategoryForm}
@@ -1551,14 +1767,17 @@ export function AdminCategoriesClient() {
               <button
                 type="submit"
                 disabled={saving}
-                className="inline-flex min-h-12 items-center justify-center rounded-full bg-[#FF8500] px-6 py-3 font-button text-white transition hover:bg-[#FF9A2B] disabled:opacity-60"
+                className="inline-flex min-h-12 items-center justify-center gap-2 rounded-full bg-[#FF8500] px-6 py-3 font-button text-white transition hover:bg-[#FF9A2B] disabled:opacity-60"
               >
-                {saving ? "Creazione…" : "Crea sottocategoria"}
+                {loadingContent(
+                  `subcategory-create:${fullId(subcategoryModalCategory.id)}`,
+                  "Crea sottocategoria",
+                )}
               </button>
               <button
                 type="button"
                 disabled={saving}
-                className="inline-flex min-h-12 items-center justify-center rounded-full border border-outline-variant px-6 py-3 font-button text-primary transition hover:bg-surface-container-high disabled:opacity-60"
+                className="inline-flex min-h-12 items-center justify-center gap-2 rounded-full border border-outline-variant px-6 py-3 font-button text-primary transition hover:bg-surface-container-high disabled:opacity-60"
                 onClick={closeSubcategoryModal}
               >
                 Annulla

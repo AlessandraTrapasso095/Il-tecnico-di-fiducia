@@ -40,12 +40,7 @@ describe("LoginClient", () => {
 
     const user = userEvent.setup();
 
-    render(
-      <LoginClient
-        initialRole="customer"
-        infoMessage={null}
-      />,
-    );
+    render(<LoginClient initialRole="customer" infoMessage={null} />);
 
     await user.type(
       screen.getByRole("textbox", { name: /indirizzo email/i }),
@@ -60,9 +55,7 @@ describe("LoginClient", () => {
 
     await user.type(password!, "Password123!");
 
-    await user.click(
-      screen.getByRole("button", { name: /^accedi$/i }),
-    );
+    await user.click(screen.getByRole("button", { name: /^accedi$/i }));
 
     await waitFor(() => {
       expect(fetchJsonMock).toHaveBeenCalledTimes(1);
@@ -86,7 +79,7 @@ describe("LoginClient", () => {
     expect(navigateAfterLoginMock).toHaveBeenCalledWith("/customer");
 
     const loadingButton = screen.getByRole("button", {
-      name: /accesso in corso/i,
+      name: /caricamento/i,
     });
 
     expect(loadingButton).toBeDisabled();
@@ -114,12 +107,7 @@ describe("LoginClient", () => {
 
     const user = userEvent.setup();
 
-    render(
-      <LoginClient
-        initialRole="customer"
-        infoMessage={null}
-      />,
-    );
+    render(<LoginClient initialRole="customer" infoMessage={null} />);
 
     await user.type(
       screen.getByRole("textbox", { name: /indirizzo email/i }),
@@ -179,12 +167,7 @@ describe("LoginClient", () => {
 
     const user = userEvent.setup();
 
-    render(
-      <LoginClient
-        initialRole="customer"
-        infoMessage={null}
-      />,
-    );
+    render(<LoginClient initialRole="customer" infoMessage={null} />);
 
     await user.type(
       screen.getByRole("textbox", { name: /indirizzo email/i }),
@@ -197,9 +180,7 @@ describe("LoginClient", () => {
 
     await user.type(password, "Password123!");
 
-    await user.click(
-      screen.getByRole("button", { name: /^accedi$/i }),
-    );
+    await user.click(screen.getByRole("button", { name: /^accedi$/i }));
 
     await waitFor(() => {
       expect(navigateAfterLoginMock).toHaveBeenCalledWith("/customer");

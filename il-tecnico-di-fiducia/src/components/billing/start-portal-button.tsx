@@ -9,7 +9,10 @@ type StartPortalButtonProps = {
   children?: React.ReactNode;
 };
 
-export function StartPortalButton({ className, children }: StartPortalButtonProps) {
+export function StartPortalButton({
+  className,
+  children,
+}: StartPortalButtonProps) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -24,7 +27,9 @@ export function StartPortalButton({ className, children }: StartPortalButtonProp
       });
       window.location.assign(res.url);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Impossibile aprire Stripe.");
+      setError(
+        err instanceof Error ? err.message : "Impossibile aprire Stripe.",
+      );
     } finally {
       setLoading(false);
     }
@@ -32,8 +37,25 @@ export function StartPortalButton({ className, children }: StartPortalButtonProp
 
   return (
     <span className="inline-flex flex-col gap-2">
-      <button type="button" className={className} onClick={onClick} disabled={loading}>
-        {loading ? "Apertura gestione…" : (children ?? "Gestisci abbonamento")}
+      <button
+        type="button"
+        className={className}
+        onClick={onClick}
+        disabled={loading}
+      >
+        {loading ? (
+          <>
+            <span
+              className="material-symbols-outlined animate-spin text-[19px]"
+              aria-hidden
+            >
+              progress_activity
+            </span>
+            Caricamento…
+          </>
+        ) : (
+          (children ?? "Gestisci abbonamento")
+        )}
       </button>
       {error ? <span className="text-sm text-error">{error}</span> : null}
     </span>

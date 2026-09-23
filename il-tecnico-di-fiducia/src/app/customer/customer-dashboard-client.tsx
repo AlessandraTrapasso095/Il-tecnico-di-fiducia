@@ -3,6 +3,7 @@
 import {
   type CSSProperties,
   type MouseEvent as ReactMouseEvent,
+  type TouchEvent as ReactTouchEvent,
   useCallback,
   useEffect,
   useMemo,
@@ -46,14 +47,28 @@ type ProfessionalRow = {
   last_name: string;
   province_code: string | null;
   headline: string | null;
+  search_summary?: string | null;
+  bio?: string | null;
   specializations: string[] | null;
+  work_media?: {
+    id: string;
+    post_id: string;
+    public_url: string;
+    media_type: "image" | "video";
+    file_name: string | null;
+  }[];
   avatar_url: string | null;
   available_remote: boolean | null;
   available_travel: boolean | null;
   rating_average: number | null;
   reviews_count: number;
   categories?: { id: string | number | null; name: string; slug: string }[];
-  subcategory?: { id: string; category_id: string | number; name: string; slug: string } | null;
+  subcategory?: {
+    id: string;
+    category_id: string | number;
+    name: string;
+    slug: string;
+  } | null;
 };
 
 type ProfessionalsResponse = {
@@ -69,12 +84,7 @@ type ProvincesResponse = { provinces: Province[] };
 type CategoriesResponse = { categories: DbProfessionCategory[] };
 
 type ContactRequestStatus =
-  | "pending"
-  | "accepted"
-  | "rejected"
-  | "concluded"
-  | "closed"
-  | "completed";
+  "pending" | "accepted" | "rejected" | "concluded" | "closed" | "completed";
 
 type ContactRequestRow = {
   id: string;
@@ -131,7 +141,10 @@ type NotificationsResponse = {
   notifications: NotificationRow[];
 };
 
-type NotificationRealtimeRow = Omit<NotificationRow, "actor" | "entity" | "href"> & {
+type NotificationRealtimeRow = Omit<
+  NotificationRow,
+  "actor" | "entity" | "href"
+> & {
   recipient_id?: string;
 };
 
@@ -161,9 +174,13 @@ type ContactModalState = {
   professional: ProfessionalRow | null;
 };
 
-function fullName(p: { first_name: string; last_name: string } | null | undefined) {
+function fullName(
+  p: { first_name: string; last_name: string } | null | undefined,
+) {
   if (!p) return "Professionista";
-  return `${p.first_name ?? ""} ${p.last_name ?? ""}`.trim() || "Professionista";
+  return (
+    `${p.first_name ?? ""} ${p.last_name ?? ""}`.trim() || "Professionista"
+  );
 }
 
 function statusLabel(status: ContactRequestStatus) {
@@ -249,7 +266,10 @@ function notificationText(notification: NotificationRow) {
     return `${actor} ha risposto alla tua recensione.`;
   }
 
-  if (notification.type === "review_received" || notification.type === "review_created") {
+  if (
+    notification.type === "review_received" ||
+    notification.type === "review_created"
+  ) {
     return `${actor} ti ha lasciato una recensione.`;
   }
 
@@ -294,6 +314,65 @@ function professionalCategoryLabel(professional: ProfessionalRow) {
     : categoryName;
 }
 
+function professionalCardExpandedSummary(professional: ProfessionalRow) {
+  const searchSummary = professional.search_summary
+    ?.replace(/\s+/g, " ")
+    .trim();
+
+  return (
+    searchSummary ||
+    "Questo professionista non ha ancora inserito la sua presentazione."
+  );
+}
+
+function professionalCardSummary(professional: ProfessionalRow) {
+  const summary = professionalCardExpandedSummary(professional);
+
+  return summary.length > 140 ? `${summary.slice(0, 137).trimEnd()}…` : summary;
+}
+
+function ProfessionalCardSummaryText({
+  summary,
+  expandedSummary,
+}: {
+  summary: string;
+  expandedSummary: string;
+}) {
+  const [expanded, setExpanded] = useState(false);
+
+  const canExpand =
+    expandedSummary.length > summary.length || summary.length > 110;
+
+  const displayedSummary = expanded ? expandedSummary : summary;
+
+  return (
+    <div className="mt-4">
+      <p
+        className={[
+          "text-[15px] leading-6 text-on-surface-variant md:text-[14px] md:leading-5 lg:text-[15px]",
+          expanded ? "" : "line-clamp-3",
+        ].join(" ")}
+      >
+        {displayedSummary}
+      </p>
+
+      {canExpand ? (
+        <button
+          type="button"
+          className="mt-1.5 inline-flex items-center gap-1 text-sm font-bold text-primary transition hover:text-secondary"
+          aria-expanded={expanded}
+          onClick={() => setExpanded((current) => !current)}
+        >
+          {expanded ? "Chiudi" : "Altro"}
+          <span className="material-symbols-outlined text-[18px]" aria-hidden>
+            {expanded ? "expand_less" : "expand_more"}
+          </span>
+        </button>
+      ) : null}
+    </div>
+  );
+}
+
 function RatingStars({
   average,
   count,
@@ -303,7 +382,10 @@ function RatingStars({
 }) {
   const rounded = count > 0 && average !== null ? Math.round(average) : 0;
   return (
-    <div className="flex items-center gap-2 text-sm" aria-label={`${count} recensioni`}>
+    <div
+      className="flex items-center gap-2 text-sm"
+      aria-label={`${count} recensioni`}
+    >
       <div className="flex items-center gap-0.5">
         {Array.from({ length: 5 }).map((_, index) => (
           <span
@@ -328,7 +410,9 @@ function RatingStars({
   );
 }
 
-function customerNotificationFallbackHref(notification: NotificationRealtimeRow) {
+function customerNotificationFallbackHref(
+  notification: NotificationRealtimeRow,
+) {
   if (notification.entity_type === "conversation" && notification.entity_id) {
     return `/customer?section=messages&conversation=${notification.entity_id}`;
   }
@@ -362,6 +446,216 @@ function customerIconButtonClass(active: boolean) {
   ].join(" ");
 }
 
+function ProfessionalResultMediaCarousel({
+  professional,
+  isSaved,
+  savedLoading,
+  onToggleSaved,
+}: {
+  professional: ProfessionalRow;
+  isSaved: boolean;
+  savedLoading: boolean;
+  onToggleSaved: (professional: ProfessionalRow) => void;
+}) {
+  const media = professional.work_media ?? [];
+  const [activeIndex, setActiveIndex] = useState(0);
+  const [isPaused, setIsPaused] = useState(false);
+  const touchStartX = useRef<number | null>(null);
+
+  const safeActiveIndex =
+    media.length === 0 ? 0 : Math.min(activeIndex, media.length - 1);
+
+  const activeMedia = media[safeActiveIndex] ?? null;
+
+  const showPrevious = useCallback(() => {
+    if (media.length <= 1) return;
+
+    setActiveIndex((current) =>
+      current === 0 ? media.length - 1 : current - 1,
+    );
+  }, [media.length]);
+
+  const showNext = useCallback(() => {
+    if (media.length <= 1) return;
+
+    setActiveIndex((current) =>
+      current >= media.length - 1 ? 0 : current + 1,
+    );
+  }, [media.length]);
+
+  useEffect(() => {
+    if (media.length <= 1 || isPaused) return;
+
+    const timer = window.setInterval(() => {
+      setActiveIndex((current) =>
+        current >= media.length - 1 ? 0 : current + 1,
+      );
+    }, 2500);
+
+    return () => window.clearInterval(timer);
+  }, [isPaused, media.length]);
+
+  function handleTouchStart(event: ReactTouchEvent<HTMLDivElement>) {
+    touchStartX.current = event.touches[0]?.clientX ?? null;
+    setIsPaused(true);
+  }
+
+  function handleTouchEnd(event: ReactTouchEvent<HTMLDivElement>) {
+    const startX = touchStartX.current;
+    const endX = event.changedTouches[0]?.clientX;
+
+    touchStartX.current = null;
+    setIsPaused(false);
+
+    if (startX === null || endX === undefined) return;
+
+    const delta = endX - startX;
+
+    if (Math.abs(delta) < 40) return;
+
+    if (delta < 0) {
+      showNext();
+    } else {
+      showPrevious();
+    }
+  }
+
+  return (
+    <div
+      className="group/media relative aspect-[16/10] w-full touch-pan-y overflow-hidden bg-surface-container-high md:h-[230px] md:aspect-auto md:rounded-[18px] lg:h-[250px] lg:rounded-[20px]"
+      onMouseEnter={() => setIsPaused(true)}
+      onMouseLeave={() => setIsPaused(false)}
+      onFocusCapture={() => setIsPaused(true)}
+      onBlurCapture={() => setIsPaused(false)}
+      onTouchStart={handleTouchStart}
+      onTouchEnd={handleTouchEnd}
+    >
+      {activeMedia ? (
+        activeMedia.media_type === "video" ? (
+          <video
+            key={activeMedia.id}
+            src={activeMedia.public_url}
+            controls
+            muted
+            playsInline
+            preload="metadata"
+            className="media-swap-fade h-full w-full object-cover"
+            aria-label={`Lavoro di ${fullName(professional)}`}
+          />
+        ) : (
+          <Image
+            key={activeMedia.id}
+            src={activeMedia.public_url}
+            alt={
+              activeMedia.file_name?.trim() ||
+              `Lavoro di ${fullName(professional)}`
+            }
+            fill
+            unoptimized
+            sizes="(max-width: 767px) 100vw, 310px"
+            className="media-swap-fade object-cover"
+          />
+        )
+      ) : (
+        <div className="flex h-full min-h-[230px] flex-col items-center justify-center gap-3 bg-gradient-to-br from-primary-fixed via-surface-container-low to-secondary-fixed/40 px-8 text-center md:min-h-0">
+          <span
+            className="material-symbols-outlined text-[42px] text-primary/65"
+            aria-hidden
+          >
+            photo_library
+          </span>
+
+          <div>
+            <div className="font-button text-sm text-primary">
+              Portfolio in aggiornamento
+            </div>
+
+            <p className="mt-1 text-xs leading-5 text-on-surface-variant">
+              Visita il profilo per scoprire attività, servizi e competenze.
+            </p>
+          </div>
+        </div>
+      )}
+
+      <div className="pointer-events-none absolute inset-x-0 top-0 h-24 bg-gradient-to-b from-black/25 to-transparent" />
+
+      <button
+        type="button"
+        className={[
+          "absolute right-3 top-3 z-10 flex size-11 items-center justify-center rounded-full border border-white/55 bg-white/90 shadow-md backdrop-blur transition disabled:cursor-not-allowed disabled:opacity-60 md:size-9",
+          isSaved ? "text-[#FF8500]" : "text-primary hover:text-[#FF8500]",
+        ].join(" ")}
+        title={isSaved ? "Rimuovi dai preferiti" : "Aggiungi ai preferiti"}
+        aria-label={
+          isSaved
+            ? `Rimuovi ${fullName(professional)} dai preferiti`
+            : `Aggiungi ${fullName(professional)} ai preferiti`
+        }
+        disabled={savedLoading}
+        onClick={() => onToggleSaved(professional)}
+      >
+        <span
+          className="material-symbols-outlined"
+          aria-hidden
+          style={{
+            fontVariationSettings: isSaved ? "'FILL' 1" : "'FILL' 0",
+          }}
+        >
+          favorite
+        </span>
+      </button>
+
+      {media.length > 1 ? (
+        <>
+          <button
+            type="button"
+            onClick={showPrevious}
+            aria-label="Lavoro precedente"
+            className="absolute left-3 top-1/2 z-10 flex size-10 -translate-y-1/2 items-center justify-center rounded-full bg-white/90 text-primary shadow-md backdrop-blur transition hover:bg-white md:size-8 md:opacity-0 md:group-hover/media:opacity-100 md:group-focus-within/media:opacity-100"
+          >
+            <span className="material-symbols-outlined text-[23px]" aria-hidden>
+              chevron_left
+            </span>
+          </button>
+
+          <button
+            type="button"
+            onClick={showNext}
+            aria-label="Lavoro successivo"
+            className="absolute right-3 top-1/2 z-10 flex size-10 -translate-y-1/2 items-center justify-center rounded-full bg-white/90 text-primary shadow-md backdrop-blur transition hover:bg-white md:size-8 md:opacity-0 md:group-hover/media:opacity-100 md:group-focus-within/media:opacity-100"
+          >
+            <span className="material-symbols-outlined text-[23px]" aria-hidden>
+              chevron_right
+            </span>
+          </button>
+
+          <div
+            className="absolute bottom-3 left-1/2 z-10 flex -translate-x-1/2 gap-1.5 rounded-full bg-black/35 px-2.5 py-2 backdrop-blur"
+            aria-label={`Media ${safeActiveIndex + 1} di ${media.length}`}
+          >
+            {media.map((item, index) => (
+              <button
+                key={item.id}
+                type="button"
+                aria-label={`Mostra lavoro ${index + 1}`}
+                onClick={() => setActiveIndex(index)}
+                className={[
+                  "size-2 rounded-full transition",
+                  index === safeActiveIndex ? "bg-white" : "bg-white/45",
+                ].join(" ")}
+              />
+            ))}
+          </div>
+
+          <div className="absolute bottom-3 right-3 z-10 rounded-full bg-black/45 px-2.5 py-1 text-xs font-bold text-white backdrop-blur">
+            {safeActiveIndex + 1}/{media.length}
+          </div>
+        </>
+      ) : null}
+    </div>
+  );
+}
+
 export default function CustomerDashboardClient({
   profile,
   initialFilters,
@@ -371,11 +665,13 @@ export default function CustomerDashboardClient({
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const supabase = useMemo(() => createClient(), []);
-  const [view, setView] = useState<"explore" | "messages">(initialMessages.initialView);
-  const [messagesKey, setMessagesKey] = useState(0);
-  const [activeConversationId, setActiveConversationId] = useState<string | null>(
-    initialMessages.activeConversationId,
+  const [view, setView] = useState<"explore" | "messages">(
+    initialMessages.initialView,
   );
+  const [messagesKey, setMessagesKey] = useState(0);
+  const [activeConversationId, setActiveConversationId] = useState<
+    string | null
+  >(initialMessages.activeConversationId);
 
   const [q, setQ] = useState(() => initialFilters?.q ?? "");
   const [provinceCode, setProvinceCode] = useState<string>(
@@ -400,14 +696,20 @@ export default function CustomerDashboardClient({
   const [professionals, setProfessionals] = useState<ProfessionalRow[]>([]);
   const [professionalsTotal, setProfessionalsTotal] = useState(0);
   const [professionalsLoading, setProfessionalsLoading] = useState(false);
-  const [professionalsError, setProfessionalsError] = useState<string | null>(null);
+  const [categoriesRetrying, setCategoriesRetrying] = useState(false);
+  const [professionalsRetrying, setProfessionalsRetrying] = useState(false);
+  const [professionalsError, setProfessionalsError] = useState<string | null>(
+    null,
+  );
 
   const [requests, setRequests] = useState<ContactRequestRow[]>([]);
   const [requestsLoading, setRequestsLoading] = useState(false);
   const [requestsError, setRequestsError] = useState<string | null>(null);
 
   const [savedIds, setSavedIds] = useState<Set<string>>(new Set());
-  const [savedProfessionals, setSavedProfessionals] = useState<ProfessionalRow[]>([]);
+  const [savedProfessionals, setSavedProfessionals] = useState<
+    ProfessionalRow[]
+  >([]);
   const [savedLoading, setSavedLoading] = useState(false);
   const [notifications, setNotifications] = useState<NotificationRow[]>([]);
 
@@ -421,9 +723,9 @@ export default function CustomerDashboardClient({
   const [contactFiles, setContactFiles] = useState<File[]>([]);
   const [contactSending, setContactSending] = useState(false);
   const [contactError, setContactError] = useState<string | null>(null);
-  const [contactDone, setContactDone] = useState<{ conversationId: string | null } | null>(
-    null,
-  );
+  const [contactDone, setContactDone] = useState<{
+    conversationId: string | null;
+  } | null>(null);
 
   const searchDebounce = useRef<number | null>(null);
   const filterRef = useRef<HTMLDivElement | null>(null);
@@ -439,7 +741,9 @@ export default function CustomerDashboardClient({
 
   const currentCategory = useMemo(
     () =>
-      categories.find((category) => categoryOptionValue(category) === categoryKey) ?? null,
+      categories.find(
+        (category) => categoryOptionValue(category) === categoryKey,
+      ) ?? null,
     [categories, categoryKey],
   );
   const currentSubcategories = currentCategory?.subcategories ?? [];
@@ -464,12 +768,12 @@ export default function CustomerDashboardClient({
   }, [pathname, searchParams]);
   const sectionParam = searchParams.get("section");
   const conversationParam = searchParams.get("conversation") || null;
-  const isMessagesUrl = sectionParam === "messages" || Boolean(conversationParam);
+  const isMessagesUrl =
+    sectionParam === "messages" || Boolean(conversationParam);
   const isMessagesNavActive = view === "messages" || isMessagesUrl;
   const isSearchNavActive = !isMessagesNavActive;
 
   async function loadFilters() {
-    setCategoriesError(null);
     const [prov, cat] = await Promise.allSettled([
       fetchJson<ProvincesResponse>("/api/provinces", { method: "GET" }),
       fetchJson<CategoriesResponse>("/api/categories", { method: "GET" }),
@@ -481,6 +785,7 @@ export default function CustomerDashboardClient({
 
     if (cat.status === "fulfilled") {
       setCategories(normalizeProfessionCategories(cat.value.categories ?? []));
+      setCategoriesError(null);
       return;
     }
 
@@ -488,12 +793,37 @@ export default function CustomerDashboardClient({
     setCategoriesError("Non è stato possibile caricare le categorie. Riprova.");
   }
 
+  async function retryFilters() {
+    if (categoriesRetrying) return;
+
+    setCategoriesRetrying(true);
+    try {
+      await loadFilters();
+    } finally {
+      setCategoriesRetrying(false);
+    }
+  }
+
+  async function retryProfessionals() {
+    if (professionalsRetrying) return;
+
+    setProfessionalsRetrying(true);
+    try {
+      await loadProfessionals();
+    } finally {
+      setProfessionalsRetrying(false);
+    }
+  }
+
   async function loadSaved() {
     setSavedLoading(true);
     try {
-      const res = await fetchJson<SavedProfessionalsResponse>("/api/saved-professionals", {
-        method: "GET",
-      });
+      const res = await fetchJson<SavedProfessionalsResponse>(
+        "/api/saved-professionals",
+        {
+          method: "GET",
+        },
+      );
       const nextProfessionals = res.professionals ?? [];
       setSavedProfessionals(nextProfessionals);
       setSavedIds(new Set(nextProfessionals.map((p) => p.id)));
@@ -506,9 +836,12 @@ export default function CustomerDashboardClient({
 
   const loadNotifications = useCallback(async () => {
     try {
-      const res = await fetchJson<NotificationsResponse>("/api/notifications?limit=10", {
-        method: "GET",
-      });
+      const res = await fetchJson<NotificationsResponse>(
+        "/api/notifications?limit=10",
+        {
+          method: "GET",
+        },
+      );
       setNotifications(res.notifications ?? []);
     } catch {
       // Realtime inserts/updates must keep the badge coherent even if hydration fails.
@@ -547,9 +880,11 @@ export default function CustomerDashboardClient({
     if (qq) params.set("q", qq);
     if (provinceCode) params.set("province_code", provinceCode);
     if (categoryId) params.set("category_id", categoryId);
-    if (currentCategory && !categoryId) params.set("category_slug", currentCategory.slug);
+    if (currentCategory && !categoryId)
+      params.set("category_slug", currentCategory.slug);
     if (subcategoryId) params.set("subcategory_id", subcategoryId);
-    if (currentSubcategory && !subcategoryId) params.set("subcategory", currentSubcategory.name);
+    if (currentSubcategory && !subcategoryId)
+      params.set("subcategory", currentSubcategory.name);
     if (remote) params.set("remote", "true");
     if (travel) params.set("travel", "true");
     if (!hasActiveSearch) {
@@ -560,9 +895,12 @@ export default function CustomerDashboardClient({
     }
 
     try {
-      const res = await fetchJson<ProfessionalsResponse>(`/api/professionals?${params}`, {
-        method: "GET",
-      });
+      const res = await fetchJson<ProfessionalsResponse>(
+        `/api/professionals?${params}`,
+        {
+          method: "GET",
+        },
+      );
       setProfessionals(res.professionals ?? []);
       setProfessionalsTotal(res.total ?? 0);
     } catch (e) {
@@ -634,30 +972,35 @@ export default function CustomerDashboardClient({
     setTravel(false);
   }
 
-  const mergeRealtimeNotification = useCallback((row: NotificationRealtimeRow | null | undefined) => {
-    if (!row?.id) return;
+  const mergeRealtimeNotification = useCallback(
+    (row: NotificationRealtimeRow | null | undefined) => {
+      if (!row?.id) return;
 
-    setNotifications((current) => {
-      const nextNotification: NotificationRow = {
-        ...row,
-        href: customerNotificationFallbackHref(row),
-        actor: null,
-        entity: null,
-      };
-      const index = current.findIndex((notification) => notification.id === row.id);
+      setNotifications((current) => {
+        const nextNotification: NotificationRow = {
+          ...row,
+          href: customerNotificationFallbackHref(row),
+          actor: null,
+          entity: null,
+        };
+        const index = current.findIndex(
+          (notification) => notification.id === row.id,
+        );
 
-      if (index === -1) {
-        return [nextNotification, ...current].slice(0, 10);
-      }
+        if (index === -1) {
+          return [nextNotification, ...current].slice(0, 10);
+        }
 
-      const next = [...current];
-      next[index] = {
-        ...next[index],
-        ...row,
-      };
-      return next;
-    });
-  }, []);
+        const next = [...current];
+        next[index] = {
+          ...next[index],
+          ...row,
+        };
+        return next;
+      });
+    },
+    [],
+  );
 
   function handleCustomerNotificationClick(
     event: ReactMouseEvent<HTMLAnchorElement>,
@@ -670,7 +1013,8 @@ export default function CustomerDashboardClient({
 
     const target = new URL(notification.href, window.location.origin);
     const targetRelativeUrl = `${target.pathname}${target.search}`;
-    const isCustomerTarget = target.pathname === "/customer" || target.pathname === "/cliente";
+    const isCustomerTarget =
+      target.pathname === "/customer" || target.pathname === "/cliente";
 
     if (!isCustomerTarget) {
       if (targetRelativeUrl === currentRelativeUrl) {
@@ -734,7 +1078,10 @@ export default function CustomerDashboardClient({
             eventType: payload.eventType,
             owner: "customer",
           });
-          if (payload.eventType === "INSERT" || payload.eventType === "UPDATE") {
+          if (
+            payload.eventType === "INSERT" ||
+            payload.eventType === "UPDATE"
+          ) {
             mergeRealtimeNotification(payload.new as NotificationRealtimeRow);
           }
           if (payload.eventType === "DELETE") {
@@ -773,7 +1120,15 @@ export default function CustomerDashboardClient({
       if (searchDebounce.current) window.clearTimeout(searchDebounce.current);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [q, provinceCode, categoryKey, subcategoryKey, remote, travel, categories.length]);
+  }, [
+    q,
+    provinceCode,
+    categoryKey,
+    subcategoryKey,
+    remote,
+    travel,
+    categories.length,
+  ]);
 
   useEffect(() => {
     if (!filterOpen) return;
@@ -809,7 +1164,9 @@ export default function CustomerDashboardClient({
   }, [favoritesOpen, notificationsOpen]);
 
   async function markNotificationRead(notificationId: string) {
-    const target = notifications.find((notification) => notification.id === notificationId);
+    const target = notifications.find(
+      (notification) => notification.id === notificationId,
+    );
     if (!target || target.read_at) return;
 
     const readAt = new Date().toISOString();
@@ -846,7 +1203,9 @@ export default function CustomerDashboardClient({
     const readAt = new Date().toISOString();
     setNotifications((current) =>
       current.map((notification) =>
-        ids.includes(notification.id) ? { ...notification, read_at: readAt } : notification,
+        ids.includes(notification.id)
+          ? { ...notification, read_at: readAt }
+          : notification,
       ),
     );
 
@@ -880,9 +1239,12 @@ export default function CustomerDashboardClient({
 
     try {
       if (isSaved) {
-        await fetchJson<{ ok: true }>(`/api/saved-professionals/${professionalId}`, {
-          method: "DELETE",
-        });
+        await fetchJson<{ ok: true }>(
+          `/api/saved-professionals/${professionalId}`,
+          {
+            method: "DELETE",
+          },
+        );
       } else {
         await fetchJson<{ ok: true }>("/api/saved-professionals", {
           method: "POST",
@@ -912,28 +1274,33 @@ export default function CustomerDashboardClient({
     setContactSending(true);
     setContactError(null);
     try {
-      const created = await fetchJson<{ request: { id: string }; conversation_id: string | null }>(
-        "/api/contact-requests",
-        {
-          method: "POST",
-          body: JSON.stringify({
-            professional_id: pro.id,
-            subject: contactSubject,
-            message: contactMessage,
-            privacy_accepted: contactPrivacy,
-          }),
-        },
-      );
+      const created = await fetchJson<{
+        request: { id: string };
+        conversation_id: string | null;
+      }>("/api/contact-requests", {
+        method: "POST",
+        body: JSON.stringify({
+          professional_id: pro.id,
+          subject: contactSubject,
+          message: contactMessage,
+          privacy_accepted: contactPrivacy,
+        }),
+      });
 
       if (contactFiles.length > 0) {
         const fd = new FormData();
         contactFiles.forEach((f) => fd.append("files", f));
-        const res = await fetch(`/api/contact-requests/${created.request.id}/attachments`, {
-          method: "POST",
-          body: fd,
-          credentials: "same-origin",
-        });
-        const payload = (await res.json().catch(() => null)) as { error?: string } | null;
+        const res = await fetch(
+          `/api/contact-requests/${created.request.id}/attachments`,
+          {
+            method: "POST",
+            body: fd,
+            credentials: "same-origin",
+          },
+        );
+        const payload = (await res.json().catch(() => null)) as {
+          error?: string;
+        } | null;
         if (!res.ok) {
           throw new Error(payload?.error ?? `Upload failed (${res.status})`);
         }
@@ -955,400 +1322,482 @@ export default function CustomerDashboardClient({
   } as CSSProperties;
 
   return (
-    <div className="flex min-h-dvh flex-col bg-surface text-on-surface" style={shellStyle}>
+    <div
+      className="flex min-h-dvh flex-col bg-surface text-on-surface"
+      style={shellStyle}
+    >
       <AuthenticatedPresence
         userId={profile.id}
         role="customer"
         activeConversationId={view === "messages" ? activeConversationId : null}
       >
-      <header className="fixed top-0 z-50 h-20 w-full bg-surface-container-lowest/88 shadow-sm backdrop-blur-md sm:h-[92px]">
-        <div className="mx-auto flex h-full w-full max-w-[1280px] items-center justify-between gap-2 px-3 sm:gap-3 sm:px-6">
-          <div className="flex min-w-0 flex-1 items-center gap-1.5 sm:gap-2 lg:-ml-4 xl:-ml-8 2xl:-ml-12">
-            <HeaderBackButton
-              fallbackHref="/customer"
-              hiddenPathnames={["/customer", "/cliente"]}
-              forceVisible={view !== "explore"}
-              onBack={openExplore}
-            />
-            <Link href="/customer" className="flex min-w-0 items-center gap-2 sm:gap-2.5">
-              <Image
-                src="/img/logo-mark.png"
-                alt="Il Tecnico di Fiducia"
-                width={54}
-                height={54}
-                className="h-10 w-10 shrink-0 object-contain sm:h-[54px] sm:w-[54px]"
-                priority
+        <header className="fixed top-0 z-50 h-20 w-full bg-surface-container-lowest/88 shadow-sm backdrop-blur-md sm:h-[92px]">
+          <div className="mx-auto flex h-full w-full max-w-[1280px] items-center justify-between gap-2 px-3 sm:gap-3 sm:px-6">
+            <div className="flex min-w-0 flex-1 items-center gap-1.5 sm:gap-2 lg:-ml-4 xl:-ml-8 2xl:-ml-12">
+              <HeaderBackButton
+                fallbackHref="/customer"
+                hiddenPathnames={["/customer", "/cliente"]}
+                forceVisible={view !== "explore"}
+                onBack={openExplore}
               />
-              <span className="hidden min-w-0 leading-none min-[430px]:block">
-                <span className="block font-headline-sm text-[15px] font-bold text-[#FF8500] sm:text-[21px]">
-                  Il tecnico
-                </span>
-                <span className="block font-headline-sm text-[15px] font-bold text-primary sm:text-[21px]">
-                  di fiducia
-                </span>
-              </span>
-            </Link>
-          </div>
-
-          <nav className="hidden items-center gap-8 lg:flex">
-            <button
-              type="button"
-              className={customerNavTextClass(isSearchNavActive)}
-              onClick={openExplore}
-            >
-              Cerca
-            </button>
-            <button
-              type="button"
-              className={customerNavTextClass(false)}
-              onClick={goToRequests}
-            >
-              Richieste
-            </button>
-          </nav>
-
-          <div className="flex shrink-0 items-center gap-1 sm:gap-2">
-            <button
-              type="button"
-              className={`${customerIconButtonClass(isSearchNavActive)} lg:hidden`}
-              title="Cerca"
-              aria-label="Vai alla ricerca professionisti"
-              onClick={() => {
-                setFavoritesOpen(false);
-                setNotificationsOpen(false);
-                setFilterOpen(false);
-                openExplore();
-              }}
-            >
-              <span className="material-symbols-outlined" aria-hidden>
-                search
-              </span>
-            </button>
-
-            <div ref={favoritesRef} className="relative">
-              <button
-                type="button"
-                className={customerIconButtonClass(false)}
-                title="Preferiti"
-                aria-label="Apri preferiti"
-                aria-expanded={favoritesOpen}
-                onClick={() => {
-                  setFavoritesOpen((value) => !value);
-                  setFilterOpen(false);
-                  setNotificationsOpen(false);
-                }}
+              <Link
+                href="/customer"
+                className="flex min-w-0 items-center gap-2 sm:gap-2.5"
               >
-                <span className="material-symbols-outlined" aria-hidden>
-                  favorite
+                <Image
+                  src="/img/logo-mark.png"
+                  alt="Il Tecnico di Fiducia"
+                  width={54}
+                  height={54}
+                  className="h-10 w-10 shrink-0 object-contain sm:h-[54px] sm:w-[54px]"
+                  priority
+                />
+                <span className="hidden min-w-0 leading-none min-[430px]:block">
+                  <span className="block font-headline-sm text-[15px] font-bold text-[#FF8500] sm:text-[21px]">
+                    Il tecnico
+                  </span>
+                  <span className="block font-headline-sm text-[15px] font-bold text-primary sm:text-[21px]">
+                    di fiducia
+                  </span>
                 </span>
-              </button>
-
-              {favoritesOpen ? (
-                <div className="fixed left-1/2 top-[calc(env(safe-area-inset-top)+5rem)] z-[100] max-h-[calc(100dvh-6rem)] w-[calc(100vw-24px)] max-w-[420px] -translate-x-1/2 overflow-hidden rounded-[24px] border border-outline-variant/30 bg-surface-container-lowest text-left shadow-[0_18px_50px_rgba(8,43,95,0.18)] md:absolute md:left-auto md:right-0 md:top-[calc(100%+12px)] md:w-[420px] md:translate-x-0">
-                  <div className="border-b border-outline-variant/25 p-4">
-                    <div className="font-headline-sm text-primary">Preferiti</div>
-                    <div className="text-sm text-on-surface-variant">
-                      I professionisti che hai salvato.
-                    </div>
-                  </div>
-
-                  {savedProfessionals.length === 0 ? (
-                    <div className="p-6 text-center">
-                      <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-primary-fixed text-primary">
-                        <span className="material-symbols-outlined" aria-hidden>
-                          favorite
-                        </span>
-                      </div>
-                      <div className="font-button text-primary">Nessun preferito</div>
-                      <p className="mt-1 text-sm text-on-surface-variant">
-                        Salva i professionisti cliccando il cuore nelle card.
-                      </p>
-                    </div>
-                  ) : (
-                    <div className="max-h-[min(420px,calc(100dvh-9rem))] overflow-y-auto p-2">
-                      {savedProfessionals.map((professional) => (
-                        <Link
-                          key={professional.id}
-                          href={`/professionisti/${professional.id}`}
-                          className="flex gap-3 rounded-2xl p-3 transition-colors hover:bg-surface-container-low"
-                          onClick={() => setFavoritesOpen(false)}
-                        >
-                          <ProfileAvatar
-                            person={professional}
-                            alt={fullName(professional)}
-                            size="md"
-                            className="border border-primary-fixed bg-surface-container-high text-primary"
-                          />
-                          <div className="min-w-0 flex-1">
-                            <div className="truncate font-button text-primary">
-                              {fullName(professional)}
-                            </div>
-                            <div className="truncate text-xs text-on-surface-variant">
-                              {professionalCategoryLabel(professional)}
-                            </div>
-                            <div className="mt-1 truncate text-xs text-on-surface-variant">
-                              {professional.province_code
-                                ? provinceNameByCode.get(professional.province_code) ??
-                                  professional.province_code
-                                : "Provincia non indicata"}
-                            </div>
-                            <div className="mt-2">
-                              <RatingStars
-                                average={professional.rating_average}
-                                count={professional.reviews_count}
-                              />
-                            </div>
-                            <div className="mt-2 text-xs font-bold text-on-tertiary-container">
-                              Vedi profilo
-                            </div>
-                          </div>
-                        </Link>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              ) : null}
+              </Link>
             </div>
 
-            <div ref={notificationsRef} className="relative">
+            <nav className="hidden items-center gap-8 lg:flex">
               <button
                 type="button"
-                className={[
-                  "relative",
-                  customerIconButtonClass(false),
-                ].join(" ")}
-                title="Notifiche"
-                aria-label="Apri notifiche"
-                aria-expanded={notificationsOpen}
+                className={customerNavTextClass(isSearchNavActive)}
+                onClick={openExplore}
+              >
+                Cerca
+              </button>
+              <button
+                type="button"
+                className={customerNavTextClass(false)}
+                onClick={goToRequests}
+              >
+                Richieste
+              </button>
+            </nav>
+
+            <div className="flex shrink-0 items-center gap-1 sm:gap-2">
+              <button
+                type="button"
+                className={`${customerIconButtonClass(isSearchNavActive)} lg:hidden`}
+                title="Cerca"
+                aria-label="Vai alla ricerca professionisti"
                 onClick={() => {
-                  setNotificationsOpen((value) => !value);
                   setFavoritesOpen(false);
+                  setNotificationsOpen(false);
                   setFilterOpen(false);
-                  void loadNotifications();
+                  openExplore();
                 }}
               >
                 <span className="material-symbols-outlined" aria-hidden>
-                  notifications
+                  search
                 </span>
-                {unreadNotifications > 0 ? (
-                  <span className="absolute right-0.5 top-0.5 flex h-5 min-w-5 items-center justify-center rounded-full bg-[#FF8500] px-1 text-[10px] font-bold text-white">
-                    {unreadNotifications}
-                  </span>
-                ) : null}
               </button>
 
-              {notificationsOpen ? (
-                <div className="fixed left-1/2 top-[calc(env(safe-area-inset-top)+5rem)] z-[100] max-h-[calc(100dvh-6rem)] w-[calc(100vw-24px)] max-w-[420px] -translate-x-1/2 overflow-hidden rounded-[24px] border border-outline-variant/30 bg-surface-container-lowest text-left shadow-[0_18px_50px_rgba(8,43,95,0.18)] md:absolute md:left-auto md:right-0 md:top-[calc(100%+12px)] md:w-[420px] md:translate-x-0">
-                  <div className="flex items-center justify-between gap-3 border-b border-outline-variant/25 p-4">
-                    <div>
-                      <div className="font-headline-sm text-primary">Notifiche</div>
-                      <div className="text-sm text-on-surface-variant">
-                        Aggiornamenti su richieste e messaggi.
-                      </div>
-                    </div>
-                    <button
-                      type="button"
-                      className="text-xs font-bold text-primary hover:underline"
-                      onClick={() => void markNotificationsRead()}
+              <div ref={favoritesRef} className="relative">
+                <button
+                  type="button"
+                  className={customerIconButtonClass(false)}
+                  title="Preferiti"
+                  aria-label="Apri preferiti"
+                  aria-expanded={favoritesOpen}
+                  onClick={() => {
+                    setFavoritesOpen((value) => !value);
+                    setFilterOpen(false);
+                    setNotificationsOpen(false);
+                  }}
+                >
+                  <span className="material-symbols-outlined" aria-hidden>
+                    favorite
+                  </span>
+                  {savedIds.size > 0 ? (
+                    <span
+                      className="absolute right-0.5 top-0.5 flex h-5 min-w-5 items-center justify-center rounded-full bg-[#FF8500] px-1 text-[10px] font-bold text-white"
+                      aria-label={`${savedIds.size} preferiti salvati`}
                     >
-                      Segna lette
-                    </button>
-                  </div>
+                      {savedIds.size > 99 ? "99+" : savedIds.size}
+                    </span>
+                  ) : null}
+                </button>
 
-                  {notifications.length === 0 ? (
-                    <div className="p-6 text-center">
-                      <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-primary-fixed text-primary">
-                        <span className="material-symbols-outlined" aria-hidden>
-                          notifications
-                        </span>
+                {favoritesOpen ? (
+                  <div className="fixed left-1/2 top-[calc(env(safe-area-inset-top)+5rem)] z-[100] max-h-[calc(100dvh-6rem)] w-[calc(100vw-24px)] max-w-[420px] -translate-x-1/2 overflow-hidden rounded-[24px] border border-outline-variant/30 bg-surface-container-lowest text-left shadow-[0_18px_50px_rgba(8,43,95,0.18)] md:absolute md:left-auto md:right-0 md:top-[calc(100%+12px)] md:w-[420px] md:translate-x-0">
+                    <div className="border-b border-outline-variant/25 p-4">
+                      <div className="font-headline-sm text-primary">
+                        Preferiti
                       </div>
-                      <div className="font-button text-primary">Nessuna notifica</div>
-                      <p className="mt-1 text-sm text-on-surface-variant">
-                        Qui compariranno aggiornamenti reali su richieste e messaggi.
-                      </p>
+                      <div className="text-sm text-on-surface-variant">
+                        I professionisti che hai salvato.
+                      </div>
                     </div>
-                  ) : (
-                    <div className="max-h-[min(420px,calc(100dvh-9rem))] overflow-y-auto p-2">
-                      {notifications.map((notification) => {
-                        const actor = notification.actor ?? {
-                          first_name: "Il Tecnico",
-                          last_name: "",
-                          avatar_url: null,
-                        };
-                        return (
-                          <Link
-                            key={notification.id}
-                            href={notification.href}
-                            className="flex gap-3 rounded-2xl p-3 transition-colors hover:bg-surface-container-low"
-                            onClick={(event) =>
-                              handleCustomerNotificationClick(event, notification)
-                            }
+
+                    {savedProfessionals.length === 0 ? (
+                      <div className="p-6 text-center">
+                        <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-primary-fixed text-primary">
+                          <span
+                            className="material-symbols-outlined"
+                            aria-hidden
                           >
-                            <div className="relative shrink-0">
+                            favorite
+                          </span>
+                        </div>
+                        <div className="font-button text-primary">
+                          Nessun preferito
+                        </div>
+                        <p className="mt-1 text-sm text-on-surface-variant">
+                          Salva i professionisti cliccando il cuore nelle card.
+                        </p>
+                      </div>
+                    ) : (
+                      <div className="max-h-[min(420px,calc(100dvh-9rem))] overflow-y-auto p-2">
+                        {savedProfessionals.map((professional) => (
+                          <div
+                            key={professional.id}
+                            className="flex items-start gap-2 rounded-2xl p-2 transition-colors hover:bg-surface-container-low"
+                          >
+                            <Link
+                              href={`/professionisti/${professional.id}`}
+                              className="flex min-w-0 flex-1 gap-3 rounded-xl p-1"
+                              onClick={() => setFavoritesOpen(false)}
+                            >
                               <ProfileAvatar
-                                person={actor}
-                                alt={fullName(actor)}
+                                person={professional}
+                                alt={fullName(professional)}
                                 size="md"
                                 className="border border-primary-fixed bg-surface-container-high text-primary"
                               />
-                              {!notification.read_at ? (
-                                <span className="absolute right-0 top-0 h-2.5 w-2.5 rounded-full bg-[#FF8500]" />
-                              ) : null}
-                            </div>
-                            <div className="min-w-0 flex-1">
-                              <div className="text-sm font-semibold text-primary">
-                                {notificationText(notification)}
-                              </div>
-                              <div className="mt-1 text-xs text-on-surface-variant">
-                                {formatNotificationTime(notification.created_at)}
-                              </div>
-                            </div>
-                          </Link>
-                        );
-                      })}
-                    </div>
-                  )}
-                </div>
-              ) : null}
-            </div>
 
-            <button
-              type="button"
-              className={customerIconButtonClass(isMessagesNavActive)}
-              title="Messaggi"
-              onClick={() => openMessages()}
-            >
-              <span className="material-symbols-outlined" aria-hidden>
-                chat
-              </span>
-            </button>
-            <Link
-              href="/customer/impostazioni"
-              className={customerIconButtonClass(false)}
-              title="Impostazioni"
-              aria-label="Apri impostazioni account"
-            >
-              <span className="material-symbols-outlined" aria-hidden>
-                settings
-              </span>
-            </Link>
-            <SignOutButton
-              className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-error transition-all hover:bg-error-container/30 sm:h-11 sm:w-11 md:h-12 md:w-12 md:[&_.material-symbols-outlined]:text-[24px] lg:h-16 lg:w-16 lg:[&_.material-symbols-outlined]:text-[32px]"
-              aria-label="Logout"
-            >
-              <span className="material-symbols-outlined" aria-hidden>
-                logout
-              </span>
-            </SignOutButton>
-          </div>
-        </div>
-      </header>
+                              <div className="min-w-0 flex-1">
+                                <div className="truncate font-button text-primary">
+                                  {fullName(professional)}
+                                </div>
 
-      <main
-        className={
-          view === "messages"
-            ? "flex h-[100dvh] min-h-0 flex-col overflow-hidden pt-20 sm:pt-[92px]"
-            : "pt-20 sm:pt-[92px]"
-        }
-      >
-        {view === "messages" ? (
-          <section id="messaggi-cliente" className="flex min-h-0 flex-1 overflow-hidden px-2 py-2 sm:px-6 sm:py-4">
-            <div className="mx-auto flex h-full min-h-0 flex-1 max-w-[1280px] flex-col overflow-hidden rounded-[20px] border border-outline-variant/30 bg-surface-container-lowest shadow-[0_4px_20px_rgba(8,43,95,0.08)] sm:rounded-[28px]">
-              <div className="flex flex-col gap-3 border-b border-outline-variant/30 p-4 sm:flex-row sm:items-center sm:justify-between">
-                <div>
-                  <div className="font-headline-sm text-headline-sm text-primary">
-                    Messaggi
+                                <div className="truncate text-xs text-on-surface-variant">
+                                  {professionalCategoryLabel(professional)}
+                                </div>
+
+                                <div className="mt-1 truncate text-xs text-on-surface-variant">
+                                  {professional.province_code
+                                    ? (provinceNameByCode.get(
+                                        professional.province_code,
+                                      ) ?? professional.province_code)
+                                    : "Provincia non indicata"}
+                                </div>
+
+                                <div className="mt-2">
+                                  <RatingStars
+                                    average={professional.rating_average}
+                                    count={professional.reviews_count}
+                                  />
+                                </div>
+
+                                <div className="mt-2 text-xs font-bold text-on-tertiary-container">
+                                  Vedi profilo
+                                </div>
+                              </div>
+                            </Link>
+
+                            <button
+                              type="button"
+                              className="flex size-9 shrink-0 items-center justify-center rounded-full text-on-surface-variant transition hover:bg-error-container hover:text-on-error-container"
+                              aria-label={`Rimuovi ${fullName(professional)} dai preferiti`}
+                              title="Rimuovi dai preferiti"
+                              disabled={savedLoading}
+                              onClick={() => void toggleSaved(professional)}
+                            >
+                              <span
+                                className="material-symbols-outlined text-[20px]"
+                                aria-hidden
+                              >
+                                close
+                              </span>
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
                   </div>
-                  <div className="text-sm text-on-surface-variant">
-                    Conversazioni e richieste con i professionisti.
-                  </div>
-                </div>
+                ) : null}
+              </div>
+
+              <div ref={notificationsRef} className="relative">
                 <button
                   type="button"
-                  className="min-h-11 rounded-full border-2 border-primary px-5 py-2 font-button text-button text-primary transition-colors hover:bg-primary hover:text-white"
-                  onClick={openExplore}
+                  className={["relative", customerIconButtonClass(false)].join(
+                    " ",
+                  )}
+                  title="Notifiche"
+                  aria-label="Apri notifiche"
+                  aria-expanded={notificationsOpen}
+                  onClick={() => {
+                    setNotificationsOpen((value) => !value);
+                    setFavoritesOpen(false);
+                    setFilterOpen(false);
+                    void loadNotifications();
+                  }}
                 >
-                  Torna a Cerca
+                  <span className="material-symbols-outlined" aria-hidden>
+                    notifications
+                  </span>
+                  {unreadNotifications > 0 ? (
+                    <span className="absolute right-0.5 top-0.5 flex h-5 min-w-5 items-center justify-center rounded-full bg-[#FF8500] px-1 text-[10px] font-bold text-white">
+                      {unreadNotifications}
+                    </span>
+                  ) : null}
                 </button>
-              </div>
-              <div className="min-h-0 flex-1 overflow-hidden">
-                <MessagesClient
-                  key={messagesKey}
-                  embedded
-                  initialMe={initialMessages.me}
-                  initialConversations={initialMessages.conversations}
-                  initialConversationsError={initialMessages.conversationsError}
-                  initialActiveConversationId={activeConversationId}
-                />
-              </div>
-            </div>
-          </section>
-        ) : (
-          <>
-            <section className="relative z-20 overflow-visible px-4 py-16 sm:px-6 md:py-20">
-              <div className="absolute inset-0 z-0">
-                <Image
-                  src={heroBg}
-                  alt=""
-                  fill
-                  priority
-                  sizes="100vw"
-                  className="object-cover opacity-70"
-                />
-                <div className="absolute inset-0 bg-gradient-to-br from-primary/82 via-primary/60 to-primary/24" />
-              </div>
-              <div className="relative z-10 mx-auto max-w-[1280px] text-center">
-                <h1 className="mx-auto mb-8 max-w-[900px] font-display-lg text-[34px] font-bold leading-tight tracking-[-0.02em] text-white drop-shadow md:text-[48px]">
-                  Ciao {profile.first_name}, di cosa hai bisogno oggi?
-                </h1>
 
-                <div className="relative mx-auto max-w-4xl">
-                  <div
-                    ref={filterRef}
-                    className="relative z-[60] rounded-[28px] bg-white/82 p-2 shadow-[0_14px_42px_rgba(8,43,95,0.18)] backdrop-blur-md sm:rounded-full"
-                  >
-                    <div className="flex flex-col gap-2 sm:flex-row sm:items-stretch">
-                      <div className="flex min-h-[58px] flex-1 items-center gap-3 px-4">
-                        <span className="material-symbols-outlined text-outline" aria-hidden>
-                          search
-                        </span>
-                        <input
-                          className="min-w-0 flex-1 border-none bg-transparent font-body-md text-body-md outline-none placeholder:text-outline focus:ring-0"
-                          placeholder="Elettricista, Idraulico, Architetto…"
-                          value={q}
-                          onChange={(e) => setQ(e.target.value)}
-                        />
+                {notificationsOpen ? (
+                  <div className="fixed left-1/2 top-[calc(env(safe-area-inset-top)+5rem)] z-[100] max-h-[calc(100dvh-6rem)] w-[calc(100vw-24px)] max-w-[420px] -translate-x-1/2 overflow-hidden rounded-[24px] border border-outline-variant/30 bg-surface-container-lowest text-left shadow-[0_18px_50px_rgba(8,43,95,0.18)] md:absolute md:left-auto md:right-0 md:top-[calc(100%+12px)] md:w-[420px] md:translate-x-0">
+                    <div className="flex items-center justify-between gap-3 border-b border-outline-variant/25 p-4">
+                      <div>
+                        <div className="font-headline-sm text-primary">
+                          Notifiche
+                        </div>
+                        <div className="text-sm text-on-surface-variant">
+                          Aggiornamenti su richieste e messaggi.
+                        </div>
                       </div>
                       <button
                         type="button"
-                        className="min-h-[58px] rounded-full border border-outline-variant/30 px-5 text-primary transition-colors hover:bg-surface-container-high"
-                        onClick={() => {
-                          setFilterOpen((value) => !value);
-                          setFavoritesOpen(false);
-                        }}
-                        aria-label="Apri filtri"
-                        aria-expanded={filterOpen}
+                        className="text-xs font-bold text-primary hover:underline"
+                        onClick={() => void markNotificationsRead()}
                       >
-                        <span className="material-symbols-outlined" aria-hidden>
-                          filter_alt
-                        </span>
-                      </button>
-                      <button
-                        type="button"
-                        className="min-h-[58px] rounded-full bg-[#FF8500] px-9 font-button text-button text-white shadow-lg shadow-orange-500/20 transition-all hover:bg-[#FF9A2B] active:scale-[0.99]"
-                        onClick={() => void loadProfessionals()}
-                      >
-                        Cerca
+                        Segna lette
                       </button>
                     </div>
 
+                    {notifications.length === 0 ? (
+                      <div className="p-6 text-center">
+                        <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-primary-fixed text-primary">
+                          <span
+                            className="material-symbols-outlined"
+                            aria-hidden
+                          >
+                            notifications
+                          </span>
+                        </div>
+                        <div className="font-button text-primary">
+                          Nessuna notifica
+                        </div>
+                        <p className="mt-1 text-sm text-on-surface-variant">
+                          Qui compariranno aggiornamenti reali su richieste e
+                          messaggi.
+                        </p>
+                      </div>
+                    ) : (
+                      <div className="max-h-[min(420px,calc(100dvh-9rem))] overflow-y-auto p-2">
+                        {notifications.map((notification) => {
+                          const actor = notification.actor ?? {
+                            first_name: "Il Tecnico",
+                            last_name: "",
+                            avatar_url: null,
+                          };
+                          return (
+                            <Link
+                              key={notification.id}
+                              href={notification.href}
+                              className="flex gap-3 rounded-2xl p-3 transition-colors hover:bg-surface-container-low"
+                              onClick={(event) =>
+                                handleCustomerNotificationClick(
+                                  event,
+                                  notification,
+                                )
+                              }
+                            >
+                              <div className="relative shrink-0">
+                                <ProfileAvatar
+                                  person={actor}
+                                  alt={fullName(actor)}
+                                  size="md"
+                                  className="border border-primary-fixed bg-surface-container-high text-primary"
+                                />
+                                {!notification.read_at ? (
+                                  <span className="absolute right-0 top-0 h-2.5 w-2.5 rounded-full bg-[#FF8500]" />
+                                ) : null}
+                              </div>
+                              <div className="min-w-0 flex-1">
+                                <div className="text-sm font-semibold text-primary">
+                                  {notificationText(notification)}
+                                </div>
+                                <div className="mt-1 text-xs text-on-surface-variant">
+                                  {formatNotificationTime(
+                                    notification.created_at,
+                                  )}
+                                </div>
+                              </div>
+                            </Link>
+                          );
+                        })}
+                      </div>
+                    )}
                   </div>
+                ) : null}
+              </div>
 
-                  {filterOpen ? (
+              <button
+                type="button"
+                className={customerIconButtonClass(isMessagesNavActive)}
+                title="Messaggi"
+                onClick={() => openMessages()}
+              >
+                <span className="material-symbols-outlined" aria-hidden>
+                  chat
+                </span>
+              </button>
+              <Link
+                href="/customer/impostazioni"
+                className={customerIconButtonClass(false)}
+                title="Impostazioni"
+                aria-label="Apri impostazioni account"
+              >
+                <span className="material-symbols-outlined" aria-hidden>
+                  settings
+                </span>
+              </Link>
+              <SignOutButton
+                className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-error transition-all hover:bg-error-container/30 sm:h-11 sm:w-11 md:h-12 md:w-12 md:[&_.material-symbols-outlined]:text-[24px] lg:h-16 lg:w-16 lg:[&_.material-symbols-outlined]:text-[32px]"
+                aria-label="Logout"
+              >
+                <span className="material-symbols-outlined" aria-hidden>
+                  logout
+                </span>
+              </SignOutButton>
+            </div>
+          </div>
+        </header>
+
+        <main
+          className={
+            view === "messages"
+              ? "flex h-[100dvh] min-h-0 flex-col overflow-hidden pt-20 sm:pt-[92px]"
+              : "pt-20 sm:pt-[92px]"
+          }
+        >
+          {view === "messages" ? (
+            <section
+              id="messaggi-cliente"
+              className="flex min-h-0 flex-1 overflow-hidden px-2 py-2 sm:px-6 sm:py-4"
+            >
+              <div className="mx-auto flex h-full min-h-0 flex-1 max-w-[1280px] flex-col overflow-hidden rounded-[20px] border border-outline-variant/30 bg-surface-container-lowest shadow-[0_4px_20px_rgba(8,43,95,0.08)] sm:rounded-[28px]">
+                <div className="flex flex-col gap-3 border-b border-outline-variant/30 p-4 sm:flex-row sm:items-center sm:justify-between">
+                  <div>
+                    <div className="font-headline-sm text-headline-sm text-primary">
+                      Messaggi
+                    </div>
+                    <div className="text-sm text-on-surface-variant">
+                      Conversazioni e richieste con i professionisti.
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    className="min-h-11 rounded-full border-2 border-primary px-5 py-2 font-button text-button text-primary transition-colors hover:bg-primary hover:text-white"
+                    onClick={openExplore}
+                  >
+                    Torna a Cerca
+                  </button>
+                </div>
+                <div className="min-h-0 flex-1 overflow-hidden">
+                  <MessagesClient
+                    key={messagesKey}
+                    embedded
+                    initialMe={initialMessages.me}
+                    initialConversations={initialMessages.conversations}
+                    initialConversationsError={
+                      initialMessages.conversationsError
+                    }
+                    initialActiveConversationId={activeConversationId}
+                  />
+                </div>
+              </div>
+            </section>
+          ) : (
+            <>
+              <section className="relative z-20 overflow-visible px-4 py-16 sm:px-6 md:py-20">
+                <div className="absolute inset-0 z-0">
+                  <Image
+                    src={heroBg}
+                    alt=""
+                    fill
+                    priority
+                    sizes="100vw"
+                    className="object-cover opacity-70"
+                  />
+                  <div className="absolute inset-0 bg-gradient-to-br from-primary/82 via-primary/60 to-primary/24" />
+                </div>
+                <div className="relative z-10 mx-auto max-w-[1280px] text-center">
+                  <h1 className="mx-auto mb-8 max-w-[900px] font-display-lg text-[34px] font-bold leading-tight tracking-[-0.02em] text-white drop-shadow md:text-[48px]">
+                    Ciao {profile.first_name}, di cosa hai bisogno oggi?
+                  </h1>
+
+                  <div className="relative mx-auto max-w-4xl">
                     <div
-                      ref={filterPanelRef}
-                      className="fixed inset-x-3 top-[var(--mobile-header-height)] bottom-[max(0.75rem,env(safe-area-inset-bottom))] z-[90] overflow-y-auto rounded-[24px] border border-outline-variant/30 bg-surface-container-lowest p-4 text-left shadow-[0_18px_50px_rgba(8,43,95,0.18)] sm:absolute sm:bottom-auto sm:left-auto sm:right-0 sm:top-[calc(100%+12px)] sm:w-[520px] sm:max-h-[calc(100dvh-180px)] sm:p-5"
+                      ref={filterRef}
+                      className="relative z-[60] rounded-[28px] bg-white/82 p-2 shadow-[0_14px_42px_rgba(8,43,95,0.18)] backdrop-blur-md sm:rounded-full"
                     >
+                      <div className="flex flex-col gap-2 sm:flex-row sm:items-stretch">
+                        <div className="flex min-h-[58px] flex-1 items-center gap-3 px-4">
+                          <span
+                            className="material-symbols-outlined text-outline"
+                            aria-hidden
+                          >
+                            search
+                          </span>
+                          <input
+                            className="min-w-0 flex-1 border-none bg-transparent font-body-md text-body-md outline-none placeholder:text-outline focus:ring-0"
+                            placeholder="Elettricista, Idraulico, Architetto…"
+                            value={q}
+                            onChange={(e) => setQ(e.target.value)}
+                          />
+                        </div>
+                        <button
+                          type="button"
+                          className="min-h-[58px] rounded-full border border-outline-variant/30 px-5 text-primary transition-colors hover:bg-surface-container-high"
+                          onClick={() => {
+                            setFilterOpen((value) => !value);
+                            setFavoritesOpen(false);
+                          }}
+                          aria-label="Apri filtri"
+                          aria-expanded={filterOpen}
+                        >
+                          <span
+                            className="material-symbols-outlined"
+                            aria-hidden
+                          >
+                            filter_alt
+                          </span>
+                        </button>
+                        <button
+                          type="button"
+                          className="inline-flex min-h-[58px] items-center justify-center gap-2 rounded-full bg-[#FF8500] px-9 font-button text-button text-white shadow-lg shadow-orange-500/20 transition-all hover:bg-[#FF9A2B] active:scale-[0.99] disabled:cursor-wait disabled:opacity-70"
+                          onClick={() => void loadProfessionals()}
+                          disabled={professionalsLoading}
+                        >
+                          {professionalsLoading ? (
+                            <>
+                              <span
+                                className="material-symbols-outlined animate-spin text-[20px]"
+                                aria-hidden
+                              >
+                                progress_activity
+                              </span>
+                              Caricamento…
+                            </>
+                          ) : (
+                            "Cerca"
+                          )}
+                        </button>
+                      </div>
+                    </div>
+
+                    {filterOpen ? (
+                      <div
+                        ref={filterPanelRef}
+                        className="fixed inset-x-3 top-[var(--mobile-header-height)] bottom-[max(0.75rem,env(safe-area-inset-bottom))] z-[90] overflow-y-auto rounded-[24px] border border-outline-variant/30 bg-surface-container-lowest p-4 text-left shadow-[0_18px_50px_rgba(8,43,95,0.18)] sm:absolute sm:bottom-auto sm:left-auto sm:right-0 sm:top-[calc(100%+12px)] sm:w-[520px] sm:max-h-[calc(100dvh-180px)] sm:p-5"
+                      >
                         <div className="mb-4 flex items-center justify-between gap-3">
                           <div>
                             <div className="font-headline-sm text-primary">
@@ -1364,7 +1813,10 @@ export default function CustomerDashboardClient({
                             onClick={() => setFilterOpen(false)}
                             aria-label="Chiudi filtri"
                           >
-                            <span className="material-symbols-outlined" aria-hidden>
+                            <span
+                              className="material-symbols-outlined"
+                              aria-hidden
+                            >
                               close
                             </span>
                           </button>
@@ -1395,10 +1847,24 @@ export default function CustomerDashboardClient({
                                 <span>{categoriesError}</span>
                                 <button
                                   type="button"
-                                  className="font-label-md text-label-md underline underline-offset-4"
-                                  onClick={() => void loadFilters()}
+                                  className="inline-flex items-center gap-2 font-label-md text-label-md underline underline-offset-4 disabled:cursor-wait disabled:opacity-60"
+                                  onClick={() => void retryFilters()}
+                                  disabled={categoriesRetrying}
+                                  aria-busy={categoriesRetrying}
                                 >
-                                  Riprova
+                                  {categoriesRetrying ? (
+                                    <>
+                                      <span
+                                        className="material-symbols-outlined animate-spin text-[17px]"
+                                        aria-hidden
+                                      >
+                                        progress_activity
+                                      </span>
+                                      Caricamento…
+                                    </>
+                                  ) : (
+                                    "Riprova"
+                                  )}
                                 </button>
                               </div>
                             ) : null}
@@ -1411,8 +1877,13 @@ export default function CustomerDashboardClient({
                             <select
                               className="w-full rounded-xl border border-outline-variant bg-surface-container-lowest px-4 py-3 font-body-md text-body-md outline-none transition-all focus:border-primary focus:ring-2 focus:ring-primary disabled:bg-surface-container-low disabled:text-outline"
                               value={subcategoryKey}
-                              onChange={(e) => setSubcategoryKey(e.target.value)}
-                              disabled={!currentCategory || currentSubcategories.length === 0}
+                              onChange={(e) =>
+                                setSubcategoryKey(e.target.value)
+                              }
+                              disabled={
+                                !currentCategory ||
+                                currentSubcategories.length === 0
+                              }
                             >
                               <option value="">
                                 {currentCategory
@@ -1441,7 +1912,10 @@ export default function CustomerDashboardClient({
                             >
                               <option value="">Tutte le province</option>
                               {provinces.map((province) => (
-                                <option key={province.code} value={province.code}>
+                                <option
+                                  key={province.code}
+                                  value={province.code}
+                                >
                                   {province.name}
                                 </option>
                               ))}
@@ -1483,408 +1957,712 @@ export default function CustomerDashboardClient({
                           </button>
                           <button
                             type="button"
-                            className="flex-1 rounded-full bg-[#FF8500] py-3 font-button text-button text-white shadow-lg shadow-orange-500/20 transition-colors hover:bg-[#FF9A2B]"
+                            className="inline-flex flex-1 items-center justify-center gap-2 rounded-full bg-[#FF8500] py-3 font-button text-button text-white shadow-lg shadow-orange-500/20 transition-colors hover:bg-[#FF9A2B] disabled:cursor-wait disabled:opacity-70"
                             onClick={() => {
                               setFilterOpen(false);
                               void loadProfessionals();
                             }}
+                            disabled={professionalsLoading}
                           >
-                            Aggiorna ricerca
+                            {professionalsLoading ? (
+                              <>
+                                <span
+                                  className="material-symbols-outlined animate-spin text-[20px]"
+                                  aria-hidden
+                                >
+                                  progress_activity
+                                </span>
+                                Caricamento…
+                              </>
+                            ) : (
+                              "Aggiorna ricerca"
+                            )}
                           </button>
                         </div>
-                      </div>
-                  ) : null}
-                </div>
-              </div>
-            </section>
-
-            <section id="esplora" className="mx-auto max-w-[1280px] px-4 py-12 sm:px-6">
-              <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-                <div>
-                  <div className="font-headline-md text-headline-md text-primary">
-                    {hasActiveSearch
-                      ? "Professionisti trovati"
-                      : "Professionisti consigliati nella tua zona"}
-                  </div>
-                  <div className="text-sm text-on-surface-variant">
-                    {professionalsLoading
-                      ? "Caricamento…"
-                      : `${professionalsTotal} professionisti disponibili`}
-                  </div>
-                </div>
-              </div>
-
-              {professionalsError ? (
-                <div className="mb-4 flex flex-col gap-3 rounded-xl border border-error/20 bg-error-container px-4 py-3 text-sm text-on-error-container sm:flex-row sm:items-center sm:justify-between">
-                  <span>{professionalsError}</span>
-                  <button
-                    type="button"
-                    className="rounded-full bg-white/80 px-4 py-2 font-button text-xs text-on-error-container shadow-sm transition-colors hover:bg-white"
-                    onClick={() => void loadProfessionals()}
-                  >
-                    Riprova
-                  </button>
-                </div>
-              ) : null}
-
-              {professionalsLoading ? (
-                <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
-                  {Array.from({ length: 4 }).map((_, i) => (
-                    <div
-                      key={i}
-                      className="animate-pulse rounded-[22px] border border-outline-variant/30 bg-surface-container-lowest p-6 shadow-sm"
-                    >
-                      <div className="mb-3 h-4 w-2/3 rounded bg-surface-container-high" />
-                      <div className="mb-6 h-3 w-1/2 rounded bg-surface-container-high" />
-                      <div className="h-10 w-full rounded-full bg-surface-container-high" />
-                    </div>
-                  ))}
-                </div>
-              ) : professionals.length === 0 ? (
-                <div className="rounded-[24px] border border-dashed border-outline-variant bg-surface-container-lowest p-10 text-center">
-                  <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-primary-fixed text-primary">
-                    <span className="material-symbols-outlined" aria-hidden>
-                      search_off
-                    </span>
-                  </div>
-                  <div className="font-headline-sm text-headline-sm text-primary">
-                    {hasActiveSearch
-                      ? "Nessun professionista trovato con questi filtri."
-                      : "Nessun professionista disponibile nella tua zona."}
-                  </div>
-                  <p className="mx-auto mt-2 max-w-[560px] text-on-surface-variant">
-                    Prova a modificare testo, categoria, provincia o disponibilità.
-                  </p>
-                </div>
-              ) : (
-                <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
-                  {professionals.map((p) => {
-                    const isSaved = savedIds.has(p.id);
-                    return (
-                      <article
-                        key={p.id}
-                        className="rounded-[24px] border border-outline-variant/30 bg-surface-container-lowest p-6 shadow-[0_4px_20px_rgba(8,43,95,0.08)]"
-                      >
-                        <div className="flex items-start gap-4">
-                          <ProfileAvatar
-                            person={p}
-                            alt={fullName(p)}
-                            size="xl"
-                            className="border-2 border-primary-fixed bg-surface-container-high text-primary"
-                            fallbackClassName="font-button"
-                          />
-
-                          <div className="min-w-0 flex-1">
-                            <div className="font-headline-sm text-[24px] leading-tight text-primary">
-                              {fullName(p)}
-                            </div>
-                            <div className="mt-1 line-clamp-2 text-sm text-on-surface-variant">
-                              {professionalCategoryLabel(p)}
-                            </div>
-                            <div className="mt-3 flex flex-wrap gap-2">
-                              {p.province_code ? (
-                                <span className="rounded-full bg-surface-container-low px-3 py-1 text-xs font-bold text-primary">
-                                  {provinceNameByCode.get(p.province_code) ?? p.province_code}
-                                </span>
-                              ) : null}
-                              {p.available_remote ? (
-                                <span className="rounded-full bg-primary-fixed px-3 py-1 text-xs font-bold text-on-primary-fixed">
-                                  Remoto
-                                </span>
-                              ) : null}
-                              {p.available_travel ? (
-                                <span className="rounded-full bg-secondary-fixed px-3 py-1 text-xs font-bold text-on-secondary-fixed">
-                                  Trasferte
-                                </span>
-                              ) : null}
-                            </div>
-                          </div>
-
-                          <div className="flex shrink-0 flex-col items-end gap-3">
-                            <button
-                              type="button"
-                              className={[
-                                "flex h-11 w-11 items-center justify-center rounded-full border transition-colors",
-                                isSaved
-                                  ? "border-on-tertiary-container bg-on-tertiary-container/10 text-on-tertiary-container"
-                                  : "border-outline-variant/50 text-primary hover:bg-surface-container-high",
-                              ].join(" ")}
-                              title={isSaved ? "Rimuovi dai salvati" : "Salva professionista"}
-                              disabled={savedLoading}
-                              onClick={() => void toggleSaved(p)}
-                            >
-                              <span
-                                className="material-symbols-outlined"
-                                aria-hidden
-                                style={{
-                                  fontVariationSettings: isSaved ? "'FILL' 1" : "'FILL' 0",
-                                }}
-                              >
-                                {isSaved ? "favorite" : "favorite_border"}
-                              </span>
-                            </button>
-                          </div>
-                        </div>
-
-                        <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
-                          <RatingStars average={p.rating_average} count={p.reviews_count} />
-                        </div>
-
-                        <div className="mt-5 flex flex-col gap-3 sm:flex-row">
-                          <button
-                            type="button"
-                            className="flex-1 rounded-full bg-[#FF8500] py-3 font-button text-button text-white transition-colors hover:bg-[#FF9A2B] active:scale-[0.99]"
-                            onClick={() => openContact(p)}
-                          >
-                            Contatta
-                          </button>
-                          <Link
-                            href={`/professionisti/${p.id}`}
-                            className="flex-1 rounded-full border-2 border-primary py-3 text-center font-button text-button text-primary transition-colors hover:bg-primary hover:text-white"
-                          >
-                            Vedi profilo
-                          </Link>
-                        </div>
-                      </article>
-                    );
-                  })}
-                </div>
-              )}
-            </section>
-
-            <section id="richieste" className="mx-auto max-w-[1280px] px-4 py-12 sm:px-6">
-              <div className="mb-5 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
-                <div>
-                  <div className="font-headline-md text-headline-md text-primary">
-                    Richieste recenti
-                  </div>
-                  <div className="text-sm text-on-surface-variant">
-                    In attesa, aperte o concluse: clicca una richiesta per aprire i messaggi.
-                  </div>
-                </div>
-              </div>
-
-              {requestsError ? (
-                <div className="mb-4 rounded-xl border border-error/20 bg-error-container px-4 py-3 text-sm text-on-error-container">
-                  {requestsError}
-                </div>
-              ) : null}
-
-              {requestsLoading ? (
-                <div className="animate-pulse rounded-[20px] border border-outline-variant/30 bg-surface-container-lowest p-6 shadow-sm">
-                  <div className="mb-3 h-4 w-1/3 rounded bg-surface-container-high" />
-                  <div className="h-4 w-2/3 rounded bg-surface-container-high" />
-                </div>
-              ) : requests.length === 0 ? (
-                <div className="rounded-[24px] border border-dashed border-outline-variant bg-surface-container-lowest p-10 text-center">
-                  <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-primary-fixed text-primary">
-                    <span className="material-symbols-outlined" aria-hidden>
-                      assignment
-                    </span>
-                  </div>
-                  <div className="font-headline-sm text-headline-sm text-primary">
-                    Ancora nessuna richiesta
-                  </div>
-                  <p className="mx-auto mt-2 max-w-[560px] text-on-surface-variant">
-                    Quando contatterai un professionista, la richiesta comparirà qui.
-                  </p>
-                </div>
-              ) : (
-                <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-                  {requests.map((r) => (
-                    <button
-                      key={r.id}
-                      type="button"
-                      className="rounded-[22px] border border-outline-variant/30 bg-surface-container-lowest p-5 text-left shadow-[0_4px_20px_rgba(8,43,95,0.08)] transition-all hover:-translate-y-0.5 hover:shadow-[0_8px_30px_rgba(8,43,95,0.12)]"
-                      onClick={() => openMessages(r.conversation_id)}
-                    >
-                      <div className="flex items-start justify-between gap-4">
-                        <div className="min-w-0">
-                          <div className="truncate font-button text-primary">
-                            {fullName(r.participant)}
-                          </div>
-                          <div className="mt-1 truncate text-sm text-on-surface-variant">
-                            {r.subject}
-                          </div>
-                          <div className="mt-3 flex flex-wrap items-center gap-2">
-                            <span
-                              className={[
-                                "inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-bold",
-                                statusBadgeClass(r.status),
-                              ].join(" ")}
-                            >
-                              {statusLabel(r.status)}
-                            </span>
-                            <span className="text-xs text-outline">
-                              {formatDate(r.updated_at ?? r.created_at)}
-                            </span>
-                            {r.professional_available === false ? (
-                              <span className="inline-flex items-center rounded-full bg-error-container px-2 py-0.5 text-[10px] font-bold text-on-error-container">
-                                Chat non disponibile
-                              </span>
-                            ) : null}
-                          </div>
-                        </div>
-                        <span className="material-symbols-outlined text-primary" aria-hidden>
-                          chevron_right
-                        </span>
-                      </div>
-                    </button>
-                  ))}
-                </div>
-              )}
-            </section>
-          </>
-        )}
-      </main>
-
-      <Footer />
-
-      {contactModal.open ? (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-3 sm:p-4">
-          <div
-            className="absolute inset-0 bg-inverse-surface/40 backdrop-blur-sm"
-            onClick={() => setContactModal({ open: false, professional: null })}
-          />
-          <div className="relative flex max-h-[calc(100dvh-1.5rem)] w-full max-w-[640px] flex-col overflow-hidden rounded-[24px] border border-white/20 bg-surface-container-lowest shadow-[0_12px_50px_rgba(0,0,0,0.20)]">
-            <div className="flex items-start justify-between gap-4 border-b border-outline-variant/30 bg-surface-container-lowest/90 p-5 backdrop-blur-md sm:p-6">
-              <div className="min-w-0">
-                <div className="mb-1 font-headline-sm text-primary">
-                  {contactDone
-                    ? "Richiesta inviata"
-                    : `Invia una richiesta a ${fullName(contactModal.professional)}`}
-                </div>
-                <div className="text-sm text-on-surface-variant">
-                  {contactDone
-                    ? "Appena il professionista accetterà o rifiuterà la tua richiesta, riceverai una notifica di avviso."
-                    : "Compila il modulo per aprire una conversazione in attesa."}
-                </div>
-              </div>
-              <button
-                type="button"
-                className="h-10 w-10 rounded-full transition-colors hover:bg-surface-container-high"
-                onClick={() => setContactModal({ open: false, professional: null })}
-                aria-label="Chiudi"
-              >
-                <span className="material-symbols-outlined" aria-hidden>
-                  close
-                </span>
-              </button>
-            </div>
-
-            <div className="min-h-0 flex-1 space-y-4 overflow-y-auto p-5 sm:p-6">
-              {contactDone ? (
-                <div className="rounded-2xl border border-outline-variant/30 bg-surface-container-low p-5 text-center">
-                  <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-primary-fixed text-primary">
-                    <span className="material-symbols-outlined" aria-hidden>
-                      mark_email_read
-                    </span>
-                  </div>
-                  <div className="mb-1 font-button text-primary">Richiesta inviata</div>
-                  <div className="text-sm text-on-surface-variant">
-                    Appena il professionista accetterà o rifiuterà la tua richiesta,
-                    riceverai una notifica di avviso.
-                  </div>
-                  <div className="mt-4">
-                    <button
-                      type="button"
-                      className="w-full rounded-full bg-primary py-3 font-button text-button text-white transition-colors hover:bg-secondary sm:w-auto sm:px-8"
-                      onClick={() => setContactModal({ open: false, professional: null })}
-                    >
-                      Chiudi
-                    </button>
-                  </div>
-                </div>
-              ) : (
-                <>
-                  <div className="space-y-2">
-                    <label className="font-label-md text-label-md text-on-surface-variant">
-                      Oggetto
-                    </label>
-                    <input
-                      className="w-full rounded-[12px] border border-outline-variant px-4 py-3 font-body-md outline-none transition-all focus:border-primary focus:ring-2 focus:ring-primary"
-                      value={contactSubject}
-                      onChange={(e) => setContactSubject(e.target.value)}
-                      placeholder="Es. Rifacimento impianto elettrico"
-                      required
-                    />
-                  </div>
-
-                  <div className="space-y-2">
-                    <label className="font-label-md text-label-md text-on-surface-variant">
-                      Messaggio
-                    </label>
-                    <textarea
-                      className="w-full resize-none rounded-[12px] border border-outline-variant px-4 py-3 font-body-md outline-none transition-all focus:border-primary focus:ring-2 focus:ring-primary"
-                      value={contactMessage}
-                      onChange={(e) => setContactMessage(e.target.value)}
-                      placeholder="Descrivi brevemente la tua necessità…"
-                      rows={4}
-                      required
-                    />
-                  </div>
-
-                  <div className="space-y-2">
-                    <label className="font-label-md text-label-md text-on-surface-variant">
-                      Allegati (immagini, video o PDF · max 10)
-                    </label>
-                    <input
-                      type="file"
-                      multiple
-                      accept="image/jpeg,image/png,image/webp,video/mp4,video/quicktime,application/pdf"
-                      onChange={(e) => setContactFiles(Array.from(e.target.files ?? []))}
-                    />
-                    {contactFiles.length > 0 ? (
-                      <div className="text-xs text-on-surface-variant">
-                        {contactFiles.length} file selezionati
                       </div>
                     ) : null}
                   </div>
+                </div>
+              </section>
 
-                  <label className="flex items-start gap-3 rounded-xl border border-outline-variant/30 bg-surface-container-low p-4">
-                    <input
-                      type="checkbox"
-                      className="mt-1 h-5 w-5 rounded border-outline-variant text-on-tertiary-container focus:ring-on-tertiary-container"
-                      checked={contactPrivacy}
-                      onChange={(e) => setContactPrivacy(e.target.checked)}
-                      required
-                    />
-                    <span className="text-sm leading-relaxed text-on-surface-variant">
-                      Dichiaro di aver letto l’informativa privacy e acconsento al trattamento
-                      dei dati per la gestione della richiesta.
-                    </span>
-                  </label>
+              <section
+                id="esplora"
+                className="mx-auto max-w-[1280px] px-4 py-12 sm:px-6"
+                aria-busy={professionalsLoading}
+              >
+                <div className="mb-6">
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+                    <div>
+                      <div className="font-headline-md text-headline-md text-primary">
+                        {hasActiveSearch
+                          ? "Professionisti trovati"
+                          : "Professionisti consigliati nella tua zona"}
+                      </div>
 
-                  {contactError ? (
-                    <div className="rounded-xl border border-error/20 bg-error-container px-4 py-3 text-sm text-on-error-container">
-                      {contactError}
+                      <div className="mt-1 text-sm text-on-surface-variant">
+                        {professionalsLoading ? (
+                          <span
+                            className="inline-flex items-center gap-2"
+                            role="status"
+                            aria-live="polite"
+                          >
+                            <span
+                              className="material-symbols-outlined animate-spin text-[17px]"
+                              aria-hidden
+                            >
+                              progress_activity
+                            </span>
+                            Ricerca in corso…
+                          </span>
+                        ) : professionalsTotal === 1 ? (
+                          "1 professionista disponibile"
+                        ) : (
+                          `${professionalsTotal} professionisti disponibili`
+                        )}
+                      </div>
+                    </div>
+
+                    {hasActiveSearch ? (
+                      <button
+                        type="button"
+                        onClick={resetFilters}
+                        className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-full border border-primary px-4 py-2.5 text-sm font-bold text-primary transition hover:bg-primary-fixed sm:w-auto"
+                      >
+                        <span
+                          className="material-symbols-outlined text-[19px]"
+                          aria-hidden
+                        >
+                          restart_alt
+                        </span>
+                        Azzera filtri
+                      </button>
+                    ) : null}
+                  </div>
+
+                  {hasActiveSearch ? (
+                    <div
+                      className="mt-5 flex flex-wrap gap-2 md:mt-3"
+                      aria-label="Filtri di ricerca attivi"
+                    >
+                      {sanitizeQuery(q) ? (
+                        <button
+                          type="button"
+                          onClick={() => setQ("")}
+                          className="inline-flex min-h-9 max-w-full items-center gap-2 rounded-full bg-primary-fixed px-3 py-1.5 text-sm font-bold text-on-primary-fixed-variant transition hover:bg-primary-fixed-dim"
+                          aria-label={`Rimuovi filtro ricerca ${sanitizeQuery(q)}`}
+                        >
+                          <span className="truncate">
+                            Ricerca: {sanitizeQuery(q)}
+                          </span>
+                          <span
+                            className="material-symbols-outlined shrink-0 text-[17px]"
+                            aria-hidden
+                          >
+                            close
+                          </span>
+                        </button>
+                      ) : null}
+
+                      {currentCategory ? (
+                        <button
+                          type="button"
+                          onClick={() => updateCategory("")}
+                          className="inline-flex min-h-9 max-w-full items-center gap-2 rounded-full bg-surface-container-high px-3 py-1.5 text-sm font-bold text-primary transition hover:bg-primary-fixed"
+                          aria-label={`Rimuovi filtro categoria ${currentCategory.name}`}
+                        >
+                          <span className="truncate">
+                            Categoria: {currentCategory.name}
+                          </span>
+                          <span
+                            className="material-symbols-outlined shrink-0 text-[17px]"
+                            aria-hidden
+                          >
+                            close
+                          </span>
+                        </button>
+                      ) : null}
+
+                      {currentSubcategory ? (
+                        <button
+                          type="button"
+                          onClick={() => setSubcategoryKey("")}
+                          className="inline-flex min-h-9 max-w-full items-center gap-2 rounded-full bg-surface-container-high px-3 py-1.5 text-sm font-bold text-primary transition hover:bg-primary-fixed"
+                          aria-label={`Rimuovi filtro sottocategoria ${currentSubcategory.name}`}
+                        >
+                          <span className="truncate">
+                            Sottocategoria: {currentSubcategory.name}
+                          </span>
+                          <span
+                            className="material-symbols-outlined shrink-0 text-[17px]"
+                            aria-hidden
+                          >
+                            close
+                          </span>
+                        </button>
+                      ) : null}
+
+                      {provinceCode ? (
+                        <button
+                          type="button"
+                          onClick={() => setProvinceCode("")}
+                          className="inline-flex min-h-9 max-w-full items-center gap-2 rounded-full bg-surface-container-high px-3 py-1.5 text-sm font-bold text-primary transition hover:bg-primary-fixed"
+                          aria-label="Rimuovi filtro provincia"
+                        >
+                          <span className="truncate">
+                            Provincia:{" "}
+                            {provinceNameByCode.get(provinceCode) ??
+                              provinceCode}
+                          </span>
+                          <span
+                            className="material-symbols-outlined shrink-0 text-[17px]"
+                            aria-hidden
+                          >
+                            close
+                          </span>
+                        </button>
+                      ) : null}
+
+                      {remote ? (
+                        <button
+                          type="button"
+                          onClick={() => setRemote(false)}
+                          className="inline-flex min-h-9 items-center gap-2 rounded-full bg-primary-fixed px-3 py-1.5 text-sm font-bold text-on-primary-fixed-variant transition hover:bg-primary-fixed-dim"
+                          aria-label="Rimuovi filtro disponibilità da remoto"
+                        >
+                          Remoto
+                          <span
+                            className="material-symbols-outlined text-[17px]"
+                            aria-hidden
+                          >
+                            close
+                          </span>
+                        </button>
+                      ) : null}
+
+                      {travel ? (
+                        <button
+                          type="button"
+                          onClick={() => setTravel(false)}
+                          className="inline-flex min-h-9 items-center gap-2 rounded-full bg-secondary-fixed px-3 py-1.5 text-sm font-bold text-on-secondary-fixed transition hover:opacity-85"
+                          aria-label="Rimuovi filtro disponibilità a trasferte"
+                        >
+                          Trasferte
+                          <span
+                            className="material-symbols-outlined text-[17px]"
+                            aria-hidden
+                          >
+                            close
+                          </span>
+                        </button>
+                      ) : null}
                     </div>
                   ) : null}
+                </div>
 
-                  <div className="flex flex-col gap-3 pt-2 sm:flex-row">
+                {professionalsError || professionalsRetrying ? (
+                  <div
+                    className="mb-4 flex flex-col gap-3 rounded-xl border border-error/20 bg-error-container px-4 py-3 text-sm text-on-error-container sm:flex-row sm:items-center sm:justify-between"
+                    role="alert"
+                  >
+                    <span>
+                      {professionalsError ??
+                        "Nuovo tentativo di caricamento dei professionisti…"}
+                    </span>
                     <button
                       type="button"
-                      className="flex-1 rounded-full border-2 border-primary py-3 font-button text-button text-primary transition-colors hover:bg-primary/5"
-                      onClick={() => setContactModal({ open: false, professional: null })}
-                      disabled={contactSending}
+                      className="inline-flex items-center justify-center gap-2 rounded-full bg-white/80 px-4 py-2 font-button text-xs text-on-error-container shadow-sm transition-colors hover:bg-white disabled:cursor-wait disabled:opacity-60"
+                      onClick={() => void retryProfessionals()}
+                      disabled={professionalsRetrying}
+                      aria-busy={professionalsRetrying}
                     >
-                      Annulla
-                    </button>
-                    <button
-                      type="button"
-                      className="flex-1 rounded-full bg-on-tertiary-container py-3 font-button text-button text-white shadow-lg shadow-on-tertiary-container/20 transition-colors hover:bg-[#FF9A2B] disabled:opacity-60"
-                      onClick={() => void sendContactRequest()}
-                      disabled={contactSending}
-                    >
-                      {contactSending ? "Invio…" : "Invia richiesta"}
+                      {professionalsRetrying ? (
+                        <>
+                          <span
+                            className="material-symbols-outlined animate-spin text-[17px]"
+                            aria-hidden
+                          >
+                            progress_activity
+                          </span>
+                          Caricamento…
+                        </>
+                      ) : (
+                        "Riprova"
+                      )}
                     </button>
                   </div>
-                </>
-              )}
+                ) : null}
+
+                {professionalsLoading ? (
+                  <div className="space-y-5">
+                    {Array.from({ length: 4 }).map((_, i) => (
+                      <div
+                        key={i}
+                        className="grid animate-pulse overflow-hidden rounded-[28px] border border-outline-variant/30 bg-surface-container-lowest shadow-sm md:grid-cols-[92px_minmax(0,1fr)_260px] lg:grid-cols-[108px_minmax(0,1fr)_310px]"
+                      >
+                        <div className="order-2 hidden p-5 md:order-1 md:block lg:p-6">
+                          <div className="mx-auto size-20 rounded-full bg-surface-container-high lg:size-24" />
+                          <div className="mx-auto mt-4 h-10 w-24 rounded-full bg-surface-container-high lg:w-28" />
+                        </div>
+
+                        <div className="order-3 space-y-4 p-5 md:order-2 lg:p-7">
+                          <div className="h-6 w-1/2 rounded bg-surface-container-high" />
+                          <div className="h-4 w-1/3 rounded bg-surface-container-high" />
+                          <div className="h-4 w-2/3 rounded bg-surface-container-high" />
+                          <div className="h-16 w-full rounded-xl bg-surface-container-high" />
+                          <div className="h-11 w-36 rounded-full bg-surface-container-high" />
+                        </div>
+
+                        <div className="order-1 aspect-[16/10] bg-surface-container-high md:order-3 md:aspect-auto md:h-[254px] lg:h-[282px]" />
+                      </div>
+                    ))}
+                  </div>
+                ) : professionals.length === 0 ? (
+                  <div className="rounded-[24px] border border-dashed border-outline-variant bg-surface-container-lowest p-10 text-center">
+                    <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-primary-fixed text-primary">
+                      <span className="material-symbols-outlined" aria-hidden>
+                        search_off
+                      </span>
+                    </div>
+                    <div className="font-headline-sm text-headline-sm text-primary">
+                      {hasActiveSearch
+                        ? "Nessun professionista trovato con questi filtri."
+                        : "Nessun professionista disponibile nella tua zona."}
+                    </div>
+                    <p className="mx-auto mt-2 max-w-[560px] text-on-surface-variant">
+                      {hasActiveSearch
+                        ? "Prova a rimuovere uno o più filtri oppure azzerali per ampliare la ricerca."
+                        : "Al momento non ci sono professionisti consigliati disponibili nella tua zona."}
+                    </p>
+
+                    {hasActiveSearch ? (
+                      <button
+                        type="button"
+                        onClick={resetFilters}
+                        className="mx-auto mt-5 inline-flex min-h-11 items-center justify-center gap-2 rounded-full border border-primary px-5 py-2.5 text-sm font-bold text-primary transition hover:bg-primary-fixed"
+                      >
+                        <span
+                          className="material-symbols-outlined text-[19px]"
+                          aria-hidden
+                        >
+                          restart_alt
+                        </span>
+                        Azzera filtri
+                      </button>
+                    ) : null}
+                  </div>
+                ) : (
+                  <div className="space-y-5">
+                    {professionals.map((p) => {
+                      const isSaved = savedIds.has(p.id);
+                      const summary = professionalCardSummary(p);
+                      const expandedSummary =
+                        professionalCardExpandedSummary(p);
+
+                      return (
+                        <article
+                          key={p.id}
+                          data-professional-result-card
+                          className="group overflow-hidden rounded-[28px] border border-outline-variant/30 bg-surface-container-lowest shadow-[0_8px_28px_rgba(8,43,95,0.08)] transition duration-300 hover:-translate-y-0.5 hover:shadow-[0_16px_42px_rgba(8,43,95,0.13)]"
+                        >
+                          <div className="grid grid-cols-1 md:grid-cols-[116px_minmax(0,1fr)_260px] lg:grid-cols-[128px_minmax(0,1fr)_310px]">
+                            <div className="order-3 hidden border-r border-outline-variant/20 px-4 py-5 md:order-1 md:flex md:items-start md:justify-center lg:px-5">
+                              <ProfileAvatar
+                                person={p}
+                                alt={fullName(p)}
+                                size="xl"
+                                className="scale-110 border-2 border-primary-fixed bg-surface-container-high text-primary shadow-sm lg:scale-125"
+                                fallbackClassName="font-button"
+                              />
+                            </div>
+
+                            <div className="order-2 flex min-w-0 flex-col p-5 sm:p-6 md:order-2 md:px-5 md:py-5 lg:px-6">
+                              <div className="flex items-start gap-4">
+                                <div className="min-w-0 flex-1">
+                                  <h3 className="font-headline-sm text-[24px] leading-tight text-primary sm:text-[27px] md:text-[23px] lg:text-[25px]">
+                                    {fullName(p)}
+                                  </h3>
+
+                                  <p className="mt-1 text-sm font-semibold leading-5 text-on-surface-variant">
+                                    {professionalCategoryLabel(p)}
+                                  </p>
+
+                                  <div className="mt-3">
+                                    <RatingStars
+                                      average={p.rating_average}
+                                      count={p.reviews_count}
+                                    />
+                                  </div>
+                                </div>
+
+                                <ProfileAvatar
+                                  person={p}
+                                  alt={fullName(p)}
+                                  size="lg"
+                                  className="shrink-0 scale-110 border-2 border-primary-fixed bg-surface-container-high text-primary shadow-sm md:hidden"
+                                  fallbackClassName="font-button"
+                                />
+                              </div>
+
+                              <div className="mt-3 flex flex-wrap gap-1.5">
+                                {p.province_code ? (
+                                  <span className="inline-flex items-center gap-1 rounded-full bg-surface-container-low px-2.5 py-1 text-[11px] font-bold text-primary">
+                                    <span
+                                      className="material-symbols-outlined text-[14px]"
+                                      aria-hidden
+                                    >
+                                      location_on
+                                    </span>
+                                    {provinceNameByCode.get(p.province_code) ??
+                                      p.province_code}
+                                  </span>
+                                ) : null}
+
+                                {p.available_remote ? (
+                                  <span className="inline-flex items-center gap-1 rounded-full bg-primary-fixed px-2.5 py-1 text-[11px] font-bold text-on-primary-fixed-variant">
+                                    <span
+                                      className="material-symbols-outlined text-[14px]"
+                                      aria-hidden
+                                    >
+                                      language
+                                    </span>
+                                    Remoto
+                                  </span>
+                                ) : null}
+
+                                {p.available_travel ? (
+                                  <span className="inline-flex items-center gap-1 rounded-full bg-secondary-fixed px-2.5 py-1 text-[11px] font-bold text-on-secondary-fixed">
+                                    <span
+                                      className="material-symbols-outlined text-[14px]"
+                                      aria-hidden
+                                    >
+                                      commute
+                                    </span>
+                                    Trasferte
+                                  </span>
+                                ) : null}
+                              </div>
+
+                              <ProfessionalCardSummaryText
+                                summary={summary}
+                                expandedSummary={expandedSummary}
+                              />
+
+                              <div className="mt-auto pt-5">
+                                <div className="flex gap-3">
+                                  <Link
+                                    href={`/professionisti/${p.id}`}
+                                    className="inline-flex min-h-11 flex-1 items-center justify-center gap-2 rounded-full bg-primary px-4 py-2.5 text-center font-button text-sm text-white shadow-sm transition hover:bg-secondary md:max-w-[170px]"
+                                  >
+                                    <span
+                                      className="material-symbols-outlined text-[19px]"
+                                      aria-hidden
+                                    >
+                                      person
+                                    </span>
+                                    Vedi profilo
+                                  </Link>
+
+                                  <button
+                                    type="button"
+                                    className="inline-flex min-h-11 flex-1 items-center justify-center gap-2 rounded-full bg-[#FF8500] px-4 py-2.5 font-button text-sm text-white shadow-md shadow-orange-500/15 transition hover:bg-[#FF9A2B] active:scale-[0.99] md:max-w-[170px]"
+                                    onClick={() => openContact(p)}
+                                  >
+                                    <span
+                                      className="material-symbols-outlined text-[19px]"
+                                      aria-hidden
+                                    >
+                                      chat
+                                    </span>
+                                    Contatta
+                                  </button>
+                                </div>
+                              </div>
+                            </div>
+
+                            <div className="order-1 md:order-3 md:p-3 md:pl-0 lg:p-4 lg:pl-0">
+                              <ProfessionalResultMediaCarousel
+                                professional={p}
+                                isSaved={isSaved}
+                                savedLoading={savedLoading}
+                                onToggleSaved={(professional) =>
+                                  void toggleSaved(professional)
+                                }
+                              />
+                            </div>
+                          </div>
+                        </article>
+                      );
+                    })}
+                  </div>
+                )}
+              </section>
+
+              <section
+                id="richieste"
+                className="mx-auto max-w-[1280px] px-4 py-12 sm:px-6"
+              >
+                <div className="mb-5 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+                  <div>
+                    <div className="font-headline-md text-headline-md text-primary">
+                      Richieste recenti
+                    </div>
+                    <div className="text-sm text-on-surface-variant">
+                      In attesa, aperte o concluse: clicca una richiesta per
+                      aprire i messaggi.
+                    </div>
+                  </div>
+                </div>
+
+                {requestsError ? (
+                  <div className="mb-4 rounded-xl border border-error/20 bg-error-container px-4 py-3 text-sm text-on-error-container">
+                    {requestsError}
+                  </div>
+                ) : null}
+
+                {requestsLoading ? (
+                  <div className="animate-pulse rounded-[20px] border border-outline-variant/30 bg-surface-container-lowest p-6 shadow-sm">
+                    <div className="mb-3 h-4 w-1/3 rounded bg-surface-container-high" />
+                    <div className="h-4 w-2/3 rounded bg-surface-container-high" />
+                  </div>
+                ) : requests.length === 0 ? (
+                  <div className="rounded-[24px] border border-dashed border-outline-variant bg-surface-container-lowest p-10 text-center">
+                    <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-primary-fixed text-primary">
+                      <span className="material-symbols-outlined" aria-hidden>
+                        assignment
+                      </span>
+                    </div>
+                    <div className="font-headline-sm text-headline-sm text-primary">
+                      Ancora nessuna richiesta
+                    </div>
+                    <p className="mx-auto mt-2 max-w-[560px] text-on-surface-variant">
+                      Quando contatterai un professionista, la richiesta
+                      comparirà qui.
+                    </p>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                    {requests.map((r) => (
+                      <button
+                        key={r.id}
+                        type="button"
+                        className="rounded-[22px] border border-outline-variant/30 bg-surface-container-lowest p-5 text-left shadow-[0_4px_20px_rgba(8,43,95,0.08)] transition-all hover:-translate-y-0.5 hover:shadow-[0_8px_30px_rgba(8,43,95,0.12)]"
+                        onClick={() => openMessages(r.conversation_id)}
+                      >
+                        <div className="flex items-start justify-between gap-4">
+                          <div className="min-w-0">
+                            <div className="truncate font-button text-primary">
+                              {fullName(r.participant)}
+                            </div>
+                            <div className="mt-1 truncate text-sm text-on-surface-variant">
+                              {r.subject}
+                            </div>
+                            <div className="mt-3 flex flex-wrap items-center gap-2">
+                              <span
+                                className={[
+                                  "inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-bold",
+                                  statusBadgeClass(r.status),
+                                ].join(" ")}
+                              >
+                                {statusLabel(r.status)}
+                              </span>
+                              <span className="text-xs text-outline">
+                                {formatDate(r.updated_at ?? r.created_at)}
+                              </span>
+                              {r.professional_available === false ? (
+                                <span className="inline-flex items-center rounded-full bg-error-container px-2 py-0.5 text-[10px] font-bold text-on-error-container">
+                                  Chat non disponibile
+                                </span>
+                              ) : null}
+                            </div>
+                          </div>
+                          <span
+                            className="material-symbols-outlined text-primary"
+                            aria-hidden
+                          >
+                            chevron_right
+                          </span>
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </section>
+            </>
+          )}
+        </main>
+
+        <Footer />
+
+        {contactModal.open ? (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-3 sm:p-4">
+            <div
+              className="absolute inset-0 bg-inverse-surface/40 backdrop-blur-sm"
+              onClick={() =>
+                setContactModal({ open: false, professional: null })
+              }
+            />
+            <div className="relative flex max-h-[calc(100dvh-1.5rem)] w-full max-w-[640px] flex-col overflow-hidden rounded-[24px] border border-white/20 bg-surface-container-lowest shadow-[0_12px_50px_rgba(0,0,0,0.20)]">
+              <div className="flex items-start justify-between gap-4 border-b border-outline-variant/30 bg-surface-container-lowest/90 p-5 backdrop-blur-md sm:p-6">
+                <div className="min-w-0">
+                  <div className="mb-1 font-headline-sm text-primary">
+                    {contactDone
+                      ? "Richiesta inviata"
+                      : `Invia una richiesta a ${fullName(contactModal.professional)}`}
+                  </div>
+                  <div className="text-sm text-on-surface-variant">
+                    {contactDone
+                      ? "Appena il professionista accetterà o rifiuterà la tua richiesta, riceverai una notifica di avviso."
+                      : "Compila il modulo per aprire una conversazione in attesa."}
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  className="h-10 w-10 rounded-full transition-colors hover:bg-surface-container-high"
+                  onClick={() =>
+                    setContactModal({ open: false, professional: null })
+                  }
+                  aria-label="Chiudi"
+                >
+                  <span className="material-symbols-outlined" aria-hidden>
+                    close
+                  </span>
+                </button>
+              </div>
+
+              <div className="min-h-0 flex-1 space-y-4 overflow-y-auto p-5 sm:p-6">
+                {contactDone ? (
+                  <div className="rounded-2xl border border-outline-variant/30 bg-surface-container-low p-5 text-center">
+                    <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-primary-fixed text-primary">
+                      <span className="material-symbols-outlined" aria-hidden>
+                        mark_email_read
+                      </span>
+                    </div>
+                    <div className="mb-1 font-button text-primary">
+                      Richiesta inviata
+                    </div>
+                    <div className="text-sm text-on-surface-variant">
+                      Appena il professionista accetterà o rifiuterà la tua
+                      richiesta, riceverai una notifica di avviso.
+                    </div>
+                    <div className="mt-4">
+                      <button
+                        type="button"
+                        className="w-full rounded-full bg-primary py-3 font-button text-button text-white transition-colors hover:bg-secondary sm:w-auto sm:px-8"
+                        onClick={() =>
+                          setContactModal({ open: false, professional: null })
+                        }
+                      >
+                        Chiudi
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <>
+                    <div className="space-y-2">
+                      <label className="font-label-md text-label-md text-on-surface-variant">
+                        Oggetto
+                      </label>
+                      <input
+                        className="w-full rounded-[12px] border border-outline-variant px-4 py-3 font-body-md outline-none transition-all focus:border-primary focus:ring-2 focus:ring-primary"
+                        value={contactSubject}
+                        onChange={(e) => setContactSubject(e.target.value)}
+                        placeholder="Es. Rifacimento impianto elettrico"
+                        required
+                      />
+                    </div>
+
+                    <div className="space-y-2">
+                      <label className="font-label-md text-label-md text-on-surface-variant">
+                        Messaggio
+                      </label>
+                      <textarea
+                        className="w-full resize-none rounded-[12px] border border-outline-variant px-4 py-3 font-body-md outline-none transition-all focus:border-primary focus:ring-2 focus:ring-primary"
+                        value={contactMessage}
+                        onChange={(e) => setContactMessage(e.target.value)}
+                        placeholder="Descrivi brevemente la tua necessità…"
+                        rows={4}
+                        required
+                      />
+                    </div>
+
+                    <div className="space-y-2">
+                      <label className="font-label-md text-label-md text-on-surface-variant">
+                        Allegati (immagini, video o PDF · max 10)
+                      </label>
+                      <input
+                        type="file"
+                        multiple
+                        accept="image/jpeg,image/png,image/webp,video/mp4,video/quicktime,application/pdf"
+                        onChange={(e) =>
+                          setContactFiles(Array.from(e.target.files ?? []))
+                        }
+                      />
+                      {contactFiles.length > 0 ? (
+                        <div className="text-xs text-on-surface-variant">
+                          {contactFiles.length} file selezionati
+                        </div>
+                      ) : null}
+                    </div>
+
+                    <label className="flex items-start gap-3 rounded-xl border border-outline-variant/30 bg-surface-container-low p-4">
+                      <input
+                        type="checkbox"
+                        className="mt-1 h-5 w-5 rounded border-outline-variant text-on-tertiary-container focus:ring-on-tertiary-container"
+                        checked={contactPrivacy}
+                        onChange={(e) => setContactPrivacy(e.target.checked)}
+                        required
+                      />
+                      <span className="text-sm leading-relaxed text-on-surface-variant">
+                        Dichiaro di aver letto l’informativa privacy e
+                        acconsento al trattamento dei dati per la gestione della
+                        richiesta.
+                      </span>
+                    </label>
+
+                    {contactError ? (
+                      <div className="rounded-xl border border-error/20 bg-error-container px-4 py-3 text-sm text-on-error-container">
+                        {contactError}
+                      </div>
+                    ) : null}
+
+                    <div className="flex flex-col gap-3 pt-2 sm:flex-row">
+                      <button
+                        type="button"
+                        className="flex-1 rounded-full border-2 border-primary py-3 font-button text-button text-primary transition-colors hover:bg-primary/5"
+                        onClick={() =>
+                          setContactModal({ open: false, professional: null })
+                        }
+                        disabled={contactSending}
+                      >
+                        Annulla
+                      </button>
+                      <button
+                        type="button"
+                        className="inline-flex flex-1 items-center justify-center gap-2 rounded-full bg-on-tertiary-container py-3 font-button text-button text-white shadow-lg shadow-on-tertiary-container/20 transition-colors hover:bg-[#FF9A2B] disabled:cursor-wait disabled:opacity-60"
+                        onClick={() => void sendContactRequest()}
+                        disabled={contactSending}
+                      >
+                        {contactSending ? (
+                          <>
+                            <span
+                              className="material-symbols-outlined animate-spin text-[19px]"
+                              aria-hidden
+                            >
+                              progress_activity
+                            </span>
+                            Caricamento…
+                          </>
+                        ) : (
+                          "Invia richiesta"
+                        )}
+                      </button>
+                    </div>
+                  </>
+                )}
+              </div>
             </div>
           </div>
-        </div>
-      ) : null}
+        ) : null}
       </AuthenticatedPresence>
     </div>
   );

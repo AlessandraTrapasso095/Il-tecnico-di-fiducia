@@ -32,10 +32,11 @@ describe("public professional work gallery contract", () => {
     expect(loader).not.toContain("file_path: media.file_path");
   });
 
-  it("renders the gallery only when real media exists", () => {
+  it("renders the gallery only when real media exists without duplicating it", () => {
     expect(component).toContain("profile.work_media.length > 0 ?");
-    expect(component).toContain(
-      "[...profile.work_media, ...profile.work_media].map(",
+    expect(component).toContain("profile.work_media.map(");
+    expect(component).not.toContain(
+      "[...profile.work_media, ...profile.work_media]",
     );
   });
 

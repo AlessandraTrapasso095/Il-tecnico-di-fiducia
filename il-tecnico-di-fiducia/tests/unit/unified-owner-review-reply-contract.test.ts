@@ -34,7 +34,8 @@ describe("unified owner review reply", () => {
   });
 
   it("provides visible loading and error feedback", () => {
-    expect(unifiedProfile).toContain("Invio in corso…");
+    expect(unifiedProfile).toContain("Caricamento…");
+    expect(unifiedProfile).toContain("progress_activity");
     expect(unifiedProfile).toContain("replySubmitting[review.id]");
     expect(unifiedProfile).toContain("replyErrors[review.id]");
     expect(unifiedProfile).toContain('role="alert"');

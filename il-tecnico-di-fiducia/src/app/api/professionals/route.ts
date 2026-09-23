@@ -18,6 +18,7 @@ type ProfessionalDirectoryRow = {
   last_name: string;
   province_code: string | null;
   headline: string | null;
+  search_summary: string | null;
   bio: string | null;
   specializations: string[] | null;
   subcategory_id?: string | null;
@@ -40,10 +41,19 @@ type ProfessionalDirectoryRowWithTaxonomy = ProfessionalDirectoryRow & {
   categories?: CategoryRow[];
   subcategory?: SubcategoryRow | null;
 };
-type RatedProfessionalDirectoryRow = ProfessionalWithRating<ProfessionalDirectoryRowWithTaxonomy>;
+type RatedProfessionalDirectoryRow =
+  ProfessionalWithRating<ProfessionalDirectoryRowWithTaxonomy>;
 type ProfessionalCategoryMappingRow = {
   professional_id: string;
   category_id: CategoryId;
+};
+
+type ProfessionalCardMedia = {
+  id: string;
+  post_id: string;
+  public_url: string;
+  media_type: "image" | "video";
+  file_name: string | null;
 };
 
 const DIRECTORY_FETCH_BATCH_SIZE = 500;
@@ -91,7 +101,9 @@ function matchesSearchText(haystack: string, rawNeedle: string) {
     if (haystack.includes(needle)) return true;
 
     const tokens = needle.split(" ").filter(Boolean);
-    return tokens.length > 0 && tokens.every((token) => haystack.includes(token));
+    return (
+      tokens.length > 0 && tokens.every((token) => haystack.includes(token))
+    );
   });
 }
 
@@ -100,7 +112,9 @@ function matchesSubcategoryText(haystack: string, rawNeedle: string) {
   if (!needle) return true;
   if (matchesSearchText(haystack, needle)) return true;
 
-  const tokens = needle.split(" ").filter((token) => token.length >= MIN_ALIAS_LENGTH);
+  const tokens = needle
+    .split(" ")
+    .filter((token) => token.length >= MIN_ALIAS_LENGTH);
   return tokens.length > 0 && tokens.some((token) => haystack.includes(token));
 }
 
@@ -185,7 +199,9 @@ async function loadProfessionalCategoryLookup(
 
   if (!mappings?.length) return empty;
 
-  const categoryIds = [...new Set(mappings.map((mapping) => mapping.category_id))];
+  const categoryIds = [
+    ...new Set(mappings.map((mapping) => mapping.category_id)),
+  ];
   const { data: categories, error: categoriesError } = await supabase
     .from("categories")
     .select("id, name, slug")
@@ -210,7 +226,8 @@ async function loadProfessionalCategoryLookup(
   for (const mapping of mappings as ProfessionalCategoryMappingRow[]) {
     const category = categoriesById.get(mapping.category_id);
     if (!category) continue;
-    const existing = categoriesByProfessionalId.get(mapping.professional_id) ?? [];
+    const existing =
+      categoriesByProfessionalId.get(mapping.professional_id) ?? [];
     existing.push(category);
     categoriesByProfessionalId.set(mapping.professional_id, existing);
   }
@@ -229,7 +246,10 @@ async function loadProfessionalSubcategoryLookup(
         .filter((id): id is string => Boolean(id)),
     ),
   ];
-  const subcategoriesByProfessionalId = new Map<string, SubcategoryRow | null>();
+  const subcategoriesByProfessionalId = new Map<
+    string,
+    SubcategoryRow | null
+  >();
 
   if (subcategoryIds.length === 0) return { subcategoriesByProfessionalId };
 
@@ -278,6 +298,67 @@ function attachTaxonomyToProfessionals(
   }));
 }
 
+async function attachProfessionalCardMedia<T extends { id: string }>(
+  supabase: SupabaseClient,
+  professionals: T[],
+): Promise<Array<T & { work_media: ProfessionalCardMedia[] }>> {
+  if (professionals.length === 0) return [];
+
+  const professionalIds = professionals.map((professional) => professional.id);
+
+  const { data, error } = await supabase
+    .from("post_attachments")
+    .select("id, post_id, user_id, file_url, file_type, file_name, created_at")
+    .in("user_id", professionalIds)
+    .in("file_type", ["image", "video"])
+    .order("created_at", { ascending: false });
+
+  if (error) {
+    logApiError("PROFESSIONALS ERROR", {
+      query: "post_attachments card media by professional ids",
+      error,
+    });
+
+    return professionals.map((professional) => ({
+      ...professional,
+      work_media: [],
+    }));
+  }
+
+  const mediaByProfessionalId = new Map<string, ProfessionalCardMedia[]>();
+
+  for (const media of data ?? []) {
+    if (media.file_type !== "image" && media.file_type !== "video") {
+      continue;
+    }
+
+    const existing = mediaByProfessionalId.get(media.user_id) ?? [];
+
+    /*
+     * Le card mostrano soltanto una preview del portfolio.
+     * Il profilo completo continua a mostrare tutti i lavori.
+     */
+    if (existing.length >= 5) {
+      continue;
+    }
+
+    existing.push({
+      id: media.id,
+      post_id: media.post_id,
+      public_url: media.file_url,
+      media_type: media.file_type,
+      file_name: media.file_name,
+    });
+
+    mediaByProfessionalId.set(media.user_id, existing);
+  }
+
+  return professionals.map((professional) => ({
+    ...professional,
+    work_media: mediaByProfessionalId.get(professional.id) ?? [],
+  }));
+}
+
 async function loadProfessionalIdsForCategory(
   supabase: SupabaseClient,
   categoryId: CategoryId,
@@ -289,7 +370,8 @@ async function loadProfessionalIdsForCategory(
 
   if (error) {
     logApiError("PROFESSIONALS ERROR", {
-      query: "professional_categories select professional_id by active category",
+      query:
+        "professional_categories select professional_id by active category",
       category_id: categoryId,
       error,
     });
@@ -354,7 +436,8 @@ export async function GET(request: NextRequest) {
 
     const rangeFrom = (page - 1) * pageSize;
     const rangeTo = rangeFrom + pageSize - 1;
-    const q = query && query.trim().length > 0 ? sanitizeOrSearchQuery(query) : "";
+    const q =
+      query && query.trim().length > 0 ? sanitizeOrSearchQuery(query) : "";
     const emptyResponse = {
       page,
       page_size: pageSize,
@@ -365,7 +448,10 @@ export async function GET(request: NextRequest) {
       ? await loadCustomerVisibleProfessionalIds(undefined, dataClient)
       : null;
 
-    if (customerVisibleProfessionalIds && customerVisibleProfessionalIds.size === 0) {
+    if (
+      customerVisibleProfessionalIds &&
+      customerVisibleProfessionalIds.size === 0
+    ) {
       return NextResponse.json(emptyResponse);
     }
 
@@ -378,7 +464,10 @@ export async function GET(request: NextRequest) {
         ? Number.parseInt(categoryIdRaw, 10)
         : categoryIdRaw.trim();
       if (!categoryId) {
-        return NextResponse.json({ error: "Invalid category_id" }, { status: 400 });
+        return NextResponse.json(
+          { error: "Invalid category_id" },
+          { status: 400 },
+        );
       }
 
       const categoryResult = await dataClient
@@ -424,7 +513,10 @@ export async function GET(request: NextRequest) {
         );
       }
     } else if (categorySlugRaw) {
-      const categorySlug = normalizeSearchText(categorySlugRaw).replace(/\s+/g, "-");
+      const categorySlug = normalizeSearchText(categorySlugRaw).replace(
+        /\s+/g,
+        "-",
+      );
       if (categorySlug) {
         const { data: categoryData, error: categoryError } = await dataClient
           .from("categories")
@@ -464,8 +556,8 @@ export async function GET(request: NextRequest) {
           );
         }
         if (customerVisibleProfessionalIds) {
-          professionalIdsFromCategory = professionalIdsFromCategory.filter((id) =>
-            customerVisibleProfessionalIds.has(id),
+          professionalIdsFromCategory = professionalIdsFromCategory.filter(
+            (id) => customerVisibleProfessionalIds.has(id),
           );
         }
       }
@@ -474,21 +566,26 @@ export async function GET(request: NextRequest) {
     if (subcategoryIdRaw) {
       const subcategoryId = subcategoryIdRaw.trim();
       if (!subcategoryId) {
-        return NextResponse.json({ error: "Invalid subcategory_id" }, { status: 400 });
+        return NextResponse.json(
+          { error: "Invalid subcategory_id" },
+          { status: 400 },
+        );
       }
 
-      const { data: subcategoryData, error: subcategoryError } = await dataClient
-        .from("subcategories")
-        .select("id, category_id, name, slug")
-        .eq("id", subcategoryId)
-        .eq("is_active", true)
-        .maybeSingle();
+      const { data: subcategoryData, error: subcategoryError } =
+        await dataClient
+          .from("subcategories")
+          .select("id, category_id, name, slug")
+          .eq("id", subcategoryId)
+          .eq("is_active", true)
+          .maybeSingle();
 
       if (subcategoryError) {
         logApiError("PROFESSIONALS ERROR", {
           user_id: viewerId,
           role: viewerRole,
-          query: "subcategories select active id, category_id, name, slug by id",
+          query:
+            "subcategories select active id, category_id, name, slug by id",
           subcategory_id: subcategoryId,
           error: subcategoryError,
         });
@@ -504,12 +601,13 @@ export async function GET(request: NextRequest) {
       }
 
       if (!selectedCategory) {
-        const { data: parentCategory, error: parentCategoryError } = await dataClient
-          .from("categories")
-          .select("id, name, slug")
-          .eq("id", selectedSubcategory.category_id)
-          .eq("is_active", true)
-          .maybeSingle();
+        const { data: parentCategory, error: parentCategoryError } =
+          await dataClient
+            .from("categories")
+            .select("id, name, slug")
+            .eq("id", selectedSubcategory.category_id)
+            .eq("is_active", true)
+            .maybeSingle();
 
         if (parentCategoryError) {
           logApiError("PROFESSIONALS ERROR", {
@@ -539,10 +637,11 @@ export async function GET(request: NextRequest) {
       }
 
       try {
-        professionalIdsFromSubcategory = await loadProfessionalIdsForSubcategory(
-          dataClient,
-          selectedSubcategory.id,
-        );
+        professionalIdsFromSubcategory =
+          await loadProfessionalIdsForSubcategory(
+            dataClient,
+            selectedSubcategory.id,
+          );
       } catch {
         return NextResponse.json(
           { error: "Non è stato possibile filtrare per sottocategoria." },
@@ -552,30 +651,36 @@ export async function GET(request: NextRequest) {
 
       if (professionalIdsFromCategory) {
         const categorySet = new Set(professionalIdsFromCategory);
-        professionalIdsFromSubcategory = professionalIdsFromSubcategory.filter((id) =>
-          categorySet.has(id),
+        professionalIdsFromSubcategory = professionalIdsFromSubcategory.filter(
+          (id) => categorySet.has(id),
         );
       }
 
       if (customerVisibleProfessionalIds) {
-        professionalIdsFromSubcategory = professionalIdsFromSubcategory.filter((id) =>
-          customerVisibleProfessionalIds.has(id),
+        professionalIdsFromSubcategory = professionalIdsFromSubcategory.filter(
+          (id) => customerVisibleProfessionalIds.has(id),
         );
       }
     }
 
-    if (professionalIdsFromCategory && professionalIdsFromCategory.length === 0) {
+    if (
+      professionalIdsFromCategory &&
+      professionalIdsFromCategory.length === 0
+    ) {
       return NextResponse.json(emptyResponse);
     }
 
-    if (professionalIdsFromSubcategory && professionalIdsFromSubcategory.length === 0) {
+    if (
+      professionalIdsFromSubcategory &&
+      professionalIdsFromSubcategory.length === 0
+    ) {
       return NextResponse.json(emptyResponse);
     }
 
     let queryBuilder = dataClient
       .from("professional_directory")
       .select(
-        "id, first_name, last_name, province_code, headline, bio, specializations, subcategory_id, avatar_url, available_remote, available_travel, is_ctu, is_ctp",
+        "id, first_name, last_name, province_code, headline, search_summary, bio, specializations, subcategory_id, avatar_url, available_remote, available_travel, is_ctu, is_ctp",
         { count: "exact" },
       );
 
@@ -601,11 +706,13 @@ export async function GET(request: NextRequest) {
 
     if (customerVisibleProfessionalIds) {
       const idsForQuery =
-        professionalIdsFromSubcategory && professionalIdsFromSubcategory.length > 0
+        professionalIdsFromSubcategory &&
+        professionalIdsFromSubcategory.length > 0
           ? professionalIdsFromSubcategory
-          : professionalIdsFromCategory && professionalIdsFromCategory.length > 0
-          ? professionalIdsFromCategory
-          : [...customerVisibleProfessionalIds];
+          : professionalIdsFromCategory &&
+              professionalIdsFromCategory.length > 0
+            ? professionalIdsFromCategory
+            : [...customerVisibleProfessionalIds];
       if (idsForQuery.length === 0) {
         return NextResponse.json(emptyResponse);
       }
@@ -618,7 +725,8 @@ export async function GET(request: NextRequest) {
       selectedSubcategory !== null ||
       subcategory.length > 0;
 
-    const idsFromTaxonomy = professionalIdsFromSubcategory ?? professionalIdsFromCategory;
+    const idsFromTaxonomy =
+      professionalIdsFromSubcategory ?? professionalIdsFromCategory;
 
     if (!requiresLocalSearch && idsFromTaxonomy) {
       if (idsFromTaxonomy.length === 0) {
@@ -652,7 +760,10 @@ export async function GET(request: NextRequest) {
             error,
           });
           return NextResponse.json(
-            { error: "Non è stato possibile caricare i professionisti. Riprova." },
+            {
+              error:
+                "Non è stato possibile caricare i professionisti. Riprova.",
+            },
             { status: 500 },
           );
         }
@@ -675,20 +786,26 @@ export async function GET(request: NextRequest) {
       const subcategoryIdSet = new Set(professionalIdsFromSubcategory ?? []);
 
       const filtered = candidates.filter((professional) => {
-        const categories = categoriesByProfessionalId.get(professional.id) ?? [];
+        const categories =
+          categoriesByProfessionalId.get(professional.id) ?? [];
         const professionalSubcategory =
           subcategoriesByProfessionalId.get(professional.id) ?? null;
-        const searchable = rowSearchText(professional, categories, professionalSubcategory);
+        const searchable = rowSearchText(
+          professional,
+          categories,
+          professionalSubcategory,
+        );
         const matchesQuery = q.length === 0 || matchesSearchText(searchable, q);
         const matchesCategory =
           !selectedCategory ||
           categoryIdSet.has(professional.id) ||
           categoryAliases(selectedCategory).some((alias) =>
-              matchesSearchText(searchable, alias),
+            matchesSearchText(searchable, alias),
           );
         const matchesSubcategory =
           (!selectedSubcategory || subcategoryIdSet.has(professional.id)) &&
-          (subcategory.length === 0 || matchesSubcategoryText(searchable, subcategory));
+          (subcategory.length === 0 ||
+            matchesSubcategoryText(searchable, subcategory));
 
         return matchesQuery && matchesCategory && matchesSubcategory;
       });
@@ -702,7 +819,10 @@ export async function GET(request: NextRequest) {
         ),
       );
       const sorted = professionals.sort(
-        (a: RatedProfessionalDirectoryRow, b: RatedProfessionalDirectoryRow) => {
+        (
+          a: RatedProfessionalDirectoryRow,
+          b: RatedProfessionalDirectoryRow,
+        ) => {
           if (recommended) {
             const aProvinceScore =
               customerProvinceCode && a.province_code === customerProvinceCode
@@ -720,7 +840,8 @@ export async function GET(request: NextRequest) {
               return aProvinceScore - bProvinceScore;
             }
 
-            const ratingDelta = (b.rating_average ?? -1) - (a.rating_average ?? -1);
+            const ratingDelta =
+              (b.rating_average ?? -1) - (a.rating_average ?? -1);
             if (ratingDelta !== 0) return ratingDelta;
 
             const countDelta = b.reviews_count - a.reviews_count;
@@ -734,11 +855,17 @@ export async function GET(request: NextRequest) {
         },
       );
 
+      const pagedProfessionals = sorted.slice(rangeFrom, rangeTo + 1);
+      const professionalsWithMedia = await attachProfessionalCardMedia(
+        dataClient,
+        pagedProfessionals,
+      );
+
       return NextResponse.json({
         page,
         page_size: pageSize,
         total: sorted.length,
-        professionals: sorted.slice(rangeFrom, rangeTo + 1),
+        professionals: professionalsWithMedia,
       });
     }
 
@@ -765,7 +892,10 @@ export async function GET(request: NextRequest) {
             error,
           });
           return NextResponse.json(
-            { error: "Non è stato possibile caricare i professionisti. Riprova." },
+            {
+              error:
+                "Non è stato possibile caricare i professionisti. Riprova.",
+            },
             { status: 500 },
           );
         }
@@ -779,7 +909,9 @@ export async function GET(request: NextRequest) {
 
         recommendedOffset += DIRECTORY_FETCH_BATCH_SIZE;
       }
-      const recommendedIds = recommendedRows.map((professional) => professional.id);
+      const recommendedIds = recommendedRows.map(
+        (professional) => professional.id,
+      );
       const { categoriesByProfessionalId } =
         await loadProfessionalCategoryLookup(dataClient, recommendedIds);
       const { subcategoriesByProfessionalId } =
@@ -794,7 +926,10 @@ export async function GET(request: NextRequest) {
       );
 
       const sorted = professionals.sort(
-        (a: RatedProfessionalDirectoryRow, b: RatedProfessionalDirectoryRow) => {
+        (
+          a: RatedProfessionalDirectoryRow,
+          b: RatedProfessionalDirectoryRow,
+        ) => {
           const aProvinceScore =
             customerProvinceCode && a.province_code === customerProvinceCode
               ? 0
@@ -807,9 +942,11 @@ export async function GET(request: NextRequest) {
               : b.province_code
                 ? 1
                 : 2;
-          if (aProvinceScore !== bProvinceScore) return aProvinceScore - bProvinceScore;
+          if (aProvinceScore !== bProvinceScore)
+            return aProvinceScore - bProvinceScore;
 
-          const ratingDelta = (b.rating_average ?? -1) - (a.rating_average ?? -1);
+          const ratingDelta =
+            (b.rating_average ?? -1) - (a.rating_average ?? -1);
           if (ratingDelta !== 0) return ratingDelta;
 
           const countDelta = b.reviews_count - a.reviews_count;
@@ -822,11 +959,21 @@ export async function GET(request: NextRequest) {
         },
       );
 
+      const pagedRecommendedProfessionals = sorted.slice(
+        rangeFrom,
+        rangeTo + 1,
+      );
+      const recommendedProfessionalsWithMedia =
+        await attachProfessionalCardMedia(
+          dataClient,
+          pagedRecommendedProfessionals,
+        );
+
       return NextResponse.json({
         page,
         page_size: pageSize,
         total: sorted.length,
-        professionals: sorted.slice(rangeFrom, rangeTo + 1),
+        professionals: recommendedProfessionalsWithMedia,
       });
     }
 
@@ -850,23 +997,32 @@ export async function GET(request: NextRequest) {
 
     const paginatedRows = (data ?? []) as ProfessionalDirectoryRow[];
     const paginatedIds = paginatedRows.map((professional) => professional.id);
-    const { categoriesByProfessionalId } =
-      await loadProfessionalCategoryLookup(dataClient, paginatedIds);
+    const { categoriesByProfessionalId } = await loadProfessionalCategoryLookup(
+      dataClient,
+      paginatedIds,
+    );
     const { subcategoriesByProfessionalId } =
       await loadProfessionalSubcategoryLookup(dataClient, paginatedRows);
+
+    const ratedPaginatedProfessionals = await attachProfessionalRatings(
+      dataClient,
+      attachTaxonomyToProfessionals(
+        paginatedRows,
+        categoriesByProfessionalId,
+        subcategoriesByProfessionalId,
+      ),
+    );
+
+    const paginatedProfessionalsWithMedia = await attachProfessionalCardMedia(
+      dataClient,
+      ratedPaginatedProfessionals,
+    );
 
     return NextResponse.json({
       page,
       page_size: pageSize,
       total: count ?? 0,
-      professionals: await attachProfessionalRatings(
-        dataClient,
-        attachTaxonomyToProfessionals(
-          paginatedRows,
-          categoriesByProfessionalId,
-          subcategoriesByProfessionalId,
-        ),
-      ),
+      professionals: paginatedProfessionalsWithMedia,
     });
   } catch (error) {
     logApiError("PROFESSIONALS ERROR", {

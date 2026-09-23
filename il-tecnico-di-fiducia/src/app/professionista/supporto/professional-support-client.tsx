@@ -95,7 +95,8 @@ export default function ProfessionalSupportClient() {
   const [success, setSuccess] = useState<string | null>(null);
 
   const selectedTicket = useMemo(
-    () => tickets.find((ticket) => ticket.id === selectedId) ?? tickets[0] ?? null,
+    () =>
+      tickets.find((ticket) => ticket.id === selectedId) ?? tickets[0] ?? null,
     [selectedId, tickets],
   );
 
@@ -112,14 +113,20 @@ export default function ProfessionalSupportClient() {
 
       setTickets(nextTickets);
       setSelectedId((current) => {
-        if (current && nextTickets.some((ticket) => ticket.id === current)) return current;
-        if (preferred && nextTickets.some((ticket) => ticket.id === preferred)) {
+        if (current && nextTickets.some((ticket) => ticket.id === current))
+          return current;
+        if (
+          preferred &&
+          nextTickets.some((ticket) => ticket.id === preferred)
+        ) {
           return preferred;
         }
         return nextTickets[0]?.id ?? null;
       });
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Impossibile caricare i ticket.");
+      setError(
+        err instanceof Error ? err.message : "Impossibile caricare i ticket.",
+      );
     } finally {
       setLoading(false);
     }
@@ -149,7 +156,11 @@ export default function ProfessionalSupportClient() {
       } catch (err) {
         if (!mounted) return;
         setMessages([]);
-        setError(err instanceof Error ? err.message : "Impossibile caricare i messaggi.");
+        setError(
+          err instanceof Error
+            ? err.message
+            : "Impossibile caricare i messaggi.",
+        );
       } finally {
         if (mounted) setMessagesLoading(false);
       }
@@ -185,13 +196,16 @@ export default function ProfessionalSupportClient() {
 
     setSubmitting(true);
     try {
-      const response = await fetchJson<{ ticket: SupportTicket }>("/api/support-tickets", {
-        method: "POST",
-        body: JSON.stringify({
-          subject: cleanSubject,
-          body: cleanBody,
-        }),
-      });
+      const response = await fetchJson<{ ticket: SupportTicket }>(
+        "/api/support-tickets",
+        {
+          method: "POST",
+          body: JSON.stringify({
+            subject: cleanSubject,
+            body: cleanBody,
+          }),
+        },
+      );
       setTickets((current) => [response.ticket, ...current]);
       setSelectedId(response.ticket.id);
       setSubject("");
@@ -199,7 +213,9 @@ export default function ProfessionalSupportClient() {
       setMessages([]);
       setSuccess("Ticket inviato correttamente.");
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Impossibile creare il ticket.");
+      setError(
+        err instanceof Error ? err.message : "Impossibile creare il ticket.",
+      );
     } finally {
       setSubmitting(false);
     }
@@ -237,7 +253,9 @@ export default function ProfessionalSupportClient() {
       setReplyBody("");
       setSuccess("Risposta inviata all'assistenza.");
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Impossibile inviare la risposta.");
+      setError(
+        err instanceof Error ? err.message : "Impossibile inviare la risposta.",
+      );
     } finally {
       setReplying(false);
     }
@@ -253,13 +271,16 @@ export default function ProfessionalSupportClient() {
           Apri un ticket
         </h1>
         <p className="mt-3 text-on-surface-variant">
-          Usa questo spazio per richieste reali su profilo, messaggi, richieste o
-          abbonamento.
+          Usa questo spazio per richieste reali su profilo, messaggi, richieste
+          o abbonamento.
         </p>
 
         <form className="mt-6 space-y-4" onSubmit={createTicket}>
           <div>
-            <label className="font-label-md text-primary" htmlFor="support-subject">
+            <label
+              className="font-label-md text-primary"
+              htmlFor="support-subject"
+            >
               Oggetto
             </label>
             <input
@@ -272,7 +293,10 @@ export default function ProfessionalSupportClient() {
             />
           </div>
           <div>
-            <label className="font-label-md text-primary" htmlFor="support-body">
+            <label
+              className="font-label-md text-primary"
+              htmlFor="support-body"
+            >
               Descrizione
             </label>
             <textarea
@@ -287,9 +311,21 @@ export default function ProfessionalSupportClient() {
           <button
             type="submit"
             disabled={submitting}
-            className="min-h-11 w-full rounded-full bg-[#FF8500] px-6 py-3 font-button text-button text-white shadow-md transition hover:bg-[#FF9A2B] disabled:opacity-60"
+            className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-full bg-[#FF8500] px-6 py-3 font-button text-button text-white shadow-md transition hover:bg-[#FF9A2B] disabled:cursor-wait disabled:opacity-60"
           >
-            {submitting ? "Invio in corso…" : "Invia ticket"}
+            {submitting ? (
+              <>
+                <span
+                  className="material-symbols-outlined animate-spin text-[19px]"
+                  aria-hidden
+                >
+                  progress_activity
+                </span>
+                Caricamento…
+              </>
+            ) : (
+              "Invia ticket"
+            )}
           </button>
         </form>
       </section>
@@ -307,7 +343,9 @@ export default function ProfessionalSupportClient() {
                 </h2>
               </div>
               {loading ? (
-                <span className="text-sm text-on-surface-variant">Caricamento…</span>
+                <span className="text-sm text-on-surface-variant">
+                  Caricamento…
+                </span>
               ) : null}
             </div>
           </div>
@@ -316,13 +354,16 @@ export default function ProfessionalSupportClient() {
             {!loading && tickets.length === 0 ? (
               <div className="rounded-[24px] border-2 border-dashed border-outline-variant p-6 text-center">
                 <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-primary-fixed text-primary">
-                  <span className="material-symbols-outlined">support_agent</span>
+                  <span className="material-symbols-outlined">
+                    support_agent
+                  </span>
                 </div>
                 <h3 className="mt-4 font-headline-sm text-[21px] text-primary">
                   Nessun ticket aperto
                 </h3>
                 <p className="mt-2 text-sm text-on-surface-variant">
-                  Quando invii una richiesta di supporto, la vedrai qui con il suo stato.
+                  Quando invii una richiesta di supporto, la vedrai qui con il
+                  suo stato.
                 </p>
               </div>
             ) : (
@@ -330,7 +371,8 @@ export default function ProfessionalSupportClient() {
                 const copy = statusCopy(ticket.status);
                 const isSelected = selectedTicket?.id === ticket.id;
                 const preview = ticket.last_message?.body ?? ticket.body;
-                const hasAdminReply = ticket.last_message?.sender_role === "admin";
+                const hasAdminReply =
+                  ticket.last_message?.sender_role === "admin";
 
                 return (
                   <button
@@ -386,14 +428,14 @@ export default function ProfessionalSupportClient() {
                       {selectedTicket.subject}
                     </h2>
                     <p className="mt-2 text-sm text-on-surface-variant">
-                      Aperto {formatDate(selectedTicket.created_at)} · Ultimo aggiornamento{" "}
-                      {formatDate(selectedTicket.updated_at)}
+                      Aperto {formatDate(selectedTicket.created_at)} · Ultimo
+                      aggiornamento {formatDate(selectedTicket.updated_at)}
                     </p>
                   </div>
                   <span
-                    className={`w-fit rounded-full px-3 py-1 text-sm font-bold ${statusCopy(
-                      selectedTicket.status,
-                    ).className}`}
+                    className={`w-fit rounded-full px-3 py-1 text-sm font-bold ${
+                      statusCopy(selectedTicket.status).className
+                    }`}
                   >
                     {statusCopy(selectedTicket.status).label}
                   </span>
@@ -417,7 +459,9 @@ export default function ProfessionalSupportClient() {
                     <p className="mb-2 text-xs font-semibold uppercase tracking-[0.12em] opacity-70">
                       Tu · richiesta iniziale
                     </p>
-                    <p className="break-words leading-7 [overflow-wrap:anywhere]">{selectedTicket.body}</p>
+                    <p className="break-words leading-7 [overflow-wrap:anywhere]">
+                      {selectedTicket.body}
+                    </p>
                     <p className="mt-2 text-xs opacity-60">
                       {formatDate(selectedTicket.created_at)}
                     </p>
@@ -437,9 +481,10 @@ export default function ProfessionalSupportClient() {
                     return (
                       <div
                         key={supportMessage.id}
-                        className={["flex", isAdmin ? "justify-start" : "justify-end"].join(
-                          " ",
-                        )}
+                        className={[
+                          "flex",
+                          isAdmin ? "justify-start" : "justify-end",
+                        ].join(" ")}
                       >
                         <div
                           className={[
@@ -452,7 +497,9 @@ export default function ProfessionalSupportClient() {
                           <p className="mb-2 text-xs font-semibold uppercase tracking-[0.12em] opacity-70">
                             {isAdmin ? "Assistenza admin" : "Tu"}
                           </p>
-                          <p className="break-words leading-7 [overflow-wrap:anywhere]">{supportMessage.body}</p>
+                          <p className="break-words leading-7 [overflow-wrap:anywhere]">
+                            {supportMessage.body}
+                          </p>
                           <p className="mt-2 text-xs opacity-60">
                             {formatDate(supportMessage.created_at)}
                           </p>
@@ -465,12 +512,15 @@ export default function ProfessionalSupportClient() {
               <footer className="border-t border-outline-variant/30 bg-surface-container-lowest p-4 pb-[max(1rem,env(safe-area-inset-bottom))] sm:p-5">
                 {selectedTicket.status === "closed" ? (
                   <div className="rounded-2xl bg-surface-container-low p-4 text-center text-on-surface-variant">
-                    Questo ticket è stato risolto. Apri una nuova richiesta se hai bisogno di
-                    ulteriore supporto.
+                    Questo ticket è stato risolto. Apri una nuova richiesta se
+                    hai bisogno di ulteriore supporto.
                   </div>
                 ) : (
                   <div className="space-y-3">
-                    <label className="font-label-md text-primary" htmlFor="support-reply">
+                    <label
+                      className="font-label-md text-primary"
+                      htmlFor="support-reply"
+                    >
                       Scrivi una risposta
                     </label>
                     <textarea
@@ -485,11 +535,23 @@ export default function ProfessionalSupportClient() {
                     <div className="flex justify-end">
                       <button
                         type="button"
-                        className="min-h-11 rounded-full bg-[#FF8500] px-6 py-3 font-button text-white shadow-md transition hover:bg-[#FF9A2B] disabled:opacity-60"
+                        className="inline-flex min-h-11 items-center justify-center gap-2 rounded-full bg-[#FF8500] px-6 py-3 font-button text-white shadow-md transition hover:bg-[#FF9A2B] disabled:cursor-wait disabled:opacity-60"
                         onClick={() => void sendReply()}
                         disabled={replying || !replyBody.trim()}
                       >
-                        {replying ? "Invio in corso…" : "Invia risposta"}
+                        {replying ? (
+                          <>
+                            <span
+                              className="material-symbols-outlined animate-spin text-[19px]"
+                              aria-hidden
+                            >
+                              progress_activity
+                            </span>
+                            Caricamento…
+                          </>
+                        ) : (
+                          "Invia risposta"
+                        )}
                       </button>
                     </div>
                   </div>
@@ -506,7 +568,8 @@ export default function ProfessionalSupportClient() {
                   Seleziona una richiesta
                 </h3>
                 <p className="mt-2 max-w-[420px] text-on-surface-variant">
-                  Apri un ticket dalla lista per vedere storico e risposte dell’assistenza.
+                  Apri un ticket dalla lista per vedere storico e risposte
+                  dell’assistenza.
                 </p>
               </div>
             </div>

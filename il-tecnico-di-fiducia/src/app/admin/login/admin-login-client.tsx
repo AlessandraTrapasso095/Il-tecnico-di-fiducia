@@ -15,7 +15,6 @@ type AdminSignInResponse = {
   };
 };
 
-
 export default function AdminLoginClient({
   infoMessage = null,
 }: {
@@ -34,10 +33,13 @@ export default function AdminLoginClient({
     setLoading(true);
 
     try {
-      const response = await fetchJson<AdminSignInResponse>("/api/admin/auth/sign-in", {
-        method: "POST",
-        body: JSON.stringify({ email: emailValue, password }),
-      });
+      const response = await fetchJson<AdminSignInResponse>(
+        "/api/admin/auth/sign-in",
+        {
+          method: "POST",
+          body: JSON.stringify({ email: emailValue, password }),
+        },
+      );
 
       if (response.profile.must_change_password) {
         navigateAfterLogin("/auth/change-password");
@@ -46,7 +48,9 @@ export default function AdminLoginClient({
 
       navigateAfterLogin("/admin");
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Accesso admin non riuscito.");
+      setError(
+        err instanceof Error ? err.message : "Accesso admin non riuscito.",
+      );
       setLoading(false);
     }
   }
@@ -60,7 +64,9 @@ export default function AdminLoginClient({
             <div className="relative z-10 flex min-h-[620px] flex-col justify-between">
               <Link href="/" className="inline-flex items-center gap-3">
                 <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-white text-primary shadow-lg">
-                  <span className="material-symbols-outlined">admin_panel_settings</span>
+                  <span className="material-symbols-outlined">
+                    admin_panel_settings
+                  </span>
                 </span>
                 <span>
                   <span className="block font-headline-sm text-[24px] leading-none">
@@ -80,13 +86,14 @@ export default function AdminLoginClient({
                   Accesso sicuro al pannello admin
                 </h1>
                 <p className="mt-5 max-w-[520px] text-lg leading-8 text-primary-fixed">
-                  Gestisci clienti, professionisti, ticket e abbonamenti con controlli
-                  protetti lato server.
+                  Gestisci clienti, professionisti, ticket e abbonamenti con
+                  controlli protetti lato server.
                 </p>
               </div>
 
               <div className="rounded-[24px] border border-white/20 bg-white/10 p-5 text-primary-fixed backdrop-blur">
-                Gli account admin con password provvisoria devono cambiarla al primo login.
+                Gli account admin con password provvisoria devono cambiarla al
+                primo login.
               </div>
             </div>
           </section>
@@ -94,12 +101,18 @@ export default function AdminLoginClient({
           <section className="flex items-center justify-center px-4 py-8 sm:px-10 sm:py-10">
             <div className="w-full max-w-[460px]">
               <div className="mb-8 lg:hidden">
-                <Link href="/" className="inline-flex items-center gap-3 rounded-2xl focus:outline-none focus:ring-4 focus:ring-primary/20">
+                <Link
+                  href="/"
+                  className="inline-flex items-center gap-3 rounded-2xl focus:outline-none focus:ring-4 focus:ring-primary/20"
+                >
                   <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-primary text-white shadow-lg">
-                    <span className="material-symbols-outlined">admin_panel_settings</span>
+                    <span className="material-symbols-outlined">
+                      admin_panel_settings
+                    </span>
                   </span>
                   <span className="font-headline-sm text-[23px] leading-none text-primary">
-                    Il Tecnico <span className="text-[#FF8500]">di Fiducia</span>
+                    Il Tecnico{" "}
+                    <span className="text-[#FF8500]">di Fiducia</span>
                   </span>
                 </Link>
               </div>
@@ -166,10 +179,22 @@ export default function AdminLoginClient({
 
                 <button
                   type="submit"
-                  className="w-full rounded-full bg-[#FF8500] px-6 py-4 font-button text-white shadow-lg shadow-orange-500/20 transition hover:bg-[#FF9A2B] disabled:opacity-60"
+                  className="inline-flex w-full items-center justify-center gap-2 rounded-full bg-[#FF8500] px-6 py-4 font-button text-white shadow-lg shadow-orange-500/20 transition hover:bg-[#FF9A2B] disabled:cursor-wait disabled:opacity-60"
                   disabled={loading}
                 >
-                  {loading ? "Accesso in corso…" : "Accedi come admin"}
+                  {loading ? (
+                    <>
+                      <span
+                        className="material-symbols-outlined animate-spin text-[19px]"
+                        aria-hidden
+                      >
+                        progress_activity
+                      </span>
+                      Caricamento…
+                    </>
+                  ) : (
+                    "Accedi come admin"
+                  )}
                 </button>
               </form>
 

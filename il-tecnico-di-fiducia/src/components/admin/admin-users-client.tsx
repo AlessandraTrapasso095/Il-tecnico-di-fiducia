@@ -1,13 +1,24 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+  type ReactNode,
+} from "react";
 
 import { ConfirmActionModal } from "@/components/posts/post-media-ui";
 import { fetchJson } from "@/lib/api/fetch-json";
 import { ITALIAN_PROVINCES } from "@/lib/locations/italian-provinces";
 
 type AdminRole = "customer" | "professional" | "admin";
-type SubscriptionStatus = "none" | "stripe_active" | "stripe_canceled" | "suspended" | "admin_forced_active";
+type SubscriptionStatus =
+  | "none"
+  | "stripe_active"
+  | "stripe_canceled"
+  | "suspended"
+  | "admin_forced_active";
 type DurationChoice = "week" | "month" | "forever";
 
 type AdminUser = {
@@ -80,11 +91,15 @@ const subscriptionLabels: Record<SubscriptionStatus, string> = {
 
 function provinceName(code: string | null) {
   if (!code) return "Non indicata";
-  return ITALIAN_PROVINCES.find((province) => province.code === code)?.name ?? code;
+  return (
+    ITALIAN_PROVINCES.find((province) => province.code === code)?.name ?? code
+  );
 }
 
 function fullName(user: AdminUser) {
-  return `${user.first_name ?? ""} ${user.last_name ?? ""}`.trim() || "Senza nome";
+  return (
+    `${user.first_name ?? ""} ${user.last_name ?? ""}`.trim() || "Senza nome"
+  );
 }
 
 function formatDate(value: string | null | undefined) {
@@ -99,13 +114,17 @@ function formatDate(value: string | null | undefined) {
 function subscriptionTone(status: SubscriptionStatus | null | undefined) {
   if (status === "stripe_active") return "bg-emerald-500";
   if (status === "admin_forced_active") return "bg-orange-500";
-  if (status === "suspended" || status === "stripe_canceled") return "bg-yellow-400";
+  if (status === "suspended" || status === "stripe_canceled")
+    return "bg-yellow-400";
   return "bg-red-500";
 }
 
 function subscriptionIsActive(subscription: AdminUser["subscription"]) {
   if (!subscription) return false;
-  if (subscription.status !== "stripe_active" && subscription.status !== "admin_forced_active") {
+  if (
+    subscription.status !== "stripe_active" &&
+    subscription.status !== "admin_forced_active"
+  ) {
     return false;
   }
   return (
@@ -133,7 +152,9 @@ function suspensionLabel(user: AdminUser) {
   if (!user.suspended_until) return "Sospeso sempre";
   const until = new Date(user.suspended_until);
   const expired = until.getTime() <= Date.now();
-  return expired ? `Sospensione scaduta il ${formatDate(user.suspended_until)}` : `Sospeso fino al ${formatDate(user.suspended_until)}`;
+  return expired
+    ? `Sospensione scaduta il ${formatDate(user.suspended_until)}`
+    : `Sospeso fino al ${formatDate(user.suspended_until)}`;
 }
 
 function ActionButton({
@@ -151,7 +172,7 @@ function ActionButton({
     <button
       type="button"
       className={[
-        "min-h-10 rounded-full px-4 py-2 font-button text-sm transition disabled:cursor-not-allowed disabled:opacity-60",
+        "inline-flex min-h-10 items-center justify-center gap-2 rounded-full px-4 py-2 font-button text-sm transition disabled:cursor-not-allowed disabled:opacity-60",
         danger
           ? "bg-error-container text-error hover:bg-error/10"
           : "bg-primary-fixed text-primary hover:bg-primary-fixed-dim",
@@ -176,21 +197,24 @@ function MenuItem({
   children,
   onClick,
   danger = false,
+  disabled = false,
 }: {
   children: ReactNode;
   onClick: () => void;
   danger?: boolean;
+  disabled?: boolean;
 }) {
   return (
     <button
       type="button"
       className={[
-        "block w-full rounded-xl px-3 py-2 text-left text-sm transition",
+        "flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-sm transition disabled:cursor-wait disabled:opacity-60",
         danger
           ? "text-error hover:bg-error-container"
           : "text-on-surface-variant hover:bg-surface-container-low hover:text-primary",
       ].join(" ")}
       onClick={onClick}
+      disabled={disabled}
     >
       {children}
     </button>
@@ -210,6 +234,7 @@ export function AdminUsersClient({
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState<string | null>(null);
+  const [busyAction, setBusyAction] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [pendingAction, setPendingAction] = useState<PendingAction>(null);
@@ -224,11 +249,15 @@ export function AdminUsersClient({
         page_size: "100",
       });
       if (query.trim()) params.set("q", query.trim());
-      const response = await fetchJson<UsersResponse>(`/api/admin/users?${params.toString()}`);
+      const response = await fetchJson<UsersResponse>(
+        `/api/admin/users?${params.toString()}`,
+      );
       setUsers(response.users ?? []);
       setTotal(response.total ?? 0);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Impossibile caricare gli utenti.");
+      setError(
+        err instanceof Error ? err.message : "Impossibile caricare gli utenti.",
+      );
     } finally {
       setLoading(false);
     }
@@ -246,11 +275,32 @@ export function AdminUsersClient({
     [expandedId, users],
   );
 
-  async function runUserPatch(user: AdminUser, body: Record<string, unknown>, success: string) {
+  function loadingContent(actionKey: string, label: string) {
+    return busyAction === actionKey ? (
+      <>
+        <span
+          className="material-symbols-outlined animate-spin text-[18px]"
+          aria-hidden
+        >
+          progress_activity
+        </span>
+        Caricamento…
+      </>
+    ) : (
+      label
+    );
+  }
+
+  async function runUserPatch(
+    user: AdminUser,
+    body: Record<string, unknown>,
+    success: string,
+    actionKey: string,
+  ) {
     setBusy(user.id);
+    setBusyAction(actionKey);
     setError(null);
     setMessage(null);
-    setOpenMenu(null);
     try {
       await fetchJson(`/api/admin/users/${user.id}`, {
         method: "PATCH",
@@ -262,14 +312,21 @@ export function AdminUsersClient({
       setError(err instanceof Error ? err.message : "Operazione non riuscita.");
     } finally {
       setBusy(null);
+      setBusyAction(null);
+      setOpenMenu(null);
     }
   }
 
-  async function runUserAction(user: AdminUser, endpoint: string, success: string) {
+  async function runUserAction(
+    user: AdminUser,
+    endpoint: string,
+    success: string,
+    actionKey: string,
+  ) {
     setBusy(user.id);
+    setBusyAction(actionKey);
     setError(null);
     setMessage(null);
-    setOpenMenu(null);
     try {
       await fetchJson(endpoint, { method: "POST" });
       setMessage(success);
@@ -277,32 +334,43 @@ export function AdminUsersClient({
       setError(err instanceof Error ? err.message : "Operazione non riuscita.");
     } finally {
       setBusy(null);
+      setBusyAction(null);
+      setOpenMenu(null);
     }
   }
 
   async function updateSubscription(
     user: AdminUser,
     status: "none" | "admin_forced_active" | "suspended",
-    currentPeriodEnd?: string | null,
+    currentPeriodEnd: string | null | undefined,
+    actionKey: string,
   ) {
     setBusy(user.id);
+    setBusyAction(actionKey);
     setError(null);
     setMessage(null);
-    setOpenMenu(null);
     try {
       await fetchJson(`/api/admin/professionals/${user.id}/subscription`, {
         method: "PATCH",
         body: JSON.stringify({
           status,
-          ...(currentPeriodEnd !== undefined ? { current_period_end: currentPeriodEnd } : {}),
+          ...(currentPeriodEnd !== undefined
+            ? { current_period_end: currentPeriodEnd }
+            : {}),
         }),
       });
       setMessage("Stato abbonamento aggiornato.");
       await loadUsers();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Aggiornamento abbonamento non riuscito.");
+      setError(
+        err instanceof Error
+          ? err.message
+          : "Aggiornamento abbonamento non riuscito.",
+      );
     } finally {
       setBusy(null);
+      setBusyAction(null);
+      setOpenMenu(null);
     }
   }
 
@@ -310,20 +378,33 @@ export function AdminUsersClient({
     if (!pendingAction) return;
     const action = pendingAction;
     setBusy(action.user.id);
+    setBusyAction(
+      action.type === "delete"
+        ? `delete:${action.user.id}`
+        : `cancel-subscription:${action.user.id}`,
+    );
     setError(null);
     setMessage(null);
     try {
       if (action.type === "delete") {
-        await fetchJson(`/api/admin/users/${action.user.id}`, { method: "DELETE" });
+        await fetchJson(`/api/admin/users/${action.user.id}`, {
+          method: "DELETE",
+        });
         setMessage("Account eliminato definitivamente.");
       } else {
-        await fetchJson(`/api/admin/professionals/${action.user.id}/subscription`, {
-          method: "PATCH",
-          body: JSON.stringify({
-            status: action.user.subscription?.status === "admin_forced_active" ? "none" : "suspended",
-            current_period_end: null,
-          }),
-        });
+        await fetchJson(
+          `/api/admin/professionals/${action.user.id}/subscription`,
+          {
+            method: "PATCH",
+            body: JSON.stringify({
+              status:
+                action.user.subscription?.status === "admin_forced_active"
+                  ? "none"
+                  : "suspended",
+              current_period_end: null,
+            }),
+          },
+        );
         setMessage("Abbonamento annullato.");
       }
       setPendingAction(null);
@@ -333,6 +414,7 @@ export function AdminUsersClient({
       setError(err instanceof Error ? err.message : "Operazione non riuscita.");
     } finally {
       setBusy(null);
+      setBusyAction(null);
     }
   }
 
@@ -341,9 +423,13 @@ export function AdminUsersClient({
       <div className="rounded-[24px] border border-outline-variant/30 bg-surface-container-lowest p-4 shadow-[0_4px_20px_rgba(8,43,95,0.08)]">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <h2 className="font-headline-sm text-[26px] text-primary">{roleLabels[role]}</h2>
+            <h2 className="font-headline-sm text-[26px] text-primary">
+              {roleLabels[role]}
+            </h2>
             <p className="text-on-surface-variant">
-              {loading ? "Caricamento…" : `${total.toLocaleString("it-IT")} record totali`}
+              {loading
+                ? "Caricamento…"
+                : `${total.toLocaleString("it-IT")} record totali`}
             </p>
           </div>
           <div className="relative w-full sm:max-w-[420px]">
@@ -369,9 +455,15 @@ export function AdminUsersClient({
         </div>
       ) : null}
 
-      {message ? <div className="rounded-2xl bg-emerald-50 p-4 text-emerald-700">{message}</div> : null}
+      {message ? (
+        <div className="rounded-2xl bg-emerald-50 p-4 text-emerald-700">
+          {message}
+        </div>
+      ) : null}
       {error ? (
-        <div className="rounded-2xl bg-error-container p-4 text-on-error-container">{error}</div>
+        <div className="rounded-2xl bg-error-container p-4 text-on-error-container">
+          {error}
+        </div>
       ) : null}
 
       <div className="overflow-visible rounded-[24px] border border-outline-variant/30 bg-surface-container-lowest shadow-[0_4px_20px_rgba(8,43,95,0.08)]">
@@ -380,7 +472,9 @@ export function AdminUsersClient({
             <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-primary-fixed text-primary">
               <span className="material-symbols-outlined">search_off</span>
             </div>
-            <h3 className="mt-4 font-headline-sm text-[24px] text-primary">Nessun risultato</h3>
+            <h3 className="mt-4 font-headline-sm text-[24px] text-primary">
+              Nessun risultato
+            </h3>
             <p className="mt-2 text-on-surface-variant">
               Non ci sono utenti reali che corrispondono ai filtri attuali.
             </p>
@@ -390,7 +484,9 @@ export function AdminUsersClient({
             {users.map((user) => {
               const expanded = expandedUser?.id === user.id;
               const subscriptionStatus = user.subscription?.status ?? "none";
-              const activeSubscription = subscriptionIsActive(user.subscription);
+              const activeSubscription = subscriptionIsActive(
+                user.subscription,
+              );
               return (
                 <article key={user.id} className="relative p-4">
                   <button
@@ -405,12 +501,19 @@ export function AdminUsersClient({
                       <span
                         className={[
                           "h-3 w-3 shrink-0 rounded-full",
-                          user.activity?.is_online ? "bg-emerald-500" : "bg-outline-variant",
+                          user.activity?.is_online
+                            ? "bg-emerald-500"
+                            : "bg-outline-variant",
                         ].join(" ")}
-                        aria-label={user.activity?.is_online ? "Online" : "Offline"}
+                        aria-label={
+                          user.activity?.is_online ? "Online" : "Offline"
+                        }
                       />
                       {user.is_banned ? (
-                        <span className="h-4 w-4 shrink-0 rounded bg-yellow-400" title="Account sospeso" />
+                        <span
+                          className="h-4 w-4 shrink-0 rounded bg-yellow-400"
+                          title="Account sospeso"
+                        />
                       ) : null}
                       {role === "professional" ? (
                         <span
@@ -419,19 +522,25 @@ export function AdminUsersClient({
                         />
                       ) : null}
                       <div className="min-w-0">
-                        <p className="truncate font-label-md text-primary">{fullName(user)}</p>
-                        <p className="truncate text-sm text-on-surface-variant">{user.email}</p>
+                        <p className="truncate font-label-md text-primary">
+                          {fullName(user)}
+                        </p>
+                        <p className="truncate text-sm text-on-surface-variant">
+                          {user.email}
+                        </p>
                       </div>
                     </div>
                     <div className="min-w-0 text-sm text-on-surface-variant">
                       {role === "professional" ? (
                         <>
                           <p className="truncate text-primary">
-                            {user.professional_directory?.headline || "Professione non indicata"}
+                            {user.professional_directory?.headline ||
+                              "Professione non indicata"}
                           </p>
                           <p className="truncate">
-                            {(user.professional_directory?.specializations ?? []).join(", ") ||
-                              "Sottocategorie non indicate"}
+                            {(
+                              user.professional_directory?.specializations ?? []
+                            ).join(", ") || "Sottocategorie non indicate"}
                           </p>
                         </>
                       ) : (
@@ -451,8 +560,14 @@ export function AdminUsersClient({
                     <div className="mt-4 rounded-[22px] bg-surface-container-low p-4">
                       <div className="grid gap-4 md:grid-cols-3">
                         <Info label="ID" value={user.id} />
-                        <Info label="Telefono" value={user.phone || "Non indicato"} />
-                        <Info label="Provincia" value={provinceName(user.province_code)} />
+                        <Info
+                          label="Telefono"
+                          value={user.phone || "Non indicato"}
+                        />
+                        <Info
+                          label="Provincia"
+                          value={provinceName(user.province_code)}
+                        />
                         <Info
                           label="Stato online"
                           value={
@@ -461,17 +576,25 @@ export function AdminUsersClient({
                               : `Offline · ultimo accesso ${formatDate(user.activity?.last_seen_at)}`
                           }
                         />
-                        <Info label="Stato account" value={suspensionLabel(user)} />
+                        <Info
+                          label="Stato account"
+                          value={suspensionLabel(user)}
+                        />
                         <Info
                           label="Cambio password obbligatorio"
                           value={user.must_change_password ? "Sì" : "No"}
                         />
                         {role === "professional" ? (
                           <>
-                            <Info label="Abbonamento" value={subscriptionLabels[subscriptionStatus]} />
+                            <Info
+                              label="Abbonamento"
+                              value={subscriptionLabels[subscriptionStatus]}
+                            />
                             <Info
                               label="Data rinnovo/fine periodo"
-                              value={formatDate(user.subscription?.current_period_end)}
+                              value={formatDate(
+                                user.subscription?.current_period_end,
+                              )}
                             />
                           </>
                         ) : null}
@@ -482,7 +605,9 @@ export function AdminUsersClient({
                                 label={key.replaceAll("_", " ")}
                                 value={
                                   typeof value === "number"
-                                    ? value.toFixed(key.includes("average") ? 1 : 0)
+                                    ? value.toFixed(
+                                        key.includes("average") ? 1 : 0,
+                                      )
                                     : "—"
                                 }
                               />
@@ -496,7 +621,8 @@ export function AdminUsersClient({
                             disabled={busy === user.id}
                             onClick={() =>
                               setOpenMenu((current) =>
-                                current?.type === "suspension" && current.userId === user.id
+                                current?.type === "suspension" &&
+                                current.userId === user.id
                                   ? null
                                   : { type: "suspension", userId: user.id },
                               )
@@ -504,7 +630,8 @@ export function AdminUsersClient({
                           >
                             {user.is_banned ? "Sospeso" : "Sospendi account"}
                           </ActionButton>
-                          {openMenu?.type === "suspension" && openMenu.userId === user.id ? (
+                          {openMenu?.type === "suspension" &&
+                          openMenu.userId === user.id ? (
                             <MenuPanel>
                               {user.is_banned ? (
                                 <MenuItem
@@ -513,30 +640,42 @@ export function AdminUsersClient({
                                       user,
                                       { is_banned: false },
                                       "Account riattivato.",
+                                      `reactivate:${user.id}`,
                                     )
                                   }
+                                  disabled={busy === user.id}
                                 >
-                                  Riattiva account
+                                  {loadingContent(
+                                    `reactivate:${user.id}`,
+                                    "Riattiva account",
+                                  )}
                                 </MenuItem>
                               ) : (
                                 <>
-                                  {(["week", "month", "forever"] as const).map((choice) => (
-                                    <MenuItem
-                                      key={choice}
-                                      onClick={() =>
-                                        void runUserPatch(
-                                          user,
-                                          {
-                                            is_banned: true,
-                                            suspended_until: nextDate(choice),
-                                          },
-                                          `Account sospeso: ${durationLabel(choice)}.`,
-                                        )
-                                      }
-                                    >
-                                      {durationLabel(choice)}
-                                    </MenuItem>
-                                  ))}
+                                  {(["week", "month", "forever"] as const).map(
+                                    (choice) => (
+                                      <MenuItem
+                                        key={choice}
+                                        onClick={() =>
+                                          void runUserPatch(
+                                            user,
+                                            {
+                                              is_banned: true,
+                                              suspended_until: nextDate(choice),
+                                            },
+                                            `Account sospeso: ${durationLabel(choice)}.`,
+                                            `suspend:${user.id}:${choice}`,
+                                          )
+                                        }
+                                        disabled={busy === user.id}
+                                      >
+                                        {loadingContent(
+                                          `suspend:${user.id}:${choice}`,
+                                          durationLabel(choice),
+                                        )}
+                                      </MenuItem>
+                                    ),
+                                  )}
                                 </>
                               )}
                             </MenuPanel>
@@ -549,10 +688,14 @@ export function AdminUsersClient({
                               user,
                               `/api/admin/users/${user.id}/send-password-reset`,
                               "Email reset password inviata.",
+                              `password-reset:${user.id}`,
                             )
                           }
                         >
-                          Invia reset password
+                          {loadingContent(
+                            `password-reset:${user.id}`,
+                            "Invia reset password",
+                          )}
                         </ActionButton>
                         <ActionButton
                           disabled={busy === user.id}
@@ -561,10 +704,14 @@ export function AdminUsersClient({
                               user,
                               `/api/admin/users/${user.id}/resend-confirmation`,
                               "Email conferma inviata.",
+                              `resend-confirmation:${user.id}`,
                             )
                           }
                         >
-                          Invia conferma email
+                          {loadingContent(
+                            `resend-confirmation:${user.id}`,
+                            "Invia conferma email",
+                          )}
                         </ActionButton>
                         {role === "admin" ? (
                           <ActionButton
@@ -574,10 +721,14 @@ export function AdminUsersClient({
                                 user,
                                 { must_change_password: true },
                                 "Cambio password obbligatorio impostato.",
+                                `force-password-change:${user.id}`,
                               )
                             }
                           >
-                            Forza cambio password
+                            {loadingContent(
+                              `force-password-change:${user.id}`,
+                              "Forza cambio password",
+                            )}
                           </ActionButton>
                         ) : null}
                         {role === "professional" ? (
@@ -586,7 +737,8 @@ export function AdminUsersClient({
                               disabled={busy === user.id}
                               onClick={() =>
                                 setOpenMenu((current) =>
-                                  current?.type === "subscription" && current.userId === user.id
+                                  current?.type === "subscription" &&
+                                  current.userId === user.id
                                     ? null
                                     : { type: "subscription", userId: user.id },
                                 )
@@ -594,14 +746,18 @@ export function AdminUsersClient({
                             >
                               Abbonamento
                             </ActionButton>
-                            {openMenu?.type === "subscription" && openMenu.userId === user.id ? (
+                            {openMenu?.type === "subscription" &&
+                            openMenu.userId === user.id ? (
                               <MenuPanel>
                                 {activeSubscription ? (
                                   <MenuItem
                                     danger
                                     onClick={() => {
                                       setOpenMenu(null);
-                                      setPendingAction({ type: "cancel-subscription", user });
+                                      setPendingAction({
+                                        type: "cancel-subscription",
+                                        user,
+                                      });
                                     }}
                                   >
                                     Annulla abbonamento
@@ -611,7 +767,9 @@ export function AdminUsersClient({
                                     <p className="px-3 py-2 font-label-md text-xs uppercase tracking-[0.12em] text-on-surface-variant">
                                       Forza abbonamento per
                                     </p>
-                                    {(["week", "month", "forever"] as const).map((choice) => (
+                                    {(
+                                      ["week", "month", "forever"] as const
+                                    ).map((choice) => (
                                       <MenuItem
                                         key={choice}
                                         onClick={() =>
@@ -619,10 +777,15 @@ export function AdminUsersClient({
                                             user,
                                             "admin_forced_active",
                                             nextDate(choice),
+                                            `subscription:${user.id}:${choice}`,
                                           )
                                         }
+                                        disabled={busy === user.id}
                                       >
-                                        {durationLabel(choice)}
+                                        {loadingContent(
+                                          `subscription:${user.id}:${choice}`,
+                                          durationLabel(choice),
+                                        )}
                                       </MenuItem>
                                     ))}
                                   </>
@@ -634,14 +797,13 @@ export function AdminUsersClient({
                         <ActionButton
                           danger
                           disabled={busy === user.id}
-                          onClick={() => setPendingAction({ type: "delete", user })}
+                          onClick={() =>
+                            setPendingAction({ type: "delete", user })
+                          }
                         >
                           Elimina definitivamente
                         </ActionButton>
                       </div>
-                      {busy === user.id ? (
-                        <p className="mt-3 text-sm text-on-surface-variant">Operazione in corso…</p>
-                      ) : null}
                     </div>
                   ) : null}
                 </article>
@@ -663,7 +825,9 @@ export function AdminUsersClient({
               ? "L’account verrà eliminato definitivamente da Supabase Auth e verrà avviata la pulizia dei dati collegati."
               : "L’azione rimuoverà lo stato attivo dell’abbonamento. Se è una forzatura admin verrà revocata, altrimenti verrà segnato come sospeso."
           }
-          confirmLabel={pendingAction.type === "delete" ? "Elimina account" : "Conferma"}
+          confirmLabel={
+            pendingAction.type === "delete" ? "Elimina account" : "Conferma"
+          }
           busy={busy === pendingAction.user.id}
           onCancel={() => setPendingAction(null)}
           onConfirm={() => void confirmPendingAction()}

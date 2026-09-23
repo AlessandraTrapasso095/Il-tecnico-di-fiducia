@@ -27,7 +27,8 @@ type ProfessionalProfileLite = {
   has_category: boolean;
 };
 
-type SubscriptionStatus = "none" | "stripe_active" | "admin_forced_active" | "suspended";
+type SubscriptionStatus =
+  "none" | "stripe_active" | "admin_forced_active" | "suspended";
 
 type SubscriptionResponse = {
   subscription: {
@@ -66,6 +67,7 @@ type PostAttachment = PostMediaAttachment & {
 type PostRow = {
   id: string;
   author_id: string;
+  title: string | null;
   body: string;
   created_at: string;
   updated_at: string;
@@ -86,9 +88,13 @@ type ProfessionalDashboardClientProps = {
 
 const SUBSCRIPTION_SETTINGS_PATH = "/professionista/abbonamento";
 
-function fullName(person: { first_name: string; last_name: string } | null | undefined) {
+function fullName(
+  person: { first_name: string; last_name: string } | null | undefined,
+) {
   if (!person) return "Utente";
-  return `${person.first_name ?? ""} ${person.last_name ?? ""}`.trim() || "Utente";
+  return (
+    `${person.first_name ?? ""} ${person.last_name ?? ""}`.trim() || "Utente"
+  );
 }
 
 function formatDate(value: string | null | undefined) {
@@ -110,9 +116,7 @@ function formatTime(value: string | null | undefined) {
   }).format(new Date(value));
 }
 
-function subscriptionCardCopy(
-  subscription: SubscriptionResponse | null,
-): {
+function subscriptionCardCopy(subscription: SubscriptionResponse | null): {
   title: string;
   body: string;
   dateLabel: string;
@@ -192,17 +196,25 @@ export default function ProfessionalDashboardClient({
   profile,
 }: ProfessionalDashboardClientProps) {
   const [composerProfile, setComposerProfile] = useState(profile);
-  const [subscription, setSubscription] = useState<SubscriptionResponse | null>(null);
+  const [subscription, setSubscription] = useState<SubscriptionResponse | null>(
+    null,
+  );
   const [posts, setPosts] = useState<PostRow[]>([]);
+  const [postTitle, setPostTitle] = useState("");
+
   const [postBody, setPostBody] = useState("");
   const [photoFiles, setPhotoFiles] = useState<File[]>([]);
   const [videoFiles, setVideoFiles] = useState<File[]>([]);
   const [postError, setPostError] = useState<string | null>(null);
   const [postActionError, setPostActionError] = useState<string | null>(null);
   const [dashboardError, setDashboardError] = useState<string | null>(null);
-  const [expandedComments, setExpandedComments] = useState<Record<string, boolean>>({});
+  const [expandedComments, setExpandedComments] = useState<
+    Record<string, boolean>
+  >({});
   const [editingPost, setEditingPost] = useState<PostRow | null>(null);
-  const [deleteTargetPost, setDeleteTargetPost] = useState<PostRow | null>(null);
+  const [deleteTargetPost, setDeleteTargetPost] = useState<PostRow | null>(
+    null,
+  );
   const [mediaViewerAttachment, setMediaViewerAttachment] =
     useState<PostMediaAttachment | null>(null);
   const [loading, setLoading] = useState(true);
@@ -214,15 +226,18 @@ export default function ProfessionalDashboardClient({
 
   useEffect(() => {
     function onAvatarUpdated(event: Event) {
-      const avatarUrl = (event as CustomEvent<{ avatar_url?: string | null }>).detail
-        ?.avatar_url;
+      const avatarUrl = (event as CustomEvent<{ avatar_url?: string | null }>)
+        .detail?.avatar_url;
       if (avatarUrl === undefined) return;
       setComposerProfile((current) => ({ ...current, avatar_url: avatarUrl }));
     }
 
     window.addEventListener("professional-avatar-updated", onAvatarUpdated);
     return () => {
-      window.removeEventListener("professional-avatar-updated", onAvatarUpdated);
+      window.removeEventListener(
+        "professional-avatar-updated",
+        onAvatarUpdated,
+      );
     };
   }, []);
 
@@ -237,10 +252,13 @@ export default function ProfessionalDashboardClient({
     return { subscriptionRes, postsRes };
   }, []);
 
-  const applyDashboardData = useCallback((data: Awaited<ReturnType<typeof fetchDashboardData>>) => {
-    setSubscription(data.subscriptionRes);
-    setPosts(data.postsRes.posts ?? []);
-  }, []);
+  const applyDashboardData = useCallback(
+    (data: Awaited<ReturnType<typeof fetchDashboardData>>) => {
+      setSubscription(data.subscriptionRes);
+      setPosts(data.postsRes.posts ?? []);
+    },
+    [],
+  );
 
   const loadDashboard = useCallback(async () => {
     setLoading(true);
@@ -248,7 +266,11 @@ export default function ProfessionalDashboardClient({
     try {
       applyDashboardData(await fetchDashboardData());
     } catch (err) {
-      setDashboardError(err instanceof Error ? err.message : "Impossibile caricare la dashboard.");
+      setDashboardError(
+        err instanceof Error
+          ? err.message
+          : "Impossibile caricare la dashboard.",
+      );
     } finally {
       setLoading(false);
     }
@@ -266,7 +288,9 @@ export default function ProfessionalDashboardClient({
       .catch((err) => {
         if (!mounted) return;
         setDashboardError(
-          err instanceof Error ? err.message : "Impossibile caricare la dashboard.",
+          err instanceof Error
+            ? err.message
+            : "Impossibile caricare la dashboard.",
         );
       })
       .finally(() => {
@@ -341,17 +365,27 @@ export default function ProfessionalDashboardClient({
       body: formData,
       credentials: "same-origin",
     });
-    const payload = (await response.json().catch(() => ({}))) as { error?: string };
-    if (!response.ok) throw new Error(payload.error ?? "Upload media non riuscito.");
+    const payload = (await response.json().catch(() => ({}))) as {
+      error?: string;
+    };
+    if (!response.ok)
+      throw new Error(payload.error ?? "Upload media non riuscito.");
   }
 
   async function createPost(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setPostError(null);
 
+    const title = postTitle.replace(/\s+/g, " ").trim();
     const body = postBody.replace(/\s+/g, " ").trim();
+
+    if (!title) {
+      setPostError("Inserisci un titolo prima di pubblicare.");
+      return;
+    }
+
     if (!body) {
-      setPostError("Scrivi qualcosa prima di pubblicare.");
+      setPostError("Inserisci il corpo del post prima di pubblicare.");
       return;
     }
 
@@ -359,16 +393,22 @@ export default function ProfessionalDashboardClient({
     try {
       const created = await fetchJson<{ post: PostRow }>("/api/posts", {
         method: "POST",
-        body: JSON.stringify({ body }),
+        body: JSON.stringify({
+          title,
+          body,
+        }),
       });
       const files = [...photoFiles, ...videoFiles];
       await uploadPostFiles(created.post.id, files);
+      setPostTitle("");
       setPostBody("");
       setPhotoFiles([]);
       setVideoFiles([]);
       await loadDashboard();
     } catch (err) {
-      setPostError(err instanceof Error ? err.message : "Impossibile creare il post.");
+      setPostError(
+        err instanceof Error ? err.message : "Impossibile creare il post.",
+      );
     } finally {
       setPosting(false);
     }
@@ -401,20 +441,37 @@ export default function ProfessionalDashboardClient({
 
   async function savePostEdit(
     postId: string,
+    titleValue: string,
     bodyValue: string,
     removedAttachmentIds: string[],
     newFiles: File[],
   ) {
+    const title = titleValue.replace(/\s+/g, " ").trim();
     const body = bodyValue.replace(/\s+/g, " ").trim();
-    if (!body) return;
+
+    if (!title) {
+      setPostActionError("Il titolo del post non può essere vuoto.");
+      return;
+    }
+
+    if (!body) {
+      setPostActionError("Il corpo del post non può essere vuoto.");
+      return;
+    }
 
     setBusyPostId(postId);
     setPostActionError(null);
     try {
-      const response = await fetchJson<{ post: PostRow }>(`/api/posts/${postId}`, {
-        method: "PATCH",
-        body: JSON.stringify({ body }),
-      });
+      const response = await fetchJson<{ post: PostRow }>(
+        `/api/posts/${postId}`,
+        {
+          method: "PATCH",
+          body: JSON.stringify({
+            title,
+            body,
+          }),
+        },
+      );
       for (const attachmentId of removedAttachmentIds) {
         await fetchJson<{ ok: true }>(
           `/api/posts/${postId}/attachments/${attachmentId}`,
@@ -433,7 +490,12 @@ export default function ProfessionalDashboardClient({
       setPosts((current) =>
         current.map((post) =>
           post.id === postId
-            ? { ...post, body: response.post.body, updated_at: response.post.updated_at }
+            ? {
+                ...post,
+                title: response.post.title,
+                body: response.post.body,
+                updated_at: response.post.updated_at,
+              }
             : post,
         ),
       );
@@ -448,11 +510,15 @@ export default function ProfessionalDashboardClient({
     setBusyPostId(postId);
     setPostActionError(null);
     try {
-      await fetchJson<{ ok: true }>(`/api/posts/${postId}`, { method: "DELETE" });
+      await fetchJson<{ ok: true }>(`/api/posts/${postId}`, {
+        method: "DELETE",
+      });
       setPosts((current) => current.filter((post) => post.id !== postId));
       setDeleteTargetPost(null);
     } catch (error) {
-      setPostActionError(error instanceof Error ? error.message : "Eliminazione non riuscita.");
+      setPostActionError(
+        error instanceof Error ? error.message : "Eliminazione non riuscita.",
+      );
       throw error;
     } finally {
       setBusyPostId(null);
@@ -469,7 +535,9 @@ export default function ProfessionalDashboardClient({
             <div
               className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full sm:h-12 sm:w-12 ${subscriptionCopy.iconClassName}`}
             >
-              <span className="material-symbols-outlined">{subscriptionCopy.icon}</span>
+              <span className="material-symbols-outlined">
+                {subscriptionCopy.icon}
+              </span>
             </div>
             <div>
               <h1 className="font-headline-sm text-[20px] leading-tight sm:text-[24px]">
@@ -504,7 +572,8 @@ export default function ProfessionalDashboardClient({
             <span className="font-bold text-[#FF8500]">
               “{subscription.discount_code.code}”
             </span>{" "}
-            in fase di checkout per ricevere il {subscription.discount_code.percent_off}% di sconto.
+            in fase di checkout per ricevere il{" "}
+            {subscription.discount_code.percent_off}% di sconto.
           </div>
         ) : null}
       </section>
@@ -519,10 +588,12 @@ export default function ProfessionalDashboardClient({
         <div className="mb-6 rounded-[24px] border border-[#FF8500]/30 bg-[#FFF4E5] p-5 text-primary shadow-[0_4px_20px_rgba(8,43,95,0.06)]">
           <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
             <div>
-              <div className="font-headline-sm text-[22px]">Completa la tua categoria</div>
+              <div className="font-headline-sm text-[22px]">
+                Completa la tua categoria
+              </div>
               <p className="mt-1 max-w-2xl text-sm text-on-surface-variant">
-                Seleziona Categoria e, se utile, Sottocategoria per rendere il profilo coerente
-                con ricerca e consigliati.
+                Seleziona Categoria e, se utile, Sottocategoria per rendere il
+                profilo coerente con ricerca e consigliati.
               </p>
             </div>
             <Link
@@ -546,6 +617,28 @@ export default function ProfessionalDashboardClient({
               <label className="sr-only" htmlFor="post-body">
                 Crea un post
               </label>
+              <div className="mb-3">
+                <label className="block text-sm font-bold text-primary">
+                  Titolo
+                  <input
+                    type="text"
+
+                    value={postTitle}
+
+                    maxLength={120}
+
+                    onChange={(event) => setPostTitle(event.target.value)}
+
+                    placeholder="Inserisci un titolo chiaro e sintetico"
+
+                    className="mt-2 min-h-11 w-full rounded-2xl border border-outline-variant bg-surface-container-lowest px-4 py-3 font-normal text-on-surface outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/20"
+                  />
+                  <span className="mt-1 block text-right text-xs font-normal text-on-surface-variant">
+                    {postTitle.length}/120
+                  </span>
+                </label>
+              </div>
+
               <textarea
                 id="post-body"
                 className="min-h-24 w-full resize-none rounded-2xl border border-outline-variant bg-surface-container-lowest px-4 py-3 font-body-md text-body-md outline-none transition placeholder:text-outline focus:border-primary focus:ring-2 focus:ring-primary/20"
@@ -569,65 +662,89 @@ export default function ProfessionalDashboardClient({
           {photoFiles.length > 0 || videoFiles.length > 0 ? (
             <div className="mt-3 rounded-2xl bg-surface-container-low px-4 py-3 text-sm text-on-surface-variant">
               <span className="font-bold text-primary">File selezionati:</span>{" "}
-              {[...photoFiles, ...videoFiles].map((file) => file.name).join(", ")}
+              {[...photoFiles, ...videoFiles]
+                .map((file) => file.name)
+                .join(", ")}
             </div>
           ) : null}
           <div className="mt-4 flex flex-col gap-4 border-t border-outline-variant/30 pt-4 md:flex-row md:items-end md:justify-between">
             <div className="min-w-0 flex-1">
-                <div className="flex flex-wrap items-center gap-1 sm:gap-2">
-              <label
-                htmlFor="post-photos"
-                className="flex cursor-pointer items-center gap-2 whitespace-nowrap rounded-full px-3 py-2 text-sm font-bold text-secondary transition hover:bg-surface-container-low sm:px-4"
-              >
-                <span className="material-symbols-outlined text-[20px]">image</span>
-                Foto
-              </label>
-              <input
-                id="post-photos"
-                type="file"
-                accept="image/png,image/jpeg,image/webp"
-                multiple
-                className="sr-only"
-                onChange={(event) => {
-                  const files = Array.from(event.target.files ?? []);
-                  event.target.value = "";
-                  void handlePhotoSelection(files);
-                }}
-              />
-              <label
-                htmlFor="post-videos"
-                className="flex cursor-pointer items-center gap-2 whitespace-nowrap rounded-full px-3 py-2 text-sm font-bold text-secondary transition hover:bg-surface-container-low sm:px-4"
-              >
-                <span className="material-symbols-outlined text-[20px]">videocam</span>
-                Video
-              </label>
-              <input
-                id="post-videos"
-                type="file"
-                accept="video/mp4,video/quicktime"
-                multiple
-                className="sr-only"
-                onChange={(event) => {
-                  const files = Array.from(event.target.files ?? []);
-                  event.target.value = "";
-                  handleVideoSelection(files);
-                }}
-              />
+              <div className="flex flex-wrap items-center gap-1 sm:gap-2">
+                <label
+                  htmlFor="post-photos"
+                  className="flex cursor-pointer items-center gap-2 whitespace-nowrap rounded-full px-3 py-2 text-sm font-bold text-secondary transition hover:bg-surface-container-low sm:px-4"
+                >
+                  <span className="material-symbols-outlined text-[20px]">
+                    image
+                  </span>
+                  Foto
+                </label>
+                <input
+                  id="post-photos"
+                  type="file"
+                  accept="image/png,image/jpeg,image/webp"
+                  multiple
+                  className="sr-only"
+                  onChange={(event) => {
+                    const files = Array.from(event.target.files ?? []);
+                    event.target.value = "";
+                    void handlePhotoSelection(files);
+                  }}
+                />
+                <label
+                  htmlFor="post-videos"
+                  className="flex cursor-pointer items-center gap-2 whitespace-nowrap rounded-full px-3 py-2 text-sm font-bold text-secondary transition hover:bg-surface-container-low sm:px-4"
+                >
+                  <span className="material-symbols-outlined text-[20px]">
+                    videocam
+                  </span>
+                  Video
+                </label>
+                <input
+                  id="post-videos"
+                  type="file"
+                  accept="video/mp4,video/quicktime"
+                  multiple
+                  className="sr-only"
+                  onChange={(event) => {
+                    const files = Array.from(event.target.files ?? []);
+                    event.target.value = "";
+                    handleVideoSelection(files);
+                  }}
+                />
               </div>
               <p className="mt-2 px-1 text-xs leading-5 text-on-surface-variant sm:px-2">
-                Massimo 4 contenuti per post. Le foto vengono ottimizzate automaticamente. Video massimo 4 MB, uno per post.
+                Massimo 4 contenuti per post. Le foto vengono ottimizzate
+                automaticamente. Video massimo 4 MB, uno per post.
               </p>
             </div>
             <div className="flex w-full items-center justify-between gap-3 md:w-auto md:shrink-0 md:justify-end">
               <span className="shrink-0 whitespace-nowrap text-sm tabular-nums text-on-surface-variant">
-                  {postBody.trim().length}/1200
-                </span>
+                {postBody.trim().length}/1200
+              </span>
               <button
                 type="submit"
-                disabled={posting || optimizingMedia}
-              className="min-h-11 shrink-0 whitespace-nowrap rounded-full bg-[#FF8500] px-7 py-3 font-button text-button text-white shadow-md transition hover:bg-[#FF9A2B] disabled:opacity-60"
+                disabled={
+                  posting ||
+                  optimizingMedia ||
+                  !postTitle.trim() ||
+                  !postBody.trim()
+                }
+                className="inline-flex min-h-11 shrink-0 items-center justify-center gap-2 whitespace-nowrap rounded-full bg-[#FF8500] px-7 py-3 font-button text-button text-white shadow-md transition hover:bg-[#FF9A2B] disabled:cursor-wait disabled:opacity-60"
               >
-                {optimizingMedia ? "Ottimizzazione…" : posting ? "Pubblicazione…" : "Pubblica"}
+                {optimizingMedia || posting ? (
+                  <>
+                    <span
+                      className="material-symbols-outlined animate-spin text-[19px]"
+                      aria-hidden
+                    >
+                      progress_activity
+                    </span>
+                    Caricamento…
+                  </>
+                ) : (
+                  "Pubblica"
+                )}
               </button>
             </div>
           </div>
@@ -644,7 +761,9 @@ export default function ProfessionalDashboardClient({
               </h2>
             </div>
             {loading ? (
-              <span className="text-sm text-on-surface-variant">Caricamento…</span>
+              <span className="text-sm text-on-surface-variant">
+                Caricamento…
+              </span>
             ) : null}
           </div>
 
@@ -657,7 +776,8 @@ export default function ProfessionalDashboardClient({
                 Nessun post ancora
               </h3>
               <p className="mx-auto mt-2 w-full max-w-[560px] text-on-surface-variant">
-                Qui compariranno i tuoi post e quelli dei professionisti che segui.
+                Qui compariranno i tuoi post e quelli dei professionisti che
+                segui.
               </p>
             </div>
           ) : (
@@ -710,7 +830,9 @@ export default function ProfessionalDashboardClient({
                               className="flex h-10 w-10 cursor-pointer list-none items-center justify-center rounded-full text-primary transition hover:bg-primary-fixed [&::-webkit-details-marker]:hidden"
                               aria-label="Azioni del post"
                             >
-                              <span className="material-symbols-outlined">more_horiz</span>
+                              <span className="material-symbols-outlined">
+                                more_horiz
+                              </span>
                             </summary>
                             <div className="absolute right-0 top-11 z-20 min-w-[150px] overflow-hidden rounded-2xl border border-outline-variant/30 bg-surface-container-lowest p-1.5 shadow-xl">
                               <button
@@ -718,7 +840,9 @@ export default function ProfessionalDashboardClient({
                                 className="flex w-full items-center gap-2 rounded-xl px-3 py-2.5 text-left text-sm font-bold text-primary hover:bg-primary-fixed"
                                 onClick={() => setEditingPost(post)}
                               >
-                                <span className="material-symbols-outlined text-[19px]">edit</span>
+                                <span className="material-symbols-outlined text-[19px]">
+                                  edit
+                                </span>
                                 Modifica
                               </button>
                               <button
@@ -727,7 +851,9 @@ export default function ProfessionalDashboardClient({
                                 disabled={busyPostId === post.id}
                                 onClick={() => setDeleteTargetPost(post)}
                               >
-                                <span className="material-symbols-outlined text-[19px]">delete</span>
+                                <span className="material-symbols-outlined text-[19px]">
+                                  delete
+                                </span>
                                 Elimina
                               </button>
                             </div>
@@ -754,7 +880,13 @@ export default function ProfessionalDashboardClient({
                       ) : null}
                     </div>
 
-                    <p className="whitespace-pre-wrap break-words font-body-md text-body-md text-on-surface [overflow-wrap:anywhere]">
+                    {post.title ? (
+                      <h3 className="mb-2 break-words text-lg font-bold leading-6 text-primary [overflow-wrap:anywhere]">
+                        {post.title}
+                      </h3>
+                    ) : null}
+
+                    <p className="whitespace-pre-wrap break-words font-body-md font-normal text-body-md text-on-surface [overflow-wrap:anywhere]">
                       {post.body}
                     </p>
 
@@ -774,10 +906,27 @@ export default function ProfessionalDashboardClient({
                         }`}
                         onClick={() => void toggleLike(post)}
                       >
-                        <span className="material-symbols-outlined text-[20px]">
-                          thumb_up
-                        </span>
-                        Mi piace · {post.likes_count}
+                        {busyPostId === post.id ? (
+                          <>
+                            <span
+                              className="material-symbols-outlined animate-spin text-[19px]"
+                              aria-hidden
+                            >
+                              progress_activity
+                            </span>
+                            Caricamento…
+                          </>
+                        ) : (
+                          <>
+                            <span
+                              className="material-symbols-outlined text-[20px]"
+                              aria-hidden
+                            >
+                              thumb_up
+                            </span>
+                            Mi piace · {post.likes_count}
+                          </>
+                        )}
                       </button>
                       <button
                         type="button"
@@ -806,7 +955,10 @@ export default function ProfessionalDashboardClient({
                               item.id === post.id
                                 ? {
                                     ...item,
-                                    comments_count: Math.max(0, item.comments_count + delta),
+                                    comments_count: Math.max(
+                                      0,
+                                      item.comments_count + delta,
+                                    ),
                                   }
                                 : item,
                             ),
@@ -842,8 +994,14 @@ export default function ProfessionalDashboardClient({
           post={editingPost}
           busy={busyPostId === editingPost.id}
           onCancel={() => setEditingPost(null)}
-          onSave={(body, removedAttachmentIds, newFiles) =>
-            savePostEdit(editingPost.id, body, removedAttachmentIds, newFiles)
+          onSave={(title, body, removedAttachmentIds, newFiles) =>
+            savePostEdit(
+              editingPost.id,
+              title,
+              body,
+              removedAttachmentIds,
+              newFiles,
+            )
           }
         />
       ) : null}

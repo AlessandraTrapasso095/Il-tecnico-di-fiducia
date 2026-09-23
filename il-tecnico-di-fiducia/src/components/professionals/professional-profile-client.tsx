@@ -39,17 +39,15 @@ import type {
   ProfessionalProfileAccess,
   ProfessionalProfileDetails,
 } from "@/lib/server/professional-profile";
-import { formatWebsiteUrlLabel, normalizeWebsiteUrl } from "@/lib/validation/website-url";
+import {
+  formatWebsiteUrlLabel,
+  normalizeWebsiteUrl,
+} from "@/lib/validation/website-url";
 
 type TabKey = "bio" | "works" | "reviews";
 type MediaTarget = "avatar" | "cover";
 type EditSection =
-  | "intro"
-  | "services"
-  | "contact"
-  | "education"
-  | "work"
-  | "certifications";
+  "intro" | "services" | "contact" | "education" | "work" | "certifications";
 
 type Viewer = {
   id: string;
@@ -57,7 +55,9 @@ type Viewer = {
 };
 
 function tabFromSearchParam(value: string | null): TabKey | null {
-  return value === "reviews" || value === "works" || value === "bio" ? value : null;
+  return value === "reviews" || value === "works" || value === "bio"
+    ? value
+    : null;
 }
 
 type PostAttachment = PostMediaAttachment & {
@@ -70,6 +70,7 @@ type PostAttachment = PostMediaAttachment & {
 type PostRow = {
   id: string;
   author_id: string;
+  title: string | null;
   body: string;
   created_at: string;
   updated_at: string;
@@ -139,8 +140,12 @@ type ProfessionalProfileClientProps = {
 const EMPTY_COVER =
   "linear-gradient(135deg, rgba(0,38,84,0.96), rgba(11,60,120,0.72)), radial-gradient(circle at 70% 30%, rgba(255,136,20,0.22), transparent 30%)";
 
-function categoryOptionValue(category: Pick<ProfessionCategory, "id" | "slug">) {
-  return category.id !== null && category.id !== undefined ? `id:${category.id}` : `slug:${category.slug}`;
+function categoryOptionValue(
+  category: Pick<ProfessionCategory, "id" | "slug">,
+) {
+  return category.id !== null && category.id !== undefined
+    ? `id:${category.id}`
+    : `slug:${category.slug}`;
 }
 
 function categoryIdFromOption(value: string) {
@@ -156,7 +161,10 @@ function subcategoryIdFromOption(value: string) {
 }
 
 function fullName(person: { first_name: string; last_name: string }) {
-  return `${person.first_name ?? ""} ${person.last_name ?? ""}`.trim() || "Professionista";
+  return (
+    `${person.first_name ?? ""} ${person.last_name ?? ""}`.trim() ||
+    "Professionista"
+  );
 }
 
 function initials(person: { first_name: string; last_name: string }) {
@@ -194,7 +202,9 @@ function formatDate(value: string | null | undefined) {
 
 function provinceName(code: string | null | undefined) {
   if (!code) return "Provincia non indicata";
-  return ITALIAN_PROVINCES.find((province) => province.code === code)?.name ?? code;
+  return (
+    ITALIAN_PROVINCES.find((province) => province.code === code)?.name ?? code
+  );
 }
 
 function listFromJson(items: unknown[]) {
@@ -241,13 +251,21 @@ function EmptyState({
       <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-primary-fixed text-primary">
         <span className="material-symbols-outlined">{icon}</span>
       </div>
-      <h3 className="mt-4 font-headline-sm text-[22px] text-primary">{title}</h3>
-      <p className="mx-auto mt-2 max-w-[560px] text-on-surface-variant">{body}</p>
+      <h3 className="mt-4 font-headline-sm text-[22px] text-primary">
+        {title}
+      </h3>
+      <p className="mx-auto mt-2 max-w-[560px] text-on-surface-variant">
+        {body}
+      </p>
     </div>
   );
 }
 
-function LockState({ isProfessionalViewer }: { isProfessionalViewer: boolean }) {
+function LockState({
+  isProfessionalViewer,
+}: {
+  isProfessionalViewer: boolean;
+}) {
   return (
     <div className="rounded-[28px] border border-outline-variant/30 bg-surface-container-lowest p-8 text-center shadow-[0_4px_20px_rgba(8,43,95,0.08)]">
       <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-surface-container-high text-primary">
@@ -322,7 +340,8 @@ async function cropImageToFile({
   ctx.fillStyle = "#f9f9ff";
   ctx.fillRect(0, 0, width, height);
 
-  const coverScale = Math.max(width / bitmap.width, height / bitmap.height) * zoom;
+  const coverScale =
+    Math.max(width / bitmap.width, height / bitmap.height) * zoom;
   const drawWidth = bitmap.width * coverScale;
   const drawHeight = bitmap.height * coverScale;
   const dx = (width - drawWidth) / 2 + offsetX;
@@ -364,11 +383,15 @@ export default function ProfessionalProfileClient({
     offsetY: number;
   } | null>(null);
   const [editSection, setEditSection] = useState<EditSection | null>(null);
-  const [editDraft, setEditDraft] = useState<Record<string, string | boolean>>({});
+  const [editDraft, setEditDraft] = useState<Record<string, string | boolean>>(
+    {},
+  );
   const [savingProfile, setSavingProfile] = useState(false);
   const [profileError, setProfileError] = useState<string | null>(null);
   const [uploadingImage, setUploadingImage] = useState(false);
-  const [catalogCategories, setCatalogCategories] = useState<ProfessionCategory[]>([]);
+  const [catalogCategories, setCatalogCategories] = useState<
+    ProfessionCategory[]
+  >([]);
   const [catalogLoading, setCatalogLoading] = useState(false);
   const [catalogError, setCatalogError] = useState<string | null>(null);
   const [selectedCategoryKey, setSelectedCategoryKey] = useState("");
@@ -376,6 +399,7 @@ export default function ProfessionalProfileClient({
 
   const [posts, setPosts] = useState<PostRow[]>([]);
   const [postsLoading, setPostsLoading] = useState(false);
+  const [postTitle, setPostTitle] = useState("");
   const [postBody, setPostBody] = useState("");
   const [postFiles, setPostFiles] = useState<File[]>([]);
   const [posting, setPosting] = useState(false);
@@ -391,7 +415,9 @@ export default function ProfessionalProfileClient({
   const [reviewError, setReviewError] = useState<string | null>(null);
   const [replyDrafts, setReplyDrafts] = useState<Record<string, string>>({});
   const [replyErrors, setReplyErrors] = useState<Record<string, string>>({});
-  const [replySubmitting, setReplySubmitting] = useState<Record<string, boolean>>({});
+  const [replySubmitting, setReplySubmitting] = useState<
+    Record<string, boolean>
+  >({});
 
   const [contactOpen, setContactOpen] = useState(false);
   const [contactSubject, setContactSubject] = useState("");
@@ -415,14 +441,18 @@ export default function ProfessionalProfileClient({
   const canViewFull = profileAccess.can_view_full_profile;
   const contactEmail = profile.public_email || profile.email;
   const isEmbeddedInAreaShell =
-    embeddedInProfessionalShell || embeddedInCustomerShell || embeddedInAdminShell;
+    embeddedInProfessionalShell ||
+    embeddedInCustomerShell ||
+    embeddedInAdminShell;
   const shellOffset = isEmbeddedInAreaShell ? "" : "min-h-dvh bg-background";
 
   const services = profile.services_offered.length
     ? profile.services_offered
     : profile.specializations;
 
-  const hasReviewByViewer = reviews.some((review) => review.customer_id === viewer.id);
+  const hasReviewByViewer = reviews.some(
+    (review) => review.customer_id === viewer.id,
+  );
 
   const averageRatingLabel = profile.rating_average
     ? profile.rating_average.toFixed(1)
@@ -434,59 +464,57 @@ export default function ProfessionalProfileClient({
     ? `${categoryLabel} · ${profile.subcategory.name}`
     : categoryLabel;
 
-  const loadPosts = useCallback(
-    async () => {
-      if (!canViewFull) return;
-      setPostsLoading(true);
-      try {
-        const response = await fetchJson<PostsResponse>(
-          `/api/posts?author_id=${encodeURIComponent(profile.id)}&page_size=30`,
-          { method: "GET" },
-        );
-        setPosts(response.posts ?? []);
-      } catch {
-        setPosts([]);
-      } finally {
-        setPostsLoading(false);
-      }
-    },
-    [canViewFull, profile.id],
-  );
+  const loadPosts = useCallback(async () => {
+    if (!canViewFull) return;
+    setPostsLoading(true);
+    try {
+      const response = await fetchJson<PostsResponse>(
+        `/api/posts?author_id=${encodeURIComponent(profile.id)}&page_size=30`,
+        { method: "GET" },
+      );
+      setPosts(response.posts ?? []);
+    } catch {
+      setPosts([]);
+    } finally {
+      setPostsLoading(false);
+    }
+  }, [canViewFull, profile.id]);
 
-  const loadReviews = useCallback(
-    async () => {
-      if (!canViewFull) return;
-      setReviewsLoading(true);
-      try {
-        const response = await fetchJson<ReviewsResponse>(
-          `/api/reviews?professional_id=${encodeURIComponent(profile.id)}&page_size=50`,
-          { method: "GET" },
-        );
-        setReviews(response.reviews ?? []);
-      } catch {
-        setReviews([]);
-      } finally {
-        setReviewsLoading(false);
-      }
-    },
-    [canViewFull, profile.id],
-  );
+  const loadReviews = useCallback(async () => {
+    if (!canViewFull) return;
+    setReviewsLoading(true);
+    try {
+      const response = await fetchJson<ReviewsResponse>(
+        `/api/reviews?professional_id=${encodeURIComponent(profile.id)}&page_size=50`,
+        { method: "GET" },
+      );
+      setReviews(response.reviews ?? []);
+    } catch {
+      setReviews([]);
+    } finally {
+      setReviewsLoading(false);
+    }
+  }, [canViewFull, profile.id]);
 
   const loadCatalogCategories = useCallback(async () => {
     setCatalogLoading(true);
-    setCatalogError(null);
     try {
       const response = await fetchJson<CategoriesResponse>("/api/categories", {
         method: "GET",
       });
-      const nextCategories = normalizeProfessionCategories(response.categories ?? []);
+      const nextCategories = normalizeProfessionCategories(
+        response.categories ?? [],
+      );
       setCatalogCategories(nextCategories);
+      setCatalogError(null);
       if (nextCategories.length === 0) {
         setCatalogError("Nessuna categoria attiva disponibile al momento.");
       }
     } catch {
       setCatalogCategories([]);
-      setCatalogError("Non è stato possibile caricare categorie e sottocategorie.");
+      setCatalogError(
+        "Non è stato possibile caricare categorie e sottocategorie.",
+      );
     } finally {
       setCatalogLoading(false);
     }
@@ -538,7 +566,10 @@ export default function ProfessionalProfileClient({
       const target = event.target;
       if (!(target instanceof Node)) return;
       const activeRef = mediaMenu === "cover" ? coverMenuRef : avatarMenuRef;
-      if (!activeRef.current?.contains(target) && !mediaMenuPortalRef.current?.contains(target)) {
+      if (
+        !activeRef.current?.contains(target) &&
+        !mediaMenuPortalRef.current?.contains(target)
+      ) {
         setMediaMenu(null);
       }
     }
@@ -551,15 +582,24 @@ export default function ProfessionalProfileClient({
     if (editSection !== "intro") return;
     if (catalogCategories.length > 0 || catalogLoading) return;
     void loadCatalogCategories();
-  }, [catalogCategories.length, catalogLoading, editSection, loadCatalogCategories]);
+  }, [
+    catalogCategories.length,
+    catalogLoading,
+    editSection,
+    loadCatalogCategories,
+  ]);
 
   function openEdit(section: EditSection) {
     setEditSection(section);
     setProfileError(null);
     setCatalogError(null);
     if (section === "intro") {
-      setSelectedCategoryKey(primaryCategory ? categoryOptionValue(primaryCategory) : "");
-      setSelectedSubcategoryKey(profile.subcategory ? `id:${profile.subcategory.id}` : "");
+      setSelectedCategoryKey(
+        primaryCategory ? categoryOptionValue(primaryCategory) : "",
+      );
+      setSelectedSubcategoryKey(
+        profile.subcategory ? `id:${profile.subcategory.id}` : "",
+      );
     }
     setEditDraft({
       first_name: profile.first_name,
@@ -607,7 +647,9 @@ export default function ProfessionalProfileClient({
         payload.is_ctp = Boolean(editDraft.is_ctp);
       }
       if (editSection === "services") {
-        payload.services_offered = splitLines(String(editDraft.services_offered ?? ""));
+        payload.services_offered = splitLines(
+          String(editDraft.services_offered ?? ""),
+        );
       }
       if (editSection === "contact") {
         payload.phone = editDraft.phone || null;
@@ -622,10 +664,14 @@ export default function ProfessionalProfileClient({
         payload.education = jsonFromLines(String(editDraft.education ?? ""));
       }
       if (editSection === "work") {
-        payload.work_experiences = jsonFromLines(String(editDraft.work_experiences ?? ""));
+        payload.work_experiences = jsonFromLines(
+          String(editDraft.work_experiences ?? ""),
+        );
       }
       if (editSection === "certifications") {
-        payload.certifications = jsonFromLines(String(editDraft.certifications ?? ""));
+        payload.certifications = jsonFromLines(
+          String(editDraft.certifications ?? ""),
+        );
       }
       const response = await fetchJson<{
         professional: unknown;
@@ -645,7 +691,8 @@ export default function ProfessionalProfileClient({
           "province_code" in payload
             ? (payload.province_code as string | null)
             : current.province_code,
-        phone: "phone" in payload ? (payload.phone as string | null) : current.phone,
+        phone:
+          "phone" in payload ? (payload.phone as string | null) : current.phone,
         public_email:
           "public_email" in payload
             ? (payload.public_email as string | null)
@@ -655,19 +702,24 @@ export default function ProfessionalProfileClient({
             ? (payload.website_url as string | null)
             : current.website_url,
         specializations:
-          (payload.specializations as string[] | undefined) ?? current.specializations,
+          (payload.specializations as string[] | undefined) ??
+          current.specializations,
         services_offered:
-          (payload.services_offered as string[] | undefined) ?? current.services_offered,
+          (payload.services_offered as string[] | undefined) ??
+          current.services_offered,
         categories: response.categories ?? current.categories,
         subcategory:
           "subcategory_id" in payload
             ? (response.subcategory ?? null)
             : current.subcategory,
-        education: (payload.education as unknown[] | undefined) ?? current.education,
+        education:
+          (payload.education as unknown[] | undefined) ?? current.education,
         work_experiences:
-          (payload.work_experiences as unknown[] | undefined) ?? current.work_experiences,
+          (payload.work_experiences as unknown[] | undefined) ??
+          current.work_experiences,
         certifications:
-          (payload.certifications as unknown[] | undefined) ?? current.certifications,
+          (payload.certifications as unknown[] | undefined) ??
+          current.certifications,
         available_remote:
           typeof payload.available_remote === "boolean"
             ? payload.available_remote
@@ -677,20 +729,18 @@ export default function ProfessionalProfileClient({
             ? payload.available_travel
             : current.available_travel,
         is_ctu:
-          typeof payload.is_ctu === "boolean"
-            ? payload.is_ctu
-            : current.is_ctu,
+          typeof payload.is_ctu === "boolean" ? payload.is_ctu : current.is_ctu,
         is_ctp:
-          typeof payload.is_ctp === "boolean"
-            ? payload.is_ctp
-            : current.is_ctp,
+          typeof payload.is_ctp === "boolean" ? payload.is_ctp : current.is_ctp,
         operational_provinces:
           (payload.operational_provinces as string[] | undefined) ??
           current.operational_provinces,
       }));
       setEditSection(null);
     } catch (error) {
-      setProfileError(error instanceof Error ? error.message : "Salvataggio non riuscito.");
+      setProfileError(
+        error instanceof Error ? error.message : "Salvataggio non riuscito.",
+      );
     } finally {
       setSavingProfile(false);
     }
@@ -711,7 +761,8 @@ export default function ProfessionalProfileClient({
     if (!mediaMenu) return;
     pendingMediaTargetRef.current = mediaMenu;
     setMediaMenu(null);
-    const input = source === "camera" ? cameraInputRef.current : fileInputRef.current;
+    const input =
+      source === "camera" ? cameraInputRef.current : fileInputRef.current;
     window.setTimeout(() => input?.click(), 0);
   }
 
@@ -724,7 +775,9 @@ export default function ProfessionalProfileClient({
       const formData = new FormData();
       formData.append("file", cropped);
       const endpoint =
-        cropState.target === "avatar" ? "/api/uploads/avatar" : "/api/uploads/cover";
+        cropState.target === "avatar"
+          ? "/api/uploads/avatar"
+          : "/api/uploads/cover";
       const response = await fetch(endpoint, {
         method: "POST",
         body: formData,
@@ -735,7 +788,8 @@ export default function ProfessionalProfileClient({
         cover_url?: string;
         error?: string;
       };
-      if (!response.ok) throw new Error(payload.error ?? "Upload non riuscito.");
+      if (!response.ok)
+        throw new Error(payload.error ?? "Upload non riuscito.");
 
       setProfile((current) => ({
         ...current,
@@ -752,7 +806,9 @@ export default function ProfessionalProfileClient({
       URL.revokeObjectURL(cropState.previewUrl);
       setCropState(null);
     } catch (error) {
-      setProfileError(error instanceof Error ? error.message : "Upload non riuscito.");
+      setProfileError(
+        error instanceof Error ? error.message : "Upload non riuscito.",
+      );
     } finally {
       setUploadingImage(false);
     }
@@ -768,8 +824,11 @@ export default function ProfessionalProfileClient({
       body: formData,
       credentials: "same-origin",
     });
-    const payload = (await response.json().catch(() => ({}))) as { error?: string };
-    if (!response.ok) throw new Error(payload.error ?? "Upload media non riuscito.");
+    const payload = (await response.json().catch(() => ({}))) as {
+      error?: string;
+    };
+    if (!response.ok)
+      throw new Error(payload.error ?? "Upload media non riuscito.");
   }
 
   async function handlePostFilesSelection(files: File[]) {
@@ -801,24 +860,38 @@ export default function ProfessionalProfileClient({
   }
 
   async function createPost() {
+    const title = postTitle.replace(/\s+/g, " ").trim();
     const body = postBody.replace(/\s+/g, " ").trim();
-    if (!body) {
-      setPostError("Scrivi qualcosa prima di pubblicare.");
+
+    if (!title) {
+      setPostError("Inserisci un titolo prima di pubblicare.");
       return;
     }
+
+    if (!body) {
+      setPostError("Inserisci il corpo del post prima di pubblicare.");
+      return;
+    }
+
     setPosting(true);
     setPostError(null);
     try {
       const created = await fetchJson<{ post: { id: string } }>("/api/posts", {
         method: "POST",
-        body: JSON.stringify({ body }),
+        body: JSON.stringify({
+          title,
+          body,
+        }),
       });
       await uploadPostFiles(created.post.id, postFiles);
+      setPostTitle("");
       setPostBody("");
       setPostFiles([]);
       await loadPosts();
     } catch (error) {
-      setPostError(error instanceof Error ? error.message : "Pubblicazione non riuscita.");
+      setPostError(
+        error instanceof Error ? error.message : "Pubblicazione non riuscita.",
+      );
     } finally {
       setPosting(false);
     }
@@ -836,7 +909,10 @@ export default function ProfessionalProfileClient({
             ? {
                 ...item,
                 liked_by_me: !post.liked_by_me,
-                likes_count: Math.max(0, item.likes_count + (post.liked_by_me ? -1 : 1)),
+                likes_count: Math.max(
+                  0,
+                  item.likes_count + (post.liked_by_me ? -1 : 1),
+                ),
               }
             : item,
         ),
@@ -849,7 +925,9 @@ export default function ProfessionalProfileClient({
   async function deletePost(postId: string) {
     setBusyPostId(postId);
     try {
-      await fetchJson<{ ok: true }>(`/api/posts/${postId}`, { method: "DELETE" });
+      await fetchJson<{ ok: true }>(`/api/posts/${postId}`, {
+        method: "DELETE",
+      });
       setPosts((current) => current.filter((post) => post.id !== postId));
     } finally {
       setBusyPostId(null);
@@ -858,28 +936,43 @@ export default function ProfessionalProfileClient({
 
   async function updatePost(
     postId: string,
+    title: string,
     body: string,
     removedAttachmentIds: string[],
     newFiles: File[],
   ) {
+    const cleanTitle = title.replace(/\s+/g, " ").trim();
     const cleanBody = body.replace(/\s+/g, " ").trim();
+
+    if (!cleanTitle) {
+      setPostError("Il titolo del post non può essere vuoto.");
+      return;
+    }
+
     if (!cleanBody) {
-      setPostError("Il testo del post non può essere vuoto.");
+      setPostError("Il corpo del post non può essere vuoto.");
       return;
     }
 
     setBusyPostId(postId);
     setPostError(null);
     try {
-      const response = await fetchJson<{ post: PostRow }>(`/api/posts/${postId}`, {
-        method: "PATCH",
-        body: JSON.stringify({ body: cleanBody }),
-      });
+      const response = await fetchJson<{ post: PostRow }>(
+        `/api/posts/${postId}`,
+        {
+          method: "PATCH",
+          body: JSON.stringify({
+            title: cleanTitle,
+            body: cleanBody,
+          }),
+        },
+      );
       setPosts((current) =>
         current.map((post) =>
           post.id === postId
             ? {
                 ...post,
+                title: response.post.title,
                 body: response.post.body,
                 updated_at: response.post.updated_at,
               }
@@ -903,7 +996,9 @@ export default function ProfessionalProfileClient({
       await uploadPostFiles(postId, preparedNewMedia.files);
       await loadPosts();
     } catch (error) {
-      setPostError(error instanceof Error ? error.message : "Modifica non riuscita.");
+      setPostError(
+        error instanceof Error ? error.message : "Modifica non riuscita.",
+      );
       throw error;
     } finally {
       setBusyPostId(null);
@@ -912,7 +1007,9 @@ export default function ProfessionalProfileClient({
 
   async function followOrUnfollow() {
     if (profileAccess.is_following) {
-      await fetchJson<{ ok: true }>(`/api/follows/${profile.id}`, { method: "DELETE" });
+      await fetchJson<{ ok: true }>(`/api/follows/${profile.id}`, {
+        method: "DELETE",
+      });
       setProfileAccess((current) => ({
         ...current,
         is_following: false,
@@ -944,29 +1041,34 @@ export default function ProfessionalProfileClient({
     setContactSending(true);
     setContactError(null);
     try {
-      const created = await fetchJson<{ request: { id: string; status: string; created_at: string } }>(
-        "/api/contact-requests",
-        {
-          method: "POST",
-          body: JSON.stringify({
-            professional_id: profile.id,
-            subject: contactSubject,
-            message: contactMessage,
-            privacy_accepted: contactPrivacy,
-          }),
-        },
-      );
+      const created = await fetchJson<{
+        request: { id: string; status: string; created_at: string };
+      }>("/api/contact-requests", {
+        method: "POST",
+        body: JSON.stringify({
+          professional_id: profile.id,
+          subject: contactSubject,
+          message: contactMessage,
+          privacy_accepted: contactPrivacy,
+        }),
+      });
 
       if (contactFiles.length > 0) {
         const formData = new FormData();
         contactFiles.forEach((file) => formData.append("files", file));
-        const response = await fetch(`/api/contact-requests/${created.request.id}/attachments`, {
-          method: "POST",
-          body: formData,
-          credentials: "same-origin",
-        });
-        const payload = (await response.json().catch(() => ({}))) as { error?: string };
-        if (!response.ok) throw new Error(payload.error ?? "Upload allegati non riuscito.");
+        const response = await fetch(
+          `/api/contact-requests/${created.request.id}/attachments`,
+          {
+            method: "POST",
+            body: formData,
+            credentials: "same-origin",
+          },
+        );
+        const payload = (await response.json().catch(() => ({}))) as {
+          error?: string;
+        };
+        if (!response.ok)
+          throw new Error(payload.error ?? "Upload allegati non riuscito.");
       }
 
       setProfileAccess((current) => ({
@@ -979,7 +1081,9 @@ export default function ProfessionalProfileClient({
       }));
       setContactDone(true);
     } catch (error) {
-      setContactError(error instanceof Error ? error.message : "Richiesta non inviata.");
+      setContactError(
+        error instanceof Error ? error.message : "Richiesta non inviata.",
+      );
     } finally {
       setContactSending(false);
     }
@@ -1003,7 +1107,9 @@ export default function ProfessionalProfileClient({
       setReviewRating(5);
       await loadReviews();
     } catch (error) {
-      setReviewError(error instanceof Error ? error.message : "Recensione non inviata.");
+      setReviewError(
+        error instanceof Error ? error.message : "Recensione non inviata.",
+      );
     } finally {
       setReviewSubmitting(false);
     }
@@ -1038,7 +1144,8 @@ export default function ProfessionalProfileClient({
             ? {
                 ...review,
                 professional_reply: response.review.professional_reply,
-                professional_replied_at: response.review.professional_replied_at,
+                professional_replied_at:
+                  response.review.professional_replied_at,
               }
             : review,
         ),
@@ -1121,7 +1228,10 @@ export default function ProfessionalProfileClient({
                 priority
               />
             ) : (
-              <div className="h-full w-full" style={{ background: EMPTY_COVER }} />
+              <div
+                className="h-full w-full"
+                style={{ background: EMPTY_COVER }}
+              />
             )}
             <div className="absolute inset-0 bg-primary/20" />
             {isOwner ? (
@@ -1130,7 +1240,9 @@ export default function ProfessionalProfileClient({
                   ref={coverMenuButtonRef}
                   type="button"
                   className="flex h-11 w-11 items-center justify-center rounded-full bg-white/85 text-primary shadow-lg backdrop-blur"
-                  onClick={() => setMediaMenu(mediaMenu === "cover" ? null : "cover")}
+                  onClick={() =>
+                    setMediaMenu(mediaMenu === "cover" ? null : "cover")
+                  }
                   aria-label="Modifica cover"
                   aria-expanded={mediaMenu === "cover"}
                 >
@@ -1152,16 +1264,23 @@ export default function ProfessionalProfileClient({
                     className="border-4 border-surface-container-lowest shadow-xl"
                   />
                   {isOwner ? (
-                    <div ref={avatarMenuRef} className="absolute bottom-2 right-2">
+                    <div
+                      ref={avatarMenuRef}
+                      className="absolute bottom-2 right-2"
+                    >
                       <button
                         ref={avatarMenuButtonRef}
                         type="button"
                         className="flex h-10 w-10 items-center justify-center rounded-full bg-[#FF8500] text-white shadow-lg"
-                        onClick={() => setMediaMenu(mediaMenu === "avatar" ? null : "avatar")}
+                        onClick={() =>
+                          setMediaMenu(mediaMenu === "avatar" ? null : "avatar")
+                        }
                         aria-label="Modifica foto profilo"
                         aria-expanded={mediaMenu === "avatar"}
                       >
-                        <span className="material-symbols-outlined">more_horiz</span>
+                        <span className="material-symbols-outlined">
+                          more_horiz
+                        </span>
                       </button>
                     </div>
                   ) : null}
@@ -1176,14 +1295,18 @@ export default function ProfessionalProfileClient({
                   </p>
                   <div className="mt-2 flex flex-wrap gap-3 text-sm text-on-surface-variant">
                     <span className="inline-flex items-center gap-1">
-                      <span className="material-symbols-outlined text-[18px]">place</span>
+                      <span className="material-symbols-outlined text-[18px]">
+                        place
+                      </span>
                       {provinceName(profile.province_code)}
                     </span>
                     <span className="inline-flex items-center gap-1">
                       <span className="material-symbols-outlined text-[18px] text-[#FF8500]">
                         star
                       </span>
-                      <strong className="text-primary">{averageRatingLabel}</strong>
+                      <strong className="text-primary">
+                        {averageRatingLabel}
+                      </strong>
                       ({profile.reviews_count} recensioni)
                     </span>
                   </div>
@@ -1231,7 +1354,9 @@ export default function ProfessionalProfileClient({
         />
         {mediaMenu ? (
           <MediaMenu
-            anchorRef={mediaMenu === "cover" ? coverMenuButtonRef : avatarMenuButtonRef}
+            anchorRef={
+              mediaMenu === "cover" ? coverMenuButtonRef : avatarMenuButtonRef
+            }
             menuRef={mediaMenuPortalRef}
             onCamera={() => openMediaPicker("camera")}
             onDevice={() => openMediaPicker("device")}
@@ -1256,7 +1381,9 @@ export default function ProfessionalProfileClient({
                 ].join(" ")}
                 onClick={() => setTab(key as TabKey)}
               >
-                <span className="material-symbols-outlined shrink-0 text-[20px]">{icon}</span>
+                <span className="material-symbols-outlined shrink-0 text-[20px]">
+                  {icon}
+                </span>
                 <span className="whitespace-nowrap [hyphens:none] [overflow-wrap:normal] [word-break:normal]">
                   {label}
                 </span>
@@ -1268,7 +1395,9 @@ export default function ProfessionalProfileClient({
         <div className="mt-6 grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1fr)_360px]">
           <div className="min-w-0 space-y-6">
             {!canViewFull ? (
-              <LockState isProfessionalViewer={viewer.role === "professional"} />
+              <LockState
+                isProfessionalViewer={viewer.role === "professional"}
+              />
             ) : tab === "bio" ? (
               <>
                 <SectionCard
@@ -1278,8 +1407,16 @@ export default function ProfessionalProfileClient({
                 >
                   <div className="space-y-5">
                     <div className="grid gap-3 sm:grid-cols-2">
-                      <InfoPill icon="badge" label="Nome" value={profile.first_name || "Non indicato"} />
-                      <InfoPill icon="badge" label="Cognome" value={profile.last_name || "Non indicato"} />
+                      <InfoPill
+                        icon="badge"
+                        label="Nome"
+                        value={profile.first_name || "Non indicato"}
+                      />
+                      <InfoPill
+                        icon="badge"
+                        label="Cognome"
+                        value={profile.last_name || "Non indicato"}
+                      />
                       <InfoPill
                         icon="engineering"
                         label="Categoria"
@@ -1295,17 +1432,29 @@ export default function ProfessionalProfileClient({
                       <InfoPill
                         icon="place"
                         label="Provincia"
-                        value={profile.province_code ? provinceName(profile.province_code) : "Non indicato"}
+                        value={
+                          profile.province_code
+                            ? provinceName(profile.province_code)
+                            : "Non indicato"
+                        }
                       />
                       <InfoPill
                         icon="language"
                         label="Disponibilità da remoto"
-                        value={profile.available_remote ? "Disponibile" : "Non disponibile"}
+                        value={
+                          profile.available_remote
+                            ? "Disponibile"
+                            : "Non disponibile"
+                        }
                       />
                       <InfoPill
                         icon="commute"
                         label="Disponibilità a trasferte"
-                        value={profile.available_travel ? "Disponibile" : "Non disponibile"}
+                        value={
+                          profile.available_travel
+                            ? "Disponibile"
+                            : "Non disponibile"
+                        }
                       />
                     </div>
 
@@ -1337,7 +1486,9 @@ export default function ProfessionalProfileClient({
                     ) : null}
 
                     <div>
-                      <h3 className="font-label-md text-primary">Bio / descrizione professionale</h3>
+                      <h3 className="font-label-md text-primary">
+                        Bio / descrizione professionale
+                      </h3>
                       {profile.bio ? (
                         <p className="mt-2 whitespace-pre-wrap leading-relaxed text-on-surface-variant">
                           {profile.bio}
@@ -1348,7 +1499,6 @@ export default function ProfessionalProfileClient({
                         </p>
                       )}
                     </div>
-
                   </div>
                 </SectionCard>
 
@@ -1453,6 +1603,8 @@ export default function ProfessionalProfileClient({
                 isOwner={isOwner}
                 posts={posts}
                 loading={postsLoading}
+                postTitle={postTitle}
+                setPostTitle={setPostTitle}
                 postBody={postBody}
                 setPostBody={setPostBody}
                 postFiles={postFiles}
@@ -1521,7 +1673,8 @@ export default function ProfessionalProfileClient({
                   className="space-y-3 text-left"
                 />
               </div>
-              {viewer.role === "customer" && !profileAccess.can_view_contacts ? (
+              {viewer.role === "customer" &&
+              !profileAccess.can_view_contacts ? (
                 <button
                   type="button"
                   className="mt-6 w-full rounded-full border-2 border-primary px-5 py-3 font-button text-primary transition hover:bg-primary hover:text-white"
@@ -1539,7 +1692,9 @@ export default function ProfessionalProfileClient({
         <div className="fixed inset-0 z-[110] flex items-center justify-center p-3 sm:p-4">
           <div className="absolute inset-0 bg-inverse-surface/50 backdrop-blur-sm" />
           <div className="relative max-h-[calc(100dvh-1.5rem)] w-full max-w-[720px] overflow-y-auto rounded-[24px] bg-surface-container-lowest p-4 shadow-2xl sm:rounded-[28px] sm:p-5">
-            <h2 className="font-headline-sm text-[24px] text-primary">Sistema immagine</h2>
+            <h2 className="font-headline-sm text-[24px] text-primary">
+              Sistema immagine
+            </h2>
             <div className="mt-4 overflow-hidden rounded-2xl bg-surface-container-low">
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
@@ -1563,7 +1718,11 @@ export default function ProfessionalProfileClient({
                 max={2.2}
                 step={0.05}
                 value={cropState.zoom}
-                onChange={(value) => setCropState((current) => current && { ...current, zoom: value })}
+                onChange={(value) =>
+                  setCropState(
+                    (current) => current && { ...current, zoom: value },
+                  )
+                }
               />
               <Slider
                 label="Destra/Sinistra"
@@ -1572,7 +1731,9 @@ export default function ProfessionalProfileClient({
                 step={1}
                 value={cropState.offsetX}
                 onChange={(value) =>
-                  setCropState((current) => current && { ...current, offsetX: value })
+                  setCropState(
+                    (current) => current && { ...current, offsetX: value },
+                  )
                 }
               />
               <Slider
@@ -1582,7 +1743,9 @@ export default function ProfessionalProfileClient({
                 step={1}
                 value={cropState.offsetY}
                 onChange={(value) =>
-                  setCropState((current) => current && { ...current, offsetY: value })
+                  setCropState(
+                    (current) => current && { ...current, offsetY: value },
+                  )
                 }
               />
             </div>
@@ -1600,11 +1763,24 @@ export default function ProfessionalProfileClient({
               </button>
               <button
                 type="button"
-                className="min-h-11 rounded-full bg-[#FF8500] px-6 py-3 font-button text-white hover:bg-[#FF9A2B]"
+                className="inline-flex min-h-11 items-center justify-center gap-2 rounded-full bg-[#FF8500] px-6 py-3 font-button text-white hover:bg-[#FF9A2B] disabled:cursor-wait disabled:opacity-60"
                 disabled={uploadingImage}
+                aria-busy={uploadingImage}
                 onClick={() => void uploadCroppedImage()}
               >
-                {uploadingImage ? "Caricamento…" : "Conferma"}
+                {uploadingImage ? (
+                  <>
+                    <span
+                      className="material-symbols-outlined animate-spin text-[19px]"
+                      aria-hidden
+                    >
+                      progress_activity
+                    </span>
+                    Caricamento…
+                  </>
+                ) : (
+                  "Conferma"
+                )}
               </button>
             </div>
           </div>
@@ -1707,13 +1883,13 @@ function MediaMenu({
 
       const rect = anchor.getBoundingClientRect();
       const gutter = 12;
-      const menuWidth = Math.min(288, Math.max(240, window.innerWidth - gutter * 2));
+      const menuWidth = Math.min(
+        288,
+        Math.max(240, window.innerWidth - gutter * 2),
+      );
       const estimatedMenuHeight = 132;
       const maxLeft = Math.max(gutter, window.innerWidth - menuWidth - gutter);
-      const left = Math.min(
-        Math.max(rect.right - menuWidth, gutter),
-        maxLeft,
-      );
+      const left = Math.min(Math.max(rect.right - menuWidth, gutter), maxLeft);
       const belowTop = rect.bottom + 8;
       const top =
         belowTop + estimatedMenuHeight > window.innerHeight - gutter
@@ -1827,7 +2003,11 @@ function ContactInfoRows({
   if (canView) {
     return (
       <div className={className}>
-        <InfoPill icon="phone" label="Telefono" value={phone || "Non indicato"} />
+        <InfoPill
+          icon="phone"
+          label="Telefono"
+          value={phone || "Non indicato"}
+        />
         <InfoPill icon="mail" label="Email" value={email || "Non indicato"} />
         {websiteUrl ? (
           <InfoPill
@@ -1908,16 +2088,10 @@ function CategorySubcategorySelector({
   onReload: () => void;
 }) {
   const selectedCategory =
-    categories.find((category) => categoryOptionValue(category) === selectedCategoryKey) ?? null;
+    categories.find(
+      (category) => categoryOptionValue(category) === selectedCategoryKey,
+    ) ?? null;
   const availableSubcategories = selectedCategory?.subcategories ?? [];
-
-  if (loading) {
-    return (
-      <div className="rounded-2xl bg-surface-container-low p-4 text-sm text-on-surface-variant">
-        Caricamento categorie dal catalogo…
-      </div>
-    );
-  }
 
   if (error) {
     return (
@@ -1925,11 +2099,33 @@ function CategorySubcategorySelector({
         <p>{error}</p>
         <button
           type="button"
-          className="mt-3 rounded-full border border-on-error-container/30 px-4 py-2 font-button"
+          className="mt-3 inline-flex items-center justify-center gap-2 rounded-full border border-on-error-container/30 px-4 py-2 font-button disabled:cursor-wait disabled:opacity-60"
           onClick={onReload}
+          disabled={loading}
+          aria-busy={loading}
         >
-          Riprova
+          {loading ? (
+            <>
+              <span
+                className="material-symbols-outlined animate-spin text-[17px]"
+                aria-hidden
+              >
+                progress_activity
+              </span>
+              Caricamento…
+            </>
+          ) : (
+            "Riprova"
+          )}
         </button>
+      </div>
+    );
+  }
+
+  if (loading) {
+    return (
+      <div className="rounded-2xl bg-surface-container-low p-4 text-sm text-on-surface-variant">
+        Caricamento categorie dal catalogo…
       </div>
     );
   }
@@ -1959,7 +2155,10 @@ function CategorySubcategorySelector({
         >
           <option value="">Seleziona una categoria</option>
           {categories.map((category) => (
-            <option key={categoryOptionValue(category)} value={categoryOptionValue(category)}>
+            <option
+              key={categoryOptionValue(category)}
+              value={categoryOptionValue(category)}
+            >
               {category.name}
             </option>
           ))}
@@ -2047,13 +2246,23 @@ function EditModal({
     <div className="fixed inset-0 z-[100] flex items-center justify-center p-3 sm:p-4">
       <div className="absolute inset-0 bg-inverse-surface/50 backdrop-blur-sm" />
       <div className="relative max-h-[calc(100dvh-1.5rem)] w-full max-w-[720px] overflow-y-auto rounded-[24px] bg-surface-container-lowest p-4 shadow-2xl sm:rounded-[28px] sm:p-6">
-        <h2 className="font-headline-sm text-[24px] text-primary">{titleBySection[section]}</h2>
+        <h2 className="font-headline-sm text-[24px] text-primary">
+          {titleBySection[section]}
+        </h2>
         <div className="mt-5 space-y-4">
           {section === "intro" ? (
             <>
               <div className="grid gap-4 sm:grid-cols-2">
-                <TextInput label="Nome" value={String(draft.first_name ?? "")} onChange={(v) => setValue("first_name", v)} />
-                <TextInput label="Cognome" value={String(draft.last_name ?? "")} onChange={(v) => setValue("last_name", v)} />
+                <TextInput
+                  label="Nome"
+                  value={String(draft.first_name ?? "")}
+                  onChange={(v) => setValue("first_name", v)}
+                />
+                <TextInput
+                  label="Cognome"
+                  value={String(draft.last_name ?? "")}
+                  onChange={(v) => setValue("last_name", v)}
+                />
               </div>
               <CategorySubcategorySelector
                 categories={catalogCategories}
@@ -2074,7 +2283,9 @@ function EditModal({
                 <input
                   type="checkbox"
                   checked={Boolean(draft.available_remote)}
-                  onChange={(event) => setValue("available_remote", event.target.checked)}
+                  onChange={(event) =>
+                    setValue("available_remote", event.target.checked)
+                  }
                 />
                 Disponibile da remoto
               </label>
@@ -2082,7 +2293,9 @@ function EditModal({
                 <input
                   type="checkbox"
                   checked={Boolean(draft.available_travel)}
-                  onChange={(event) => setValue("available_travel", event.target.checked)}
+                  onChange={(event) =>
+                    setValue("available_travel", event.target.checked)
+                  }
                 />
                 Disponibile a trasferte
               </label>
@@ -2103,14 +2316,17 @@ function EditModal({
                       type="checkbox"
                       className="mt-1"
                       checked={Boolean(draft.is_ctu)}
-                      onChange={(event) => setValue("is_ctu", event.target.checked)}
+                      onChange={(event) =>
+                        setValue("is_ctu", event.target.checked)
+                      }
                     />
                     <span>
                       <span className="block font-medium">
                         CTU — Consulente Tecnico d&apos;Ufficio
                       </span>
                       <span className="mt-1 block text-sm text-on-surface-variant">
-                        Iscritto o incaricato come Consulente Tecnico d&apos;Ufficio.
+                        Iscritto o incaricato come Consulente Tecnico
+                        d&apos;Ufficio.
                       </span>
                     </span>
                   </label>
@@ -2120,43 +2336,78 @@ function EditModal({
                       type="checkbox"
                       className="mt-1"
                       checked={Boolean(draft.is_ctp)}
-                      onChange={(event) => setValue("is_ctp", event.target.checked)}
+                      onChange={(event) =>
+                        setValue("is_ctp", event.target.checked)
+                      }
                     />
                     <span>
                       <span className="block font-medium">
                         CTP — Consulente Tecnico di Parte
                       </span>
                       <span className="mt-1 block text-sm text-on-surface-variant">
-                        Disponibile per incarichi come Consulente Tecnico di Parte.
+                        Disponibile per incarichi come Consulente Tecnico di
+                        Parte.
                       </span>
                     </span>
                   </label>
                 </div>
               </div>
 
-              <TextArea label="Bio" value={String(draft.bio ?? "")} onChange={(v) => setValue("bio", v)} />
+              <TextArea
+                label="Bio"
+                value={String(draft.bio ?? "")}
+                onChange={(v) => setValue("bio", v)}
+              />
             </>
           ) : null}
           {section === "services" ? (
             <>
-              <TextArea label="Servizi offerti (uno per riga)" value={String(draft.services_offered ?? "")} onChange={(v) => setValue("services_offered", v)} />
+              <TextArea
+                label="Servizi offerti (uno per riga)"
+                value={String(draft.services_offered ?? "")}
+                onChange={(v) => setValue("services_offered", v)}
+              />
             </>
           ) : null}
           {section === "contact" ? (
             <>
-              <TextInput label="Telefono" value={String(draft.phone ?? "")} onChange={(v) => setValue("phone", v)} />
-              <TextInput label="Email pubblica" value={String(draft.public_email ?? "")} onChange={(v) => setValue("public_email", v)} />
-              <TextInput label="Sito web" value={String(draft.website_url ?? "")} onChange={(v) => setValue("website_url", v)} />
+              <TextInput
+                label="Telefono"
+                value={String(draft.phone ?? "")}
+                onChange={(v) => setValue("phone", v)}
+              />
+              <TextInput
+                label="Email pubblica"
+                value={String(draft.public_email ?? "")}
+                onChange={(v) => setValue("public_email", v)}
+              />
+              <TextInput
+                label="Sito web"
+                value={String(draft.website_url ?? "")}
+                onChange={(v) => setValue("website_url", v)}
+              />
             </>
           ) : null}
           {section === "education" ? (
-            <TextArea label="Studi/Formazione (una voce per riga)" value={String(draft.education ?? "")} onChange={(v) => setValue("education", v)} />
+            <TextArea
+              label="Studi/Formazione (una voce per riga)"
+              value={String(draft.education ?? "")}
+              onChange={(v) => setValue("education", v)}
+            />
           ) : null}
           {section === "work" ? (
-            <TextArea label="Esperienze lavorative (una voce per riga)" value={String(draft.work_experiences ?? "")} onChange={(v) => setValue("work_experiences", v)} />
+            <TextArea
+              label="Esperienze lavorative (una voce per riga)"
+              value={String(draft.work_experiences ?? "")}
+              onChange={(v) => setValue("work_experiences", v)}
+            />
           ) : null}
           {section === "certifications" ? (
-            <TextArea label="Certificazioni (una voce per riga)" value={String(draft.certifications ?? "")} onChange={(v) => setValue("certifications", v)} />
+            <TextArea
+              label="Certificazioni (una voce per riga)"
+              value={String(draft.certifications ?? "")}
+              onChange={(v) => setValue("certifications", v)}
+            />
           ) : null}
         </div>
         {error ? (
@@ -2174,11 +2425,24 @@ function EditModal({
           </button>
           <button
             type="button"
-            className="min-h-11 rounded-full bg-[#FF8500] px-6 py-3 font-button text-white hover:bg-[#FF9A2B] disabled:opacity-60"
+            className="inline-flex min-h-11 items-center justify-center gap-2 rounded-full bg-[#FF8500] px-6 py-3 font-button text-white hover:bg-[#FF9A2B] disabled:cursor-wait disabled:opacity-60"
             disabled={saving}
+            aria-busy={saving}
             onClick={onSave}
           >
-            {saving ? "Salvataggio…" : "Salva"}
+            {saving ? (
+              <>
+                <span
+                  className="material-symbols-outlined animate-spin text-[19px]"
+                  aria-hidden
+                >
+                  progress_activity
+                </span>
+                Caricamento…
+              </>
+            ) : (
+              "Salva"
+            )}
           </button>
         </div>
       </div>
@@ -2260,6 +2524,8 @@ function WorksTab({
   isOwner,
   posts,
   loading,
+  postTitle,
+  setPostTitle,
   postBody,
   setPostBody,
   postFiles,
@@ -2278,6 +2544,8 @@ function WorksTab({
   isOwner: boolean;
   posts: PostRow[];
   loading: boolean;
+  postTitle: string;
+  setPostTitle: (value: string) => void;
   postBody: string;
   setPostBody: (value: string) => void;
   postFiles: File[];
@@ -2285,11 +2553,16 @@ function WorksTab({
   posting: boolean;
   optimizingMedia: boolean;
   postError: string | null;
-  composerPerson: { first_name: string; last_name: string; avatar_url?: string | null };
+  composerPerson: {
+    first_name: string;
+    last_name: string;
+    avatar_url?: string | null;
+  };
   createPost: () => void;
   toggleLike: (post: PostRow) => void;
   updatePost: (
     postId: string,
+    title: string,
     body: string,
     removedAttachmentIds: string[],
     newFiles: File[],
@@ -2299,7 +2572,9 @@ function WorksTab({
   viewerId: string;
 }) {
   const [editingPost, setEditingPost] = useState<PostRow | null>(null);
-  const [deleteTargetPost, setDeleteTargetPost] = useState<PostRow | null>(null);
+  const [deleteTargetPost, setDeleteTargetPost] = useState<PostRow | null>(
+    null,
+  );
   const [mediaViewerAttachment, setMediaViewerAttachment] =
     useState<PostMediaAttachment | null>(null);
   const [deleteError, setDeleteError] = useState<string | null>(null);
@@ -2310,7 +2585,9 @@ function WorksTab({
       await deletePost(postId);
       setDeleteTargetPost(null);
     } catch (error) {
-      setDeleteError(error instanceof Error ? error.message : "Eliminazione non riuscita.");
+      setDeleteError(
+        error instanceof Error ? error.message : "Eliminazione non riuscita.",
+      );
     }
   }
 
@@ -2320,13 +2597,37 @@ function WorksTab({
         <section className="rounded-[24px] border border-outline-variant/30 bg-surface-container-lowest p-5 shadow-[0_4px_20px_rgba(8,43,95,0.08)]">
           <div className="flex gap-4">
             <CompactAvatar person={composerPerson} />
-            <textarea
-              className="min-h-28 w-full resize-none rounded-2xl border border-outline-variant px-4 py-3 outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
-              value={postBody}
-              onChange={(event) => setPostBody(event.target.value)}
-              placeholder="Racconta un lavoro, un aggiornamento o un consiglio professionale..."
-              maxLength={1200}
-            />
+
+            <div className="min-w-0 flex-1 space-y-3">
+              <label className="block text-sm font-bold text-primary">
+                Titolo
+                <input
+                  type="text"
+                  value={postTitle}
+                  onChange={(event) => setPostTitle(event.target.value)}
+                  placeholder="Inserisci un titolo chiaro e sintetico"
+                  maxLength={120}
+                  className="mt-2 min-h-11 w-full rounded-2xl border border-outline-variant px-4 py-3 font-normal text-on-surface outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/20"
+                />
+                <span className="mt-1 block text-right text-xs font-normal text-on-surface-variant">
+                  {postTitle.length}/120
+                </span>
+              </label>
+
+              <label className="block text-sm font-bold text-primary">
+                Corpo
+                <textarea
+                  className="mt-2 min-h-28 w-full resize-none rounded-2xl border border-outline-variant px-4 py-3 font-normal text-on-surface outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
+                  value={postBody}
+                  onChange={(event) => setPostBody(event.target.value)}
+                  placeholder="Racconta un lavoro, un aggiornamento o un consiglio professionale..."
+                  maxLength={1200}
+                />
+                <span className="mt-1 block text-right text-xs font-normal text-on-surface-variant">
+                  {postBody.length}/1200
+                </span>
+              </label>
+            </div>
           </div>
           {postError ? (
             <div className="mt-3 rounded-2xl bg-error-container p-3 text-sm text-on-error-container">
@@ -2346,7 +2647,9 @@ function WorksTab({
           <div className="mt-4 flex flex-col gap-3 border-t border-outline-variant/30 pt-4 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <label className="inline-flex cursor-pointer items-center rounded-full px-4 py-2 font-bold text-secondary hover:bg-surface-container-low">
-                <span className="material-symbols-outlined mr-1 text-[20px]">image</span>
+                <span className="material-symbols-outlined mr-1 text-[20px]">
+                  image
+                </span>
                 Foto/Video
                 <input
                   type="file"
@@ -2361,16 +2664,35 @@ function WorksTab({
                 />
               </label>
               <p className="mt-1 px-2 text-xs text-on-surface-variant">
-                Massimo 4 contenuti per post. Le foto vengono ottimizzate automaticamente. Video massimo 4 MB, uno per post.
+                Massimo 4 contenuti per post. Le foto vengono ottimizzate
+                automaticamente. Video massimo 4 MB, uno per post.
               </p>
             </div>
             <button
               type="button"
-              disabled={posting || optimizingMedia}
-              className="rounded-full bg-[#FF8500] px-7 py-3 font-button text-white hover:bg-[#FF9A2B] disabled:opacity-60"
+              disabled={
+                posting ||
+                optimizingMedia ||
+                !postTitle.trim() ||
+                !postBody.trim()
+              }
+              aria-busy={posting || optimizingMedia}
+              className="inline-flex items-center justify-center gap-2 rounded-full bg-[#FF8500] px-7 py-3 font-button text-white hover:bg-[#FF9A2B] disabled:cursor-wait disabled:opacity-60"
               onClick={createPost}
             >
-              {optimizingMedia ? "Ottimizzazione…" : posting ? "Pubblicazione…" : "Pubblica"}
+              {posting || optimizingMedia ? (
+                <>
+                  <span
+                    className="material-symbols-outlined animate-spin text-[19px]"
+                    aria-hidden
+                  >
+                    progress_activity
+                  </span>
+                  Caricamento…
+                </>
+              ) : (
+                "Pubblica"
+              )}
             </button>
           </div>
         </section>
@@ -2379,7 +2701,11 @@ function WorksTab({
       <section className="rounded-[24px] border border-outline-variant/30 bg-surface-container-lowest p-5 shadow-[0_4px_20px_rgba(8,43,95,0.08)]">
         <div className="mb-5 flex items-end justify-between">
           <h2 className="font-headline-sm text-[24px] text-primary">Lavori</h2>
-          {loading ? <span className="text-sm text-on-surface-variant">Caricamento…</span> : null}
+          {loading ? (
+            <span className="text-sm text-on-surface-variant">
+              Caricamento…
+            </span>
+          ) : null}
         </div>
         {posts.length === 0 ? (
           <EmptyState
@@ -2395,7 +2721,15 @@ function WorksTab({
                 id={`post-${post.id}`}
                 className="rounded-[22px] border border-outline-variant/30 bg-surface-container-low p-4"
               >
-                <p className="whitespace-pre-wrap text-on-surface">{post.body}</p>
+                {post.title ? (
+                  <h3 className="mb-2 break-words text-lg font-bold leading-6 text-primary [overflow-wrap:anywhere]">
+                    {post.title}
+                  </h3>
+                ) : null}
+
+                <p className="whitespace-pre-wrap break-words font-normal text-on-surface [overflow-wrap:anywhere]">
+                  {post.body}
+                </p>
                 <PostAttachmentGrid
                   attachments={post.attachments}
                   onOpen={setMediaViewerAttachment}
@@ -2422,7 +2756,9 @@ function WorksTab({
                           className="flex h-10 w-10 cursor-pointer list-none items-center justify-center rounded-full text-primary transition hover:bg-primary-fixed [&::-webkit-details-marker]:hidden"
                           aria-label="Azioni del post"
                         >
-                          <span className="material-symbols-outlined">more_horiz</span>
+                          <span className="material-symbols-outlined">
+                            more_horiz
+                          </span>
                         </summary>
                         <div className="absolute bottom-11 right-0 z-20 min-w-[150px] overflow-hidden rounded-2xl border border-outline-variant/30 bg-surface-container-lowest p-1.5 shadow-xl">
                           <button
@@ -2431,7 +2767,9 @@ function WorksTab({
                             disabled={busyPostId === post.id}
                             onClick={() => setEditingPost(post)}
                           >
-                            <span className="material-symbols-outlined text-[19px]">edit</span>
+                            <span className="material-symbols-outlined text-[19px]">
+                              edit
+                            </span>
                             Modifica
                           </button>
                           <button
@@ -2440,7 +2778,9 @@ function WorksTab({
                             disabled={busyPostId === post.id}
                             onClick={() => setDeleteTargetPost(post)}
                           >
-                            <span className="material-symbols-outlined text-[19px]">delete</span>
+                            <span className="material-symbols-outlined text-[19px]">
+                              delete
+                            </span>
                             Elimina
                           </button>
                         </div>
@@ -2494,8 +2834,14 @@ function WorksTab({
           post={editingPost}
           busy={busyPostId === editingPost.id}
           onCancel={() => setEditingPost(null)}
-          onSave={async (body, removedAttachmentIds, newFiles) => {
-            await updatePost(editingPost.id, body, removedAttachmentIds, newFiles);
+          onSave={async (title, body, removedAttachmentIds, newFiles) => {
+            await updatePost(
+              editingPost.id,
+              title,
+              body,
+              removedAttachmentIds,
+              newFiles,
+            );
             setEditingPost(null);
           }}
         />
@@ -2509,14 +2855,27 @@ function WorksTab({
   );
 }
 
-function PostComments({ postId, viewerId }: { postId: string; viewerId: string }) {
+function PostComments({
+  postId,
+  viewerId,
+}: {
+  postId: string;
+  viewerId: string;
+}) {
   const [comments, setComments] = useState<CommentRow[]>([]);
   const [loading, setLoading] = useState(false);
   const [body, setBody] = useState("");
+  const [addingComment, setAddingComment] = useState(false);
+  const [updatingCommentId, setUpdatingCommentId] = useState<string | null>(
+    null,
+  );
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editingBody, setEditingBody] = useState("");
-  const [deleteTargetComment, setDeleteTargetComment] = useState<CommentRow | null>(null);
-  const [deletingCommentId, setDeletingCommentId] = useState<string | null>(null);
+  const [deleteTargetComment, setDeleteTargetComment] =
+    useState<CommentRow | null>(null);
+  const [deletingCommentId, setDeletingCommentId] = useState<string | null>(
+    null,
+  );
   const [deleteError, setDeleteError] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -2530,7 +2889,11 @@ function PostComments({ postId, viewerId }: { postId: string; viewerId: string }
       );
       setComments(response.comments ?? []);
     } catch (loadError) {
-      setError(loadError instanceof Error ? loadError.message : "Commenti non disponibili.");
+      setError(
+        loadError instanceof Error
+          ? loadError.message
+          : "Commenti non disponibili.",
+      );
       setComments([]);
     } finally {
       setLoading(false);
@@ -2546,7 +2909,9 @@ function PostComments({ postId, viewerId }: { postId: string; viewerId: string }
 
   async function addComment() {
     const clean = body.replace(/\s+/g, " ").trim();
-    if (!clean) return;
+    if (!clean || addingComment) return;
+
+    setAddingComment(true);
     setError(null);
     try {
       const response = await fetchJson<{ comment: CommentRow }>(
@@ -2560,14 +2925,20 @@ function PostComments({ postId, viewerId }: { postId: string; viewerId: string }
       setBody("");
     } catch (commentError) {
       setError(
-        commentError instanceof Error ? commentError.message : "Commento non pubblicato.",
+        commentError instanceof Error
+          ? commentError.message
+          : "Commento non pubblicato.",
       );
+    } finally {
+      setAddingComment(false);
     }
   }
 
   async function updateComment(commentId: string) {
     const clean = editingBody.replace(/\s+/g, " ").trim();
-    if (!clean) return;
+    if (!clean || updatingCommentId) return;
+
+    setUpdatingCommentId(commentId);
     setError(null);
     try {
       const response = await fetchJson<{ comment: CommentRow }>(
@@ -2579,15 +2950,21 @@ function PostComments({ postId, viewerId }: { postId: string; viewerId: string }
       );
       setComments((current) =>
         current.map((comment) =>
-          comment.id === commentId ? { ...comment, ...response.comment } : comment,
+          comment.id === commentId
+            ? { ...comment, ...response.comment }
+            : comment,
         ),
       );
       setEditingId(null);
       setEditingBody("");
     } catch (commentError) {
       setError(
-        commentError instanceof Error ? commentError.message : "Commento non modificato.",
+        commentError instanceof Error
+          ? commentError.message
+          : "Commento non modificato.",
       );
+    } finally {
+      setUpdatingCommentId(null);
     }
   }
 
@@ -2598,11 +2975,15 @@ function PostComments({ postId, viewerId }: { postId: string; viewerId: string }
       await fetchJson<{ ok: true }>(`/api/post-comments/${commentId}`, {
         method: "DELETE",
       });
-      setComments((current) => current.filter((comment) => comment.id !== commentId));
+      setComments((current) =>
+        current.filter((comment) => comment.id !== commentId),
+      );
       setDeleteTargetComment(null);
     } catch (commentError) {
       setDeleteError(
-        commentError instanceof Error ? commentError.message : "Commento non eliminato.",
+        commentError instanceof Error
+          ? commentError.message
+          : "Commento non eliminato.",
       );
     } finally {
       setDeletingCommentId(null);
@@ -2613,7 +2994,9 @@ function PostComments({ postId, viewerId }: { postId: string; viewerId: string }
     <div className="mt-4 border-t border-outline-variant/30 pt-4">
       <div className="flex items-center justify-between gap-4">
         <h3 className="font-label-md text-primary">Commenti</h3>
-        {loading ? <span className="text-xs text-on-surface-variant">Caricamento…</span> : null}
+        {loading ? (
+          <span className="text-xs text-on-surface-variant">Caricamento…</span>
+        ) : null}
       </div>
       {error ? (
         <div className="mt-3 rounded-2xl bg-error-container p-3 text-sm text-on-error-container">
@@ -2653,10 +3036,24 @@ function PostComments({ postId, viewerId }: { postId: string; viewerId: string }
                     {editingId === comment.id ? (
                       <button
                         type="button"
-                        className="rounded-full px-3 py-1 text-xs font-bold text-primary hover:bg-primary-fixed"
+                        className="inline-flex items-center justify-center gap-1.5 rounded-full px-3 py-1 text-xs font-bold text-primary hover:bg-primary-fixed disabled:cursor-wait disabled:opacity-60"
                         onClick={() => void updateComment(comment.id)}
+                        disabled={updatingCommentId === comment.id}
+                        aria-busy={updatingCommentId === comment.id}
                       >
-                        Salva
+                        {updatingCommentId === comment.id ? (
+                          <>
+                            <span
+                              className="material-symbols-outlined animate-spin text-[16px]"
+                              aria-hidden
+                            >
+                              progress_activity
+                            </span>
+                            Caricamento…
+                          </>
+                        ) : (
+                          "Salva"
+                        )}
                       </button>
                     ) : (
                       <button
@@ -2696,10 +3093,24 @@ function PostComments({ postId, viewerId }: { postId: string; viewerId: string }
         />
         <button
           type="button"
-          className="rounded-full bg-primary px-4 py-2 text-sm font-bold text-white"
+          className="inline-flex items-center justify-center gap-2 rounded-full bg-primary px-4 py-2 text-sm font-bold text-white disabled:cursor-wait disabled:opacity-60"
           onClick={() => void addComment()}
+          disabled={addingComment || !body.trim()}
+          aria-busy={addingComment}
         >
-          Invia
+          {addingComment ? (
+            <>
+              <span
+                className="material-symbols-outlined animate-spin text-[17px]"
+                aria-hidden
+              >
+                progress_activity
+              </span>
+              Caricamento…
+            </>
+          ) : (
+            "Invia"
+          )}
         </button>
       </div>
       {deleteTargetComment ? (
@@ -2757,19 +3168,25 @@ function ReviewsTab({
   replyToReview: (id: string) => void;
   highlightedReviewId: string | null;
 }) {
-  const [mediaViewer, setMediaViewer] = useState<PostMediaAttachment | null>(null);
+  const [mediaViewer, setMediaViewer] = useState<PostMediaAttachment | null>(
+    null,
+  );
 
   return (
     <div className="space-y-5">
       {canReview ? (
         <section className="rounded-[24px] border border-outline-variant/30 bg-surface-container-lowest p-5 shadow-[0_4px_20px_rgba(8,43,95,0.08)]">
-          <h2 className="font-headline-sm text-[24px] text-primary">Lascia una recensione</h2>
+          <h2 className="font-headline-sm text-[24px] text-primary">
+            Lascia una recensione
+          </h2>
           <div className="mt-4 flex gap-2">
             {[1, 2, 3, 4, 5].map((star) => (
               <button
                 key={star}
                 type="button"
-                className={star <= reviewRating ? "text-[#FF8500]" : "text-outline"}
+                className={
+                  star <= reviewRating ? "text-[#FF8500]" : "text-outline"
+                }
                 onClick={() => setReviewRating(star)}
               >
                 <span className="material-symbols-outlined">star</span>
@@ -2790,18 +3207,37 @@ function ReviewsTab({
           <button
             type="button"
             disabled={submitting}
-            className="mt-4 rounded-full bg-[#FF8500] px-6 py-3 font-button text-white hover:bg-[#FF9A2B] disabled:opacity-60"
+            aria-busy={submitting}
+            className="mt-4 inline-flex items-center justify-center gap-2 rounded-full bg-[#FF8500] px-6 py-3 font-button text-white hover:bg-[#FF9A2B] disabled:cursor-wait disabled:opacity-60"
             onClick={submitReview}
           >
-            {submitting ? "Invio…" : "Pubblica recensione"}
+            {submitting ? (
+              <>
+                <span
+                  className="material-symbols-outlined animate-spin text-[19px]"
+                  aria-hidden
+                >
+                  progress_activity
+                </span>
+                Caricamento…
+              </>
+            ) : (
+              "Pubblica recensione"
+            )}
           </button>
         </section>
       ) : null}
 
       <section className="rounded-[24px] border border-outline-variant/30 bg-surface-container-lowest p-5 shadow-[0_4px_20px_rgba(8,43,95,0.08)]">
         <div className="mb-5 flex items-end justify-between">
-          <h2 className="font-headline-sm text-[24px] text-primary">Recensioni</h2>
-          {loading ? <span className="text-sm text-on-surface-variant">Caricamento…</span> : null}
+          <h2 className="font-headline-sm text-[24px] text-primary">
+            Recensioni
+          </h2>
+          {loading ? (
+            <span className="text-sm text-on-surface-variant">
+              Caricamento…
+            </span>
+          ) : null}
         </div>
         {reviews.length === 0 ? (
           <EmptyState
@@ -2813,7 +3249,8 @@ function ReviewsTab({
           <div className="space-y-4">
             {reviews.map((review) => {
               const hasProfessionalReply =
-                Boolean(review.professional_reply) || Boolean(review.professional_replied_at);
+                Boolean(review.professional_reply) ||
+                Boolean(review.professional_replied_at);
               const replyError = replyErrors[review.id];
               const isReplySubmitting = Boolean(replySubmitting[review.id]);
 
@@ -2831,13 +3268,14 @@ function ReviewsTab({
                   <div className="flex items-start justify-between gap-4">
                     <div>
                       <h3 className="font-label-md text-primary">
-                        {review.author
-                          ? fullName(review.author)
-                          : "Cliente"}
+                        {review.author ? fullName(review.author) : "Cliente"}
                       </h3>
                       <div className="mt-1 flex text-[#FF8500]">
                         {Array.from({ length: 5 }).map((_, index) => (
-                          <span key={index} className="material-symbols-outlined text-[18px]">
+                          <span
+                            key={index}
+                            className="material-symbols-outlined text-[18px]"
+                          >
                             {index < review.rating ? "star" : "star_outline"}
                           </span>
                         ))}
@@ -2850,7 +3288,9 @@ function ReviewsTab({
                   {review.body ? (
                     <p className="mt-3 whitespace-pre-wrap text-on-surface-variant">
                       {review.title ? (
-                        <span className="mb-1 block font-bold text-primary">{review.title}</span>
+                        <span className="mb-1 block font-bold text-primary">
+                          {review.title}
+                        </span>
                       ) : null}
                       {review.body}
                     </p>
@@ -2862,7 +3302,9 @@ function ReviewsTab({
                   />
                   {review.professional_reply ? (
                     <div className="mt-4 rounded-2xl bg-primary-fixed p-4 text-on-primary-fixed">
-                      <div className="text-sm font-bold">Risposta del professionista</div>
+                      <div className="text-sm font-bold">
+                        Risposta del professionista
+                      </div>
                       <p className="mt-1">{review.professional_reply}</p>
                     </div>
                   ) : hasProfessionalReply ? (
@@ -2890,10 +3332,23 @@ function ReviewsTab({
                       <button
                         type="button"
                         disabled={isReplySubmitting}
-                        className="mt-2 rounded-full bg-primary px-5 py-2.5 font-button text-white disabled:opacity-60"
+                        aria-busy={isReplySubmitting}
+                        className="mt-2 inline-flex items-center justify-center gap-2 rounded-full bg-primary px-5 py-2.5 font-button text-white disabled:cursor-wait disabled:opacity-60"
                         onClick={() => replyToReview(review.id)}
                       >
-                        {isReplySubmitting ? "Invio…" : "Rispondi"}
+                        {isReplySubmitting ? (
+                          <>
+                            <span
+                              className="material-symbols-outlined animate-spin text-[19px]"
+                              aria-hidden
+                            >
+                              progress_activity
+                            </span>
+                            Caricamento…
+                          </>
+                        ) : (
+                          "Rispondi"
+                        )}
                       </button>
                     </div>
                   ) : null}
@@ -2903,7 +3358,10 @@ function ReviewsTab({
           </div>
         )}
       </section>
-      <PostMediaViewer attachment={mediaViewer} onClose={() => setMediaViewer(null)} />
+      <PostMediaViewer
+        attachment={mediaViewer}
+        onClose={() => setMediaViewer(null)}
+      />
     </div>
   );
 }
@@ -2941,11 +3399,16 @@ function ContactModal({
 }) {
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center p-3 sm:p-4">
-      <div className="absolute inset-0 bg-inverse-surface/45 backdrop-blur-sm" onClick={onClose} />
+      <div
+        className="absolute inset-0 bg-inverse-surface/45 backdrop-blur-sm"
+        onClick={onClose}
+      />
       <div className="relative flex max-h-[calc(100dvh-1.5rem)] w-full max-w-[680px] flex-col overflow-hidden rounded-[24px] bg-surface-container-lowest shadow-2xl sm:rounded-[28px]">
         <div className="border-b border-outline-variant/30 p-5 sm:p-6">
           <h2 className="font-headline-sm text-[24px] text-primary">
-            {done ? "Richiesta inviata" : `Invia una richiesta a ${fullName(profile)}`}
+            {done
+              ? "Richiesta inviata"
+              : `Invia una richiesta a ${fullName(profile)}`}
           </h2>
           <p className="mt-1 text-on-surface-variant">
             {done
@@ -2976,8 +3439,16 @@ function ContactModal({
             </div>
           ) : (
             <>
-              <TextInput label="Oggetto" value={subject} onChange={setSubject} />
-              <TextArea label="Messaggio" value={message} onChange={setMessage} />
+              <TextInput
+                label="Oggetto"
+                value={subject}
+                onChange={setSubject}
+              />
+              <TextArea
+                label="Messaggio"
+                value={message}
+                onChange={setMessage}
+              />
               <label className="block font-label-md text-primary">
                 Foto, video o documenti
                 <input
@@ -2985,7 +3456,9 @@ function ContactModal({
                   multiple
                   className="mt-2 w-full rounded-2xl border border-outline-variant px-4 py-3"
                   accept="image/jpeg,image/png,image/webp,video/mp4,video/quicktime,application/pdf"
-                  onChange={(event) => setFiles(Array.from(event.target.files ?? []))}
+                  onChange={(event) =>
+                    setFiles(Array.from(event.target.files ?? []))
+                  }
                 />
               </label>
               {files.length > 0 ? (
@@ -3020,11 +3493,24 @@ function ContactModal({
               </button>
               <button
                 type="button"
-                className="min-h-11 rounded-full bg-[#FF8500] px-6 py-3 font-button text-white hover:bg-[#FF9A2B] disabled:opacity-60"
+                className="inline-flex min-h-11 items-center justify-center gap-2 rounded-full bg-[#FF8500] px-6 py-3 font-button text-white hover:bg-[#FF9A2B] disabled:cursor-wait disabled:opacity-60"
                 disabled={sending}
+                aria-busy={sending}
                 onClick={onSubmit}
               >
-                {sending ? "Invio…" : "Invia richiesta"}
+                {sending ? (
+                  <>
+                    <span
+                      className="material-symbols-outlined animate-spin text-[19px]"
+                      aria-hidden
+                    >
+                      progress_activity
+                    </span>
+                    Caricamento…
+                  </>
+                ) : (
+                  "Invia richiesta"
+                )}
               </button>
             </div>
           ) : null}

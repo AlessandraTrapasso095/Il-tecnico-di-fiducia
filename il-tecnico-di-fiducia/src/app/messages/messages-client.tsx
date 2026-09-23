@@ -142,7 +142,9 @@ function money(value: number) {
   }).format(value);
 }
 
-function initials(person: { first_name?: string | null; last_name?: string | null } | null) {
+function initials(
+  person: { first_name?: string | null; last_name?: string | null } | null,
+) {
   const first = person?.first_name?.trim().slice(0, 1).toUpperCase() ?? "";
   const last = person?.last_name?.trim().slice(0, 1).toUpperCase() ?? "";
   return `${first}${last}` || "U";
@@ -179,17 +181,26 @@ type ViewableAttachment = {
 };
 
 function attachmentName(attachment: ViewableAttachment) {
-  return attachment.file_name || (attachment.path ? fileNameFromPath(attachment.path) : "allegato");
+  return (
+    attachment.file_name ||
+    (attachment.path ? fileNameFromPath(attachment.path) : "allegato")
+  );
 }
 
-function isImageFileLike(mimeType: string | null | undefined, fileName: string | null | undefined) {
+function isImageFileLike(
+  mimeType: string | null | undefined,
+  fileName: string | null | undefined,
+) {
   return (
     mimeType?.toLowerCase().startsWith("image/") ||
     /\.(png|jpe?g|webp|gif|heic|heif)$/i.test(fileName ?? "")
   );
 }
 
-function isVideoFileLike(mimeType: string | null | undefined, fileName: string | null | undefined) {
+function isVideoFileLike(
+  mimeType: string | null | undefined,
+  fileName: string | null | undefined,
+) {
   return (
     mimeType?.toLowerCase().startsWith("video/") ||
     /\.(mp4|mov|webm|m4v)$/i.test(fileName ?? "")
@@ -202,7 +213,8 @@ function fileKindFromFile(file: File): "image" | "video" | "document" {
   return "document";
 }
 
-type FileVisualKind = "image" | "video" | "pdf" | "word" | "excel" | "zip" | "file";
+type FileVisualKind =
+  "image" | "video" | "pdf" | "word" | "excel" | "zip" | "file";
 
 function fileExtension(fileName: string | null | undefined) {
   const name = fileName?.toLowerCase().trim() ?? "";
@@ -227,7 +239,8 @@ function fileVisualKind({
   if (mime === "application/pdf" || extension === "pdf") return "pdf";
   if (
     mime === "application/msword" ||
-    mime === "application/vnd.openxmlformats-officedocument.wordprocessingml.document" ||
+    mime ===
+      "application/vnd.openxmlformats-officedocument.wordprocessingml.document" ||
     extension === "doc" ||
     extension === "docx"
   ) {
@@ -235,7 +248,8 @@ function fileVisualKind({
   }
   if (
     mime === "application/vnd.ms-excel" ||
-    mime === "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" ||
+    mime ===
+      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" ||
     extension === "xls" ||
     extension === "xlsx"
   ) {
@@ -335,7 +349,9 @@ function mergeMessage(current: MessageRow[], incoming: MessageRow) {
     ...next[index],
     ...normalized,
     attachments:
-      incomingAttachments.length > 0 ? incomingAttachments : next[index].attachments ?? [],
+      incomingAttachments.length > 0
+        ? incomingAttachments
+        : (next[index].attachments ?? []),
   };
   return sortMessagesByDate(next);
 }
@@ -391,7 +407,10 @@ function AttachmentPreview({
           className="h-auto max-h-[320px] w-full max-w-[min(300px,72vw)] object-cover opacity-90 transition group-hover:scale-[1.02]"
         />
         <span className="absolute inset-0 flex items-center justify-center bg-black/15">
-          <span className="material-symbols-outlined flex h-12 w-12 items-center justify-center rounded-full bg-white/90 text-[#FF8500] shadow-lg" aria-hidden>
+          <span
+            className="material-symbols-outlined flex h-12 w-12 items-center justify-center rounded-full bg-white/90 text-[#FF8500] shadow-lg"
+            aria-hidden
+          >
             play_arrow
           </span>
         </span>
@@ -415,14 +434,22 @@ function AttachmentPreview({
       ].join(" ")}
     >
       <span
-        className={["flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl", meta.className].join(" ")}
+        className={[
+          "flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl",
+          meta.className,
+        ].join(" ")}
         aria-hidden
       >
         <span className="material-symbols-outlined">{meta.icon}</span>
       </span>
       <span className="min-w-0 flex-1">
         <span className="block truncate font-bold">{name}</span>
-        <span className={["block text-[11px]", mine ? "text-white/70" : "text-on-surface-variant"].join(" ")}>
+        <span
+          className={[
+            "block text-[11px]",
+            mine ? "text-white/70" : "text-on-surface-variant",
+          ].join(" ")}
+        >
           {meta.label}
           {fileSize ? ` • ${fileSize}` : ""}
         </span>
@@ -443,7 +470,8 @@ function PendingFilePreview({
 }) {
   const kind = fileVisualKindFromFile(file);
   const url = useMemo(
-    () => (kind === "image" || kind === "video" ? URL.createObjectURL(file) : null),
+    () =>
+      kind === "image" || kind === "video" ? URL.createObjectURL(file) : null,
     [file, kind],
   );
   const meta = fileVisualMeta(kind);
@@ -486,9 +514,17 @@ function PendingFilePreview({
         <img src={url} alt="" className="h-full w-full object-cover" />
       ) : kind === "video" && url ? (
         <div className="relative h-full bg-inverse-surface">
-          <video src={url} muted preload="metadata" className="h-full w-full object-cover opacity-90" />
+          <video
+            src={url}
+            muted
+            preload="metadata"
+            className="h-full w-full object-cover opacity-90"
+          />
           <span className="absolute inset-0 flex items-center justify-center bg-black/10">
-            <span className="material-symbols-outlined flex h-8 w-8 items-center justify-center rounded-full bg-white/90 text-[22px] text-[#FF8500] shadow-lg" aria-hidden>
+            <span
+              className="material-symbols-outlined flex h-8 w-8 items-center justify-center rounded-full bg-white/90 text-[22px] text-[#FF8500] shadow-lg"
+              aria-hidden
+            >
               play_arrow
             </span>
           </span>
@@ -496,13 +532,20 @@ function PendingFilePreview({
       ) : (
         <div className="flex h-full items-center gap-2 px-2 pr-7 text-primary">
           <span
-            className={["flex h-10 w-10 shrink-0 items-center justify-center rounded-xl", meta.className].join(" ")}
+            className={[
+              "flex h-10 w-10 shrink-0 items-center justify-center rounded-xl",
+              meta.className,
+            ].join(" ")}
             aria-hidden
           >
-            <span className="material-symbols-outlined text-[22px]">{meta.icon}</span>
+            <span className="material-symbols-outlined text-[22px]">
+              {meta.icon}
+            </span>
           </span>
           <span className="min-w-0 flex-1">
-            <span className="block truncate text-xs font-bold text-primary">{file.name}</span>
+            <span className="block truncate text-xs font-bold text-primary">
+              {file.name}
+            </span>
             <span className="block text-[11px] text-on-surface-variant">
               {meta.label}
               {fileSize ? ` • ${fileSize}` : ""}
@@ -661,7 +704,9 @@ function QuoteTimelineCard({
               >
                 {quoteStatusLabel(quote.status)}
               </span>
-              <span className={mine ? "text-white/80" : "text-on-surface-variant"}>
+              <span
+                className={mine ? "text-white/80" : "text-on-surface-variant"}
+              >
                 Totale {money(quote.final_amount)}
               </span>
             </div>
@@ -698,13 +743,16 @@ function QuoteSendModal({
   onSubmit: () => void;
 }) {
   const amountNumber = Number(amount);
-  const safeAmount = Number.isFinite(amountNumber) && amountNumber > 0 ? amountNumber : 0;
+  const safeAmount =
+    Number.isFinite(amountNumber) && amountNumber > 0 ? amountNumber : 0;
   const finalAmount = Math.round(safeAmount * (1 - discount / 100) * 100) / 100;
   const discountValue = Math.round((safeAmount - finalAmount) * 100) / 100;
   const professional = context?.professional ?? null;
   const client = context?.client ?? null;
-  const professionalTitle = professional?.headline || "Professione non indicata";
-  const clientLocation = client?.province_name || client?.province_code || "Provincia non indicata";
+  const professionalTitle =
+    professional?.headline || "Professione non indicata";
+  const clientLocation =
+    client?.province_name || client?.province_code || "Provincia non indicata";
 
   return (
     <div className="fixed inset-0 z-[120] flex items-center justify-center p-3 sm:p-4">
@@ -723,7 +771,9 @@ function QuoteSendModal({
         >
           <span className="material-symbols-outlined">close</span>
         </button>
-        <h2 className="pr-10 font-headline-sm text-[28px] text-primary">Invia preventivo</h2>
+        <h2 className="pr-10 font-headline-sm text-[28px] text-primary">
+          Invia preventivo
+        </h2>
 
         <div className="mt-5 grid gap-4 md:grid-cols-2">
           <div className="rounded-2xl bg-surface-container-low p-4">
@@ -739,7 +789,9 @@ function QuoteSendModal({
                 className="bg-primary-fixed text-primary"
               />
               <div className="min-w-0">
-                <p className="font-label-md text-primary">{fullName(professional)}</p>
+                <p className="font-label-md text-primary">
+                  {fullName(professional)}
+                </p>
                 <p className="truncate text-sm text-on-surface-variant">
                   {professionalTitle}
                 </p>
@@ -765,7 +817,9 @@ function QuoteSendModal({
               />
               <div className="min-w-0">
                 <p className="font-label-md text-primary">{fullName(client)}</p>
-                <p className="truncate text-sm text-on-surface-variant">{clientLocation}</p>
+                <p className="truncate text-sm text-on-surface-variant">
+                  {clientLocation}
+                </p>
               </div>
             </div>
             <div className="mt-4 space-y-1 text-sm text-on-surface-variant">
@@ -777,7 +831,9 @@ function QuoteSendModal({
 
         <div className="mt-5 space-y-4">
           <label className="block">
-            <span className="mb-2 block text-sm font-bold text-primary">Descrizione preventivo</span>
+            <span className="mb-2 block text-sm font-bold text-primary">
+              Descrizione preventivo
+            </span>
             <textarea
               value={description}
               onChange={(event) => onDescriptionChange(event.target.value)}
@@ -788,7 +844,9 @@ function QuoteSendModal({
 
           <div className="grid gap-4 md:grid-cols-2">
             <label className="block">
-              <span className="mb-2 block text-sm font-bold text-primary">Prezzo</span>
+              <span className="mb-2 block text-sm font-bold text-primary">
+                Prezzo
+              </span>
               <input
                 type="number"
                 min="0"
@@ -801,10 +859,14 @@ function QuoteSendModal({
             </label>
 
             <label className="block">
-              <span className="mb-2 block text-sm font-bold text-primary">Scontistica</span>
+              <span className="mb-2 block text-sm font-bold text-primary">
+                Scontistica
+              </span>
               <select
                 value={discount}
-                onChange={(event) => onDiscountChange(Number(event.target.value))}
+                onChange={(event) =>
+                  onDiscountChange(Number(event.target.value))
+                }
                 className="w-full rounded-2xl border border-outline-variant bg-surface-container-lowest px-4 py-3 outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/20"
               >
                 <option value={0}>Nessuno</option>
@@ -854,7 +916,19 @@ function QuoteSendModal({
             disabled={busy}
             onClick={onSubmit}
           >
-            {busy ? "Invio…" : "Invia preventivo"}
+            {busy ? (
+              <>
+                <span
+                  className="material-symbols-outlined animate-spin text-[19px]"
+                  aria-hidden
+                >
+                  progress_activity
+                </span>
+                Caricamento…
+              </>
+            ) : (
+              "Invia preventivo"
+            )}
           </button>
         </div>
       </div>
@@ -881,7 +955,8 @@ function QuoteDetailModal({
 }) {
   const professional = context?.professional ?? null;
   const canDecide = role === "customer" && quote.status === "pending";
-  const professionalTitle = professional?.headline || "Professione non indicata";
+  const professionalTitle =
+    professional?.headline || "Professione non indicata";
 
   return (
     <div className="fixed inset-0 z-[120] flex items-center justify-center p-3 sm:p-4">
@@ -909,13 +984,17 @@ function QuoteDetailModal({
             className="bg-primary-fixed text-primary"
           />
           <div className="min-w-0">
-            <h2 className="font-headline-sm text-[26px] text-primary">{fullName(professional)}</h2>
+            <h2 className="font-headline-sm text-[26px] text-primary">
+              {fullName(professional)}
+            </h2>
             <p className="text-on-surface-variant">{professionalTitle}</p>
           </div>
         </div>
 
         <div className="mt-6 rounded-2xl bg-surface-container-low p-4">
-          <p className="whitespace-pre-wrap text-on-surface">{quote.description}</p>
+          <p className="whitespace-pre-wrap text-on-surface">
+            {quote.description}
+          </p>
         </div>
 
         <div className="mt-4 grid gap-3 text-sm sm:grid-cols-3">
@@ -925,11 +1004,15 @@ function QuoteDetailModal({
           </div>
           <div className="rounded-2xl border border-outline-variant/30 p-4">
             <p className="text-on-surface-variant">Sconto</p>
-            <p className="font-bold text-primary">{quote.discount_percentage}%</p>
+            <p className="font-bold text-primary">
+              {quote.discount_percentage}%
+            </p>
           </div>
           <div className="rounded-2xl border border-outline-variant/30 p-4">
             <p className="text-on-surface-variant">Totale finale</p>
-            <p className="font-bold text-[#FF8500]">{money(quote.final_amount)}</p>
+            <p className="font-bold text-[#FF8500]">
+              {money(quote.final_amount)}
+            </p>
           </div>
         </div>
 
@@ -1014,7 +1097,9 @@ function ReviewModal({
         >
           <span className="material-symbols-outlined">close</span>
         </button>
-        <h2 className="pr-10 font-headline-sm text-[28px] text-primary">Lascia una recensione</h2>
+        <h2 className="pr-10 font-headline-sm text-[28px] text-primary">
+          Lascia una recensione
+        </h2>
 
         <div className="mt-5 space-y-4">
           <div>
@@ -1039,7 +1124,10 @@ function ReviewModal({
 
           <label className="block">
             <span className="mb-2 block text-sm font-bold text-primary">
-              Titolo recensione <span className="font-normal text-on-surface-variant">(opzionale)</span>
+              Titolo recensione{" "}
+              <span className="font-normal text-on-surface-variant">
+                (opzionale)
+              </span>
             </span>
             <input
               type="text"
@@ -1058,7 +1146,10 @@ function ReviewModal({
 
           <label className="block">
             <span className="mb-2 block text-sm font-bold text-primary">
-              Testo recensione <span className="font-normal text-on-surface-variant">(opzionale)</span>
+              Testo recensione{" "}
+              <span className="font-normal text-on-surface-variant">
+                (opzionale)
+              </span>
             </span>
             <textarea
               value={body}
@@ -1079,7 +1170,9 @@ function ReviewModal({
                 className="sr-only"
                 multiple
                 accept="image/png,image/jpeg,image/webp,video/mp4,video/quicktime"
-                onClick={() => logAttachmentDebug("input click", { target: "review" })}
+                onClick={() =>
+                  logAttachmentDebug("input click", { target: "review" })
+                }
                 onChange={(event) => {
                   onFilesChange(event.target.files);
                   event.target.value = "";
@@ -1110,7 +1203,19 @@ function ReviewModal({
             disabled={busy}
             onClick={onSubmit}
           >
-            {busy ? "Invio…" : "Invia recensione"}
+            {busy ? (
+              <>
+                <span
+                  className="material-symbols-outlined animate-spin text-[19px]"
+                  aria-hidden
+                >
+                  progress_activity
+                </span>
+                Caricamento…
+              </>
+            ) : (
+              "Invia recensione"
+            )}
           </button>
         </div>
       </div>
@@ -1148,8 +1253,8 @@ export default function MessagesClient({
 
   const [mobilePanel, setMobilePanel] = useState<"list" | "chat">("list");
 
-  const [conversations, setConversations] = useState<ConversationRow[]>(
-    () => sortConversations(initialConversations),
+  const [conversations, setConversations] = useState<ConversationRow[]>(() =>
+    sortConversations(initialConversations),
   );
   const [conversationsError, setConversationsError] = useState<string | null>(
     initialConversationsError ?? null,
@@ -1157,20 +1262,24 @@ export default function MessagesClient({
   const [search, setSearch] = useState("");
 
   const [activeId, setActiveId] = useState<string | null>(null);
-  const [activeDetail, setActiveDetail] = useState<ConversationDetailResponse | null>(
-    null,
-  );
+  const [activeDetail, setActiveDetail] =
+    useState<ConversationDetailResponse | null>(null);
   const [messages, setMessages] = useState<MessageRow[]>([]);
   const [attachments, setAttachments] = useState<RequestAttachment[]>([]);
   const [messagesError, setMessagesError] = useState<string | null>(null);
-  const [blockedChatNotice, setBlockedChatNotice] = useState<string | null>(null);
+  const [blockedChatNotice, setBlockedChatNotice] = useState<string | null>(
+    null,
+  );
   const [draft, setDraft] = useState("");
   const [pendingFiles, setPendingFiles] = useState<File[]>([]);
-  const [mediaViewer, setMediaViewer] = useState<ViewableAttachment | null>(null);
+  const [mediaViewer, setMediaViewer] = useState<ViewableAttachment | null>(
+    null,
+  );
   const [sendError, setSendError] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
   const [quotes, setQuotes] = useState<QuoteRow[]>([]);
-  const [quoteContext, setQuoteContext] = useState<ConversationQuoteContext | null>(null);
+  const [quoteContext, setQuoteContext] =
+    useState<ConversationQuoteContext | null>(null);
   const [quoteModalOpen, setQuoteModalOpen] = useState(false);
   const [quoteDescription, setQuoteDescription] = useState("");
   const [quoteAmount, setQuoteAmount] = useState("");
@@ -1179,9 +1288,13 @@ export default function MessagesClient({
   const [quoteError, setQuoteError] = useState<string | null>(null);
   const [activeQuote, setActiveQuote] = useState<QuoteRow | null>(null);
   const [quoteDecisionBusy, setQuoteDecisionBusy] = useState(false);
-  const [quoteDecisionError, setQuoteDecisionError] = useState<string | null>(null);
+  const [quoteDecisionError, setQuoteDecisionError] = useState<string | null>(
+    null,
+  );
 
-  const [reviewedRequestIds, setReviewedRequestIds] = useState<Set<string>>(() => new Set());
+  const [reviewedRequestIds, setReviewedRequestIds] = useState<Set<string>>(
+    () => new Set(),
+  );
   const [reviewModalOpen, setReviewModalOpen] = useState(false);
   const [reviewRating, setReviewRating] = useState(5);
   const [reviewTitle, setReviewTitle] = useState("");
@@ -1193,6 +1306,10 @@ export default function MessagesClient({
   const [menuOpen, setMenuOpen] = useState(false);
   const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
+  const [deletingChat, setDeletingChat] = useState(false);
+  const [requestDecisionBusy, setRequestDecisionBusy] = useState<
+    "accepted" | "rejected" | null
+  >(null);
 
   const [remoteTyping, setRemoteTyping] = useState(false);
 
@@ -1246,10 +1363,15 @@ export default function MessagesClient({
   });
 
   function scrollToBottom() {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
+    messagesEndRef.current?.scrollIntoView({
+      behavior: "smooth",
+      block: "end",
+    });
   }
 
-  function applyConversationPatch(patch: Partial<ConversationRow> & { id: string }) {
+  function applyConversationPatch(
+    patch: Partial<ConversationRow> & { id: string },
+  ) {
     setConversations((prev) => {
       const idx = prev.findIndex((c) => c.id === patch.id);
       if (idx === -1) return prev;
@@ -1259,7 +1381,9 @@ export default function MessagesClient({
     });
   }
 
-  function setMessagesSynced(updater: MessageRow[] | ((current: MessageRow[]) => MessageRow[])) {
+  function setMessagesSynced(
+    updater: MessageRow[] | ((current: MessageRow[]) => MessageRow[]),
+  ) {
     setMessages((current) => {
       const next =
         typeof updater === "function"
@@ -1303,9 +1427,12 @@ export default function MessagesClient({
   async function hydrateConversation(id: string) {
     if (!id) return;
     try {
-      const detail = await fetchJson<ConversationDetailResponse>(`/api/conversations/${id}`, {
-        method: "GET",
-      });
+      const detail = await fetchJson<ConversationDetailResponse>(
+        `/api/conversations/${id}`,
+        {
+          method: "GET",
+        },
+      );
       const hydratedConversation: ConversationRow = {
         ...detail.conversation,
         participant: detail.participant ?? null,
@@ -1319,7 +1446,9 @@ export default function MessagesClient({
       });
       setConversationsError(null);
     } catch (e) {
-      setConversationsError(e instanceof Error ? e.message : "Errore imprevisto.");
+      setConversationsError(
+        e instanceof Error ? e.message : "Errore imprevisto.",
+      );
     }
   }
 
@@ -1346,9 +1475,7 @@ export default function MessagesClient({
       credentials: "same-origin",
     });
     const payload = (await response.json().catch(() => null)) as
-      | MessagesResponse
-      | { error?: string }
-      | null;
+      MessagesResponse | { error?: string } | null;
 
     if (!response.ok) {
       console.error("[messages] Failed to load messages", {
@@ -1362,7 +1489,8 @@ export default function MessagesClient({
         return messagesRef.current;
       }
       const message =
-        (payload as { error?: string } | null)?.error ?? `Request failed (${response.status})`;
+        (payload as { error?: string } | null)?.error ??
+        `Request failed (${response.status})`;
       throw new ApiError(message, response.status);
     }
 
@@ -1371,7 +1499,10 @@ export default function MessagesClient({
     if (activeIdRef.current && activeIdRef.current !== id) {
       return nextMessages;
     }
-    if (requestId !== loadMessagesRequestRef.current && activeIdRef.current === id) {
+    if (
+      requestId !== loadMessagesRequestRef.current &&
+      activeIdRef.current === id
+    ) {
       return nextMessages;
     }
     setMessagesSynced(nextMessages);
@@ -1398,10 +1529,15 @@ export default function MessagesClient({
   async function loadMyReviews() {
     if (role !== "customer") return;
     try {
-      const data = await fetchJson<ReviewsMineResponse>("/api/reviews?mine=true&page_size=50", {
-        method: "GET",
-      });
-      setReviewedRequestIds(new Set((data.reviews ?? []).map((review) => review.request_id)));
+      const data = await fetchJson<ReviewsMineResponse>(
+        "/api/reviews?mine=true&page_size=50",
+        {
+          method: "GET",
+        },
+      );
+      setReviewedRequestIds(
+        new Set((data.reviews ?? []).map((review) => review.request_id)),
+      );
     } catch {
       // Review availability should never block the chat UI.
     }
@@ -1413,21 +1549,23 @@ export default function MessagesClient({
     setQuoteError(null);
     setQuoteSubmitting(true);
     try {
-      const data = await fetchJson<{ quote: QuoteRow; context: ConversationQuoteContext | null }>(
-        `/api/conversations/${activeId}/quotes`,
-        {
-          method: "POST",
-          body: JSON.stringify({
-            description: quoteDescription,
-            amount: Number(quoteAmount),
-            discount_percentage: quoteDiscount,
-          }),
-        },
-      );
+      const data = await fetchJson<{
+        quote: QuoteRow;
+        context: ConversationQuoteContext | null;
+      }>(`/api/conversations/${activeId}/quotes`, {
+        method: "POST",
+        body: JSON.stringify({
+          description: quoteDescription,
+          amount: Number(quoteAmount),
+          discount_percentage: quoteDiscount,
+        }),
+      });
 
       setQuotes((current) =>
         current.some((quote) => quote.id === data.quote.id)
-          ? current.map((quote) => (quote.id === data.quote.id ? data.quote : quote))
+          ? current.map((quote) =>
+              quote.id === data.quote.id ? data.quote : quote,
+            )
           : [...current, data.quote],
       );
       setQuoteContext(data.context ?? quoteContext);
@@ -1448,16 +1586,23 @@ export default function MessagesClient({
     setQuoteDecisionError(null);
     setQuoteDecisionBusy(true);
     try {
-      const data = await fetchJson<{ quote: QuoteRow }>(`/api/quotes/${activeQuote.id}`, {
-        method: "PATCH",
-        body: JSON.stringify({ status }),
-      });
+      const data = await fetchJson<{ quote: QuoteRow }>(
+        `/api/quotes/${activeQuote.id}`,
+        {
+          method: "PATCH",
+          body: JSON.stringify({ status }),
+        },
+      );
       setQuotes((current) =>
-        current.map((quote) => (quote.id === data.quote.id ? data.quote : quote)),
+        current.map((quote) =>
+          quote.id === data.quote.id ? data.quote : quote,
+        ),
       );
       setActiveQuote(data.quote);
     } catch (e) {
-      setQuoteDecisionError(e instanceof Error ? e.message : "Errore imprevisto.");
+      setQuoteDecisionError(
+        e instanceof Error ? e.message : "Errore imprevisto.",
+      );
     } finally {
       setQuoteDecisionBusy(false);
     }
@@ -1486,7 +1631,9 @@ export default function MessagesClient({
         error?: string;
       };
       if (!response.ok) {
-        throw new Error(payload.error ?? `Invio non riuscito (${response.status})`);
+        throw new Error(
+          payload.error ?? `Invio non riuscito (${response.status})`,
+        );
       }
 
       setReviewedRequestIds((current) => new Set(current).add(requestId));
@@ -1499,24 +1646,33 @@ export default function MessagesClient({
     }
   }
 
-  async function markConversationRead(id: string, candidateMessages?: MessageRow[]) {
+  async function markConversationRead(
+    id: string,
+    candidateMessages?: MessageRow[],
+  ) {
     if (!meId || !id) return;
     const source =
       candidateMessages ??
       messagesRef.current.filter((message) => message.conversation_id === id);
     const hasUnreadIncoming = source.some(
       (message) =>
-        !message.id.startsWith("local-") && message.sender_id !== meId && !message.read_at,
+        !message.id.startsWith("local-") &&
+        message.sender_id !== meId &&
+        !message.read_at,
     );
     if (!hasUnreadIncoming || markReadInFlightRef.current.has(id)) return;
 
     markReadInFlightRef.current.add(id);
     try {
-      await fetchJson<{ ok: true }>(`/api/conversations/${id}/read`, { method: "POST" });
+      await fetchJson<{ ok: true }>(`/api/conversations/${id}/read`, {
+        method: "POST",
+      });
       const readAt = new Date().toISOString();
       setMessagesSynced((current) =>
         current.map((message) =>
-          message.conversation_id === id && message.sender_id !== meId && !message.read_at
+          message.conversation_id === id &&
+          message.sender_id !== meId &&
+          !message.read_at
             ? { ...message, read_at: readAt }
             : message,
         ),
@@ -1530,9 +1686,12 @@ export default function MessagesClient({
 
   async function loadConversationDetail(id: string) {
     try {
-      const detail = await fetchJson<ConversationDetailResponse>(`/api/conversations/${id}`, {
-        method: "GET",
-      });
+      const detail = await fetchJson<ConversationDetailResponse>(
+        `/api/conversations/${id}`,
+        {
+          method: "GET",
+        },
+      );
       setActiveDetail(detail);
       setMessagesError(null);
 
@@ -1568,18 +1727,19 @@ export default function MessagesClient({
   }
 
   async function acceptOrReject(status: "accepted" | "rejected") {
-    const reqId = (activeDetail?.request as ContactRequestSummary | null)?.id ?? null;
-    if (!reqId) return;
+    const reqId =
+      (activeDetail?.request as ContactRequestSummary | null)?.id ?? null;
+    if (!reqId || requestDecisionBusy) return;
 
+    setRequestDecisionBusy(status);
     setMessagesError(null);
     try {
-      const res = await fetchJson<{ request: { id: string; status: RequestStatus } }>(
-        `/api/contact-requests/${reqId}`,
-        {
-          method: "PATCH",
-          body: JSON.stringify({ status }),
-        },
-      );
+      const res = await fetchJson<{
+        request: { id: string; status: RequestStatus };
+      }>(`/api/contact-requests/${reqId}`, {
+        method: "PATCH",
+        body: JSON.stringify({ status }),
+      });
 
       setActiveDetail((prev) =>
         prev?.request
@@ -1595,6 +1755,8 @@ export default function MessagesClient({
       }
     } catch (e) {
       setMessagesError(e instanceof Error ? e.message : "Errore imprevisto.");
+    } finally {
+      setRequestDecisionBusy(null);
     }
   }
 
@@ -1631,7 +1793,9 @@ export default function MessagesClient({
         ? `local-${crypto.randomUUID()}`
         : `local-${Date.now()}`;
     const now = new Date().toISOString();
-    const localAttachmentUrls = filesToSend.map((file) => URL.createObjectURL(file));
+    const localAttachmentUrls = filesToSend.map((file) =>
+      URL.createObjectURL(file),
+    );
     const localMessage: MessageRow = {
       id: localId,
       conversation_id: conversationId,
@@ -1668,17 +1832,22 @@ export default function MessagesClient({
       formData.append("body", body);
       filesToSend.forEach((file) => formData.append("files", file));
 
-      const response = await fetch(`/api/conversations/${conversationId}/messages`, {
-        method: "POST",
-        body: formData,
-        credentials: "same-origin",
-      });
+      const response = await fetch(
+        `/api/conversations/${conversationId}/messages`,
+        {
+          method: "POST",
+          body: formData,
+          credentials: "same-origin",
+        },
+      );
       const payload = (await response.json().catch(() => ({}))) as {
         message?: MessageRow;
         error?: string;
       };
       if (!response.ok || !payload.message) {
-        throw new Error(payload.error ?? `Invio non riuscito (${response.status})`);
+        throw new Error(
+          payload.error ?? `Invio non riuscito (${response.status})`,
+        );
       }
       const res = { message: payload.message };
 
@@ -1697,13 +1866,17 @@ export default function MessagesClient({
       applyConversationPatch({
         id: conversationId,
         last_message_at: res.message.created_at,
-        last_message_body: res.message.body ?? (res.message.attachments?.length ? "Allegato" : null),
+        last_message_body:
+          res.message.body ??
+          (res.message.attachments?.length ? "Allegato" : null),
         last_message_sender_id: res.message.sender_id,
       });
 
       queueMicrotask(scrollToBottom);
     } catch (e) {
-      setMessagesSynced((prev) => prev.filter((message) => message.id !== localId));
+      setMessagesSynced((prev) =>
+        prev.filter((message) => message.id !== localId),
+      );
       setSendError(e instanceof Error ? e.message : "Errore imprevisto.");
     } finally {
       localAttachmentUrls.forEach((url) => URL.revokeObjectURL(url));
@@ -1712,11 +1885,15 @@ export default function MessagesClient({
   }
 
   async function deleteChat() {
-    if (!activeId) return;
+    if (!activeId || deletingChat) return;
+
+    setDeletingChat(true);
     setDeleteError(null);
 
     try {
-      await fetchJson<{ ok: true }>(`/api/conversations/${activeId}`, { method: "DELETE" });
+      await fetchJson<{ ok: true }>(`/api/conversations/${activeId}`, {
+        method: "DELETE",
+      });
 
       clearConversationRealtime();
 
@@ -1730,9 +1907,10 @@ export default function MessagesClient({
       setMenuOpen(false);
     } catch (e) {
       setDeleteError(e instanceof Error ? e.message : "Errore imprevisto.");
+    } finally {
+      setDeletingChat(false);
     }
   }
-
   function stopTypingTimers() {
     if (typingStopTimer.current) {
       window.clearTimeout(typingStopTimer.current);
@@ -1780,7 +1958,10 @@ export default function MessagesClient({
     }, 1500);
   }
 
-  function setupConversationSubscriptions(conversationId: string, otherUserId: string) {
+  function setupConversationSubscriptions(
+    conversationId: string,
+    otherUserId: string,
+  ) {
     if (!meId) return;
 
     if (
@@ -1876,7 +2057,9 @@ export default function MessagesClient({
             });
             const row = payload.old as Partial<MessageRow> | null;
             if (!row?.id) return;
-            setMessagesSynced((prev) => prev.filter((message) => message.id !== row.id));
+            setMessagesSynced((prev) =>
+              prev.filter((message) => message.id !== row.id),
+            );
           },
         )
         .subscribe((status) => {
@@ -1895,7 +2078,8 @@ export default function MessagesClient({
       typingChannelRef.current &&
       typingChannelConversationIdRef.current !== conversationId
     ) {
-      const previousTypingConversationId = typingChannelConversationIdRef.current;
+      const previousTypingConversationId =
+        typingChannelConversationIdRef.current;
       logRealtimeDev("channel.removed", {
         scope: "typing",
         channelName: previousTypingConversationId
@@ -2010,7 +2194,9 @@ export default function MessagesClient({
     if (activeId) return;
 
     // If the conversation is already in the list, open it. Otherwise try to hydrate it.
-    const exists = conversationsRef.current.some((c) => c.id === initialActiveConversationId);
+    const exists = conversationsRef.current.some(
+      (c) => c.id === initialActiveConversationId,
+    );
     if (exists) {
       selectConversation(initialActiveConversationId);
       return;
@@ -2081,7 +2267,7 @@ export default function MessagesClient({
   }, [supabase]);
 
   const activeConvListRow = activeId
-    ? conversations.find((c) => c.id === activeId) ?? null
+    ? (conversations.find((c) => c.id === activeId) ?? null)
     : null;
   const currentRequestStatus =
     activeDetail?.request?.status ??
@@ -2100,40 +2286,42 @@ export default function MessagesClient({
       ? isUserOnline(participantId)
       : initialParticipantOnline
     : false;
-  const canSendMessage = chatEnabled && !sending && (Boolean(draft.trim()) || pendingFiles.length > 0);
+  const canSendMessage =
+    chatEnabled &&
+    !sending &&
+    (Boolean(draft.trim()) || pendingFiles.length > 0);
   const currentRequestId = activeDetail?.request?.id ?? null;
-  const reviewAlreadySent = currentRequestId ? reviewedRequestIds.has(currentRequestId) : false;
-  const timeline = useMemo(
-    () => {
-      const request = activeDetail?.request ?? null;
-      const requestItems =
-        request && (request.message || attachments.length > 0)
-          ? [
-              {
-                kind: "request" as const,
-                at: request.created_at,
-                request,
-                attachments,
-              },
-            ]
-          : [];
+  const reviewAlreadySent = currentRequestId
+    ? reviewedRequestIds.has(currentRequestId)
+    : false;
+  const timeline = useMemo(() => {
+    const request = activeDetail?.request ?? null;
+    const requestItems =
+      request && (request.message || attachments.length > 0)
+        ? [
+            {
+              kind: "request" as const,
+              at: request.created_at,
+              request,
+              attachments,
+            },
+          ]
+        : [];
 
-      return [
-        ...requestItems,
-        ...messages.map((message) => ({
-          kind: "message" as const,
-          at: message.created_at,
-          message,
-        })),
-        ...quotes.map((quote) => ({
-          kind: "quote" as const,
-          at: quote.created_at,
-          quote,
-        })),
-      ].sort((a, b) => a.at.localeCompare(b.at));
-    },
-    [activeDetail?.request, attachments, messages, quotes],
-  );
+    return [
+      ...requestItems,
+      ...messages.map((message) => ({
+        kind: "message" as const,
+        at: message.created_at,
+        message,
+      })),
+      ...quotes.map((quote) => ({
+        kind: "quote" as const,
+        at: quote.created_at,
+        quote,
+      })),
+    ].sort((a, b) => a.at.localeCompare(b.at));
+  }, [activeDetail?.request, attachments, messages, quotes]);
 
   function addPendingFiles(files: FileList | null) {
     const selectedFiles = Array.from(files ?? []);
@@ -2223,7 +2411,9 @@ export default function MessagesClient({
           {!me && !meError ? (
             <div className="p-3 text-on-surface-variant">Caricamento…</div>
           ) : filteredConversations.length === 0 ? (
-            <div className="p-3 text-on-surface-variant">Nessuna conversazione.</div>
+            <div className="p-3 text-on-surface-variant">
+              Nessuna conversazione.
+            </div>
           ) : (
             filteredConversations.map((c) => {
               const selected = c.id === activeId;
@@ -2241,8 +2431,8 @@ export default function MessagesClient({
                     unavailable
                       ? "cursor-not-allowed border-outline-variant/30 bg-surface-container-highest/60 opacity-80"
                       : selected
-                      ? "bg-surface-container-high border-primary-container shadow-sm"
-                      : "bg-surface-container-lowest border-outline-variant/30 hover:bg-surface-container",
+                        ? "bg-surface-container-high border-primary-container shadow-sm"
+                        : "bg-surface-container-lowest border-outline-variant/30 hover:bg-surface-container",
                   ].join(" ")}
                 >
                   <div className="flex items-start justify-between gap-2">
@@ -2265,7 +2455,9 @@ export default function MessagesClient({
                       >
                         {unavailable
                           ? "Chat non disponibile: il professionista non ha un abbonamento attivo"
-                          : c.last_message_body ?? c.request_subject ?? "Richiesta di contatto"}
+                          : (c.last_message_body ??
+                            c.request_subject ??
+                            "Richiesta di contatto")}
                       </div>
                     </div>
                     <div className="shrink-0 text-[10px] text-outline">
@@ -2331,19 +2523,26 @@ export default function MessagesClient({
                   </button>
                   <div className="min-w-0">
                     <div className="font-headline-sm text-primary leading-tight truncate">
-                      {fullName(activeDetail?.participant ?? activeConvListRow?.participant)}
+                      {fullName(
+                        activeDetail?.participant ??
+                          activeConvListRow?.participant,
+                      )}
                     </div>
                     <div className="text-[12px] text-on-surface-variant flex items-center gap-2">
                       <span
                         className={[
                           "inline-flex items-center gap-1",
-                          participantOnline ? "text-emerald-600" : "text-outline",
+                          participantOnline
+                            ? "text-emerald-600"
+                            : "text-outline",
                         ].join(" ")}
                       >
                         <span
                           className={[
                             "w-2 h-2 rounded-full",
-                            participantOnline ? "bg-emerald-500" : "bg-outline-variant",
+                            participantOnline
+                              ? "bg-emerald-500"
+                              : "bg-outline-variant",
                           ].join(" ")}
                         />
                         {remoteTyping
@@ -2448,21 +2647,50 @@ export default function MessagesClient({
                       </div>
                     </div>
 
-                    {role === "professional" && activeDetail.request.status === "pending" ? (
+                    {role === "professional" &&
+                    activeDetail.request.status === "pending" ? (
                       <div className="flex gap-2">
                         <button
                           type="button"
-                          className="px-4 py-2 rounded-full bg-error text-white font-button text-[14px] hover:opacity-90 transition-colors"
-                          onClick={() => acceptOrReject("rejected")}
+                          className="inline-flex items-center justify-center gap-2 rounded-full bg-error px-4 py-2 font-button text-[14px] text-white transition-colors hover:opacity-90 disabled:cursor-wait disabled:opacity-60"
+                          onClick={() => void acceptOrReject("rejected")}
+                          disabled={requestDecisionBusy !== null}
+                          aria-busy={requestDecisionBusy === "rejected"}
                         >
-                          Rifiuta
+                          {requestDecisionBusy === "rejected" ? (
+                            <>
+                              <span
+                                className="material-symbols-outlined animate-spin text-[18px]"
+                                aria-hidden
+                              >
+                                progress_activity
+                              </span>
+                              Caricamento…
+                            </>
+                          ) : (
+                            "Rifiuta"
+                          )}
                         </button>
                         <button
                           type="button"
-                          className="px-4 py-2 rounded-full bg-[#FF8500] text-white font-button text-[14px] hover:bg-[#FF9A2B] transition-colors shadow-sm"
-                          onClick={() => acceptOrReject("accepted")}
+                          className="inline-flex items-center justify-center gap-2 rounded-full bg-[#FF8500] px-4 py-2 font-button text-[14px] text-white shadow-sm transition-colors hover:bg-[#FF9A2B] disabled:cursor-wait disabled:opacity-60"
+                          onClick={() => void acceptOrReject("accepted")}
+                          disabled={requestDecisionBusy !== null}
+                          aria-busy={requestDecisionBusy === "accepted"}
                         >
-                          Accetta richiesta
+                          {requestDecisionBusy === "accepted" ? (
+                            <>
+                              <span
+                                className="material-symbols-outlined animate-spin text-[18px]"
+                                aria-hidden
+                              >
+                                progress_activity
+                              </span>
+                              Caricamento…
+                            </>
+                          ) : (
+                            "Accetta richiesta"
+                          )}
                         </button>
                       </div>
                     ) : (
@@ -2503,7 +2731,10 @@ export default function MessagesClient({
                   return (
                     <div
                       key={`request-${item.request.id}`}
-                      className={["flex", mine ? "justify-end" : "justify-start"].join(" ")}
+                      className={[
+                        "flex",
+                        mine ? "justify-end" : "justify-start",
+                      ].join(" ")}
                     >
                       <div className="min-w-0 max-w-[88%] sm:max-w-[78%] lg:max-w-[70%]">
                         <div
@@ -2517,7 +2748,9 @@ export default function MessagesClient({
                           <div
                             className={[
                               "mb-2 text-[11px] font-bold uppercase tracking-widest",
-                              mine ? "text-white/70" : "text-on-surface-variant",
+                              mine
+                                ? "text-white/70"
+                                : "text-on-surface-variant",
                             ].join(" ")}
                           >
                             Richiesta iniziale
@@ -2530,7 +2763,9 @@ export default function MessagesClient({
                               key={attachment.path}
                               attachment={attachment}
                               mine={mine}
-                              onOpen={(attachmentItem) => setMediaViewer(attachmentItem)}
+                              onOpen={(attachmentItem) =>
+                                setMediaViewer(attachmentItem)
+                              }
                             />
                           ))}
                         </div>
@@ -2568,7 +2803,10 @@ export default function MessagesClient({
                 return (
                   <div
                     key={`message-${m.id}`}
-                    className={["flex", mine ? "justify-end" : "justify-start"].join(" ")}
+                    className={[
+                      "flex",
+                      mine ? "justify-end" : "justify-start",
+                    ].join(" ")}
                   >
                     <div className="min-w-0 max-w-[88%] sm:max-w-[78%] lg:max-w-[70%]">
                       <div
@@ -2589,7 +2827,9 @@ export default function MessagesClient({
                             key={attachment.id}
                             attachment={attachment}
                             mine={mine}
-                            onOpen={(attachmentItem) => setMediaViewer(attachmentItem)}
+                            onOpen={(attachmentItem) =>
+                              setMediaViewer(attachmentItem)
+                            }
                           />
                         ))}
                       </div>
@@ -2658,7 +2898,9 @@ export default function MessagesClient({
                     multiple
                     disabled={!chatEnabled || sending}
                     accept="image/png,image/jpeg,image/webp,video/mp4,video/quicktime,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/zip,application/x-zip-compressed,.doc,.docx,.xls,.xlsx,.zip"
-                    onClick={() => logAttachmentDebug("input click", { target: "chat" })}
+                    onClick={() =>
+                      logAttachmentDebug("input click", { target: "chat" })
+                    }
                     onChange={(event) => {
                       addPendingFiles(event.target.files);
                       event.target.value = "";
@@ -2682,14 +2924,28 @@ export default function MessagesClient({
                   type="submit"
                   disabled={!canSendMessage}
                   className={[
-                    "flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-white shadow-md transition-all sm:h-12 sm:w-12",
+                    "flex h-11 shrink-0 items-center justify-center gap-2 rounded-full text-white shadow-md transition-all sm:h-12",
+                    sending ? "w-auto px-4 sm:px-5" : "w-11 sm:w-12",
                     !canSendMessage
-                      ? "bg-outline-variant cursor-not-allowed"
+                      ? "cursor-not-allowed bg-outline-variant"
                       : "bg-[#FF8500] hover:bg-[#FF9A2B] active:scale-[0.98]",
                   ].join(" ")}
-                  title="Invia"
+                  title={sending ? "Caricamento…" : "Invia"}
+                  aria-busy={sending}
                 >
-                  ➤
+                  {sending ? (
+                    <>
+                      <span
+                        className="material-symbols-outlined animate-spin text-[19px]"
+                        aria-hidden
+                      >
+                        progress_activity
+                      </span>
+                      <span className="font-button text-sm">Caricamento…</span>
+                    </>
+                  ) : (
+                    <span aria-hidden>➤</span>
+                  )}
                 </button>
               </form>
             </footer>
@@ -2698,15 +2954,17 @@ export default function MessagesClient({
               <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4">
                 <div
                   className="absolute inset-0 bg-inverse-surface/40 backdrop-blur-sm"
-                  onClick={() => setConfirmDeleteOpen(false)}
+                  onClick={() => {
+                    if (!deletingChat) setConfirmDeleteOpen(false);
+                  }}
                 />
                 <div className="relative max-h-[calc(100dvh-1.5rem)] w-full max-w-[448px] overflow-y-auto rounded-2xl border border-outline-variant/30 bg-surface-container-lowest p-4 shadow-[0_12px_40px_rgba(8,43,95,0.18)] sm:p-6">
                   <div className="font-headline-sm text-primary mb-2">
                     Cancellare la chat?
                   </div>
                   <p className="text-on-surface-variant mb-4">
-                    La conversazione verrà rimossa dalla tua lista. L’altra persona potrà
-                    continuare a vederla.
+                    La conversazione verrà rimossa dalla tua lista. L’altra
+                    persona potrà continuare a vederla.
                   </p>
 
                   {deleteError ? (
@@ -2718,17 +2976,32 @@ export default function MessagesClient({
                   <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
                     <button
                       type="button"
-                      className="px-4 py-2 rounded-full border-2 border-primary text-primary font-button hover:bg-primary-fixed transition-colors"
+                      className="px-4 py-2 rounded-full border-2 border-primary text-primary font-button hover:bg-primary-fixed transition-colors disabled:cursor-not-allowed disabled:opacity-60"
                       onClick={() => setConfirmDeleteOpen(false)}
+                      disabled={deletingChat}
                     >
                       Annulla
                     </button>
                     <button
                       type="button"
-                      className="px-4 py-2 rounded-full bg-error text-white font-button hover:opacity-90 transition-colors"
+                      className="inline-flex items-center justify-center gap-2 px-4 py-2 rounded-full bg-error text-white font-button hover:opacity-90 transition-colors disabled:cursor-wait disabled:opacity-60"
                       onClick={() => void deleteChat()}
+                      disabled={deletingChat}
+                      aria-busy={deletingChat}
                     >
-                      Cancella
+                      {deletingChat ? (
+                        <>
+                          <span
+                            className="material-symbols-outlined animate-spin text-[19px]"
+                            aria-hidden
+                          >
+                            progress_activity
+                          </span>
+                          Caricamento…
+                        </>
+                      ) : (
+                        "Cancella"
+                      )}
                     </button>
                   </div>
                 </div>
@@ -2736,7 +3009,10 @@ export default function MessagesClient({
             ) : null}
 
             {mediaViewer ? (
-              <MediaViewer attachment={mediaViewer} onClose={() => setMediaViewer(null)} />
+              <MediaViewer
+                attachment={mediaViewer}
+                onClose={() => setMediaViewer(null)}
+              />
             ) : null}
 
             {quoteModalOpen ? (

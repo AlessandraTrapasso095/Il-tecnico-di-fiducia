@@ -9,7 +9,10 @@ type StartCheckoutButtonProps = {
   children?: React.ReactNode;
 };
 
-export function StartCheckoutButton({ className, children }: StartCheckoutButtonProps) {
+export function StartCheckoutButton({
+  className,
+  children,
+}: StartCheckoutButtonProps) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -18,14 +21,19 @@ export function StartCheckoutButton({ className, children }: StartCheckoutButton
     setLoading(true);
     setError(null);
     try {
-      const res = await fetchJson<{ url: string }>("/api/billing/checkout", { method: "POST" });
+      const res = await fetchJson<{ url: string }>("/api/billing/checkout", {
+        method: "POST",
+      });
       if (!res.url) {
         throw new Error("Checkout URL missing");
       }
       window.location.assign(res.url);
     } catch (checkoutError) {
       if (process.env.NODE_ENV !== "production") {
-        console.error("[billing] Failed to start Stripe checkout", checkoutError);
+        console.error(
+          "[billing] Failed to start Stripe checkout",
+          checkoutError,
+        );
       }
       setError("Non è stato possibile avviare il pagamento. Riprova.");
     } finally {
@@ -42,7 +50,19 @@ export function StartCheckoutButton({ className, children }: StartCheckoutButton
         disabled={loading}
         aria-busy={loading}
       >
-        {loading ? "Apertura del pagamento in corso…" : children ?? "Attiva abbonamento"}
+        {loading ? (
+          <>
+            <span
+              className="material-symbols-outlined animate-spin text-[19px]"
+              aria-hidden
+            >
+              progress_activity
+            </span>
+            Caricamento…
+          </>
+        ) : (
+          (children ?? "Attiva abbonamento")
+        )}
       </button>
       {error ? <p className="text-sm font-medium text-error">{error}</p> : null}
     </div>

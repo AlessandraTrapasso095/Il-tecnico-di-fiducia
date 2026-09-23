@@ -12,13 +12,20 @@ const component = fs.readFileSync(
 );
 
 describe("public professional post visual contract", () => {
-  it("separates the first line as the post title", () => {
-    expect(component).toContain("function splitPostBody(");
-    expect(component).toContain("splitPostBody(post.body)");
+  it("uses the real post title instead of deriving it from body", () => {
+    expect(component).not.toContain("function splitPostBody(");
+    expect(component).not.toContain("splitPostBody(post.body)");
+    expect(component).toContain("post.title ? (");
+    expect(component).toContain("{post.title}");
   });
 
-  it("renders the post title in bold", () => {
+  it("renders the real post title in bold", () => {
     expect(component).toContain("text-lg font-bold leading-6 text-primary");
+  });
+
+  it("keeps legacy posts without title renderable", () => {
+    expect(component).toContain("post.title ? (");
+    expect(component).toContain("{post.body}");
   });
 
   it("renders the post date in bold", () => {

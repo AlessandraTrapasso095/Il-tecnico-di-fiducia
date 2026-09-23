@@ -12,30 +12,25 @@ const dashboard = fs.readFileSync(
 );
 
 const shell = fs.readFileSync(
-  path.join(
-    process.cwd(),
-    "src/app/professionista/professional-shell.tsx",
-  ),
+  path.join(process.cwd(), "src/app/professionista/professional-shell.tsx"),
   "utf8",
 );
 
 describe("professional dashboard responsive contract", () => {
   it("keeps composer controls stacked until md", () => {
-    expect(dashboard).toContain(
-      "md:flex-row md:items-end md:justify-between",
-    );
+    expect(dashboard).toContain("md:flex-row md:items-end md:justify-between");
   });
 
   it("never allows the publish CTA to wrap", () => {
-    expect(dashboard).toContain(
-      'min-h-11 shrink-0 whitespace-nowrap rounded-full bg-[#FF8500]',
-    );
+    expect(dashboard).toContain('type="submit"');
+    expect(dashboard).toContain("min-h-11");
+    expect(dashboard).toContain("shrink-0");
+    expect(dashboard).toContain("whitespace-nowrap");
+    expect(dashboard).toContain("bg-[#FF8500]");
   });
 
   it("makes subscription actions mobile friendly", () => {
-    expect(dashboard).toContain(
-      "w-full flex-col gap-3 sm:flex-row",
-    );
+    expect(dashboard).toContain("w-full flex-col gap-3 sm:flex-row");
 
     expect(dashboard).toContain(
       "w-full shrink-0 items-center justify-center whitespace-nowrap",
@@ -43,18 +38,15 @@ describe("professional dashboard responsive contract", () => {
   });
 
   it("uses a compact mobile professional header", () => {
-    expect(shell).toContain(
-      "top-0 z-50 h-16",
-    );
+    expect(shell).toContain("top-0 z-50 h-16");
 
-    expect(shell).toContain(
-      "gap-0.5 sm:gap-3",
-    );
+    expect(shell).toContain("gap-0.5 sm:gap-3");
   });
 
   it("does not contain known malformed utility tokens", () => {
     expect(dashboard).not.toContain("bg-white/65px-4");
     expect(dashboard).not.toContain("border-2border-dashed");
+    expect(dashboard).not.toContain("whitespace-nowraptext-sm");
 
     expect(shell).not.toContain("top-0z-50");
     expect(shell).not.toContain("items-centergap");

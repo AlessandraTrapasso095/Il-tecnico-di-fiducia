@@ -27,9 +27,7 @@ describe("professional search no hard cap contract", () => {
     expect(source).toContain(
       "recommendedOffset + DIRECTORY_FETCH_BATCH_SIZE - 1",
     );
-    expect(source).toContain(
-      "if (batch.length < DIRECTORY_FETCH_BATCH_SIZE)",
-    );
+    expect(source).toContain("if (batch.length < DIRECTORY_FETCH_BATCH_SIZE)");
   });
 
   it("keeps page size as pagination rather than total-result cap", () => {
@@ -37,7 +35,14 @@ describe("professional search no hard cap contract", () => {
       'const pageSize = clampInt(searchParams.get("page_size"), 12, 1, 50);',
     );
     expect(source).toContain(
-      "professionals: sorted.slice(rangeFrom, rangeTo + 1)",
+      "const pagedProfessionals = sorted.slice(rangeFrom, rangeTo + 1)",
+    );
+    expect(source).toContain(
+      "const pagedRecommendedProfessionals = sorted.slice(",
+    );
+    expect(source).toContain("professionals: professionalsWithMedia");
+    expect(source).toContain(
+      "professionals: recommendedProfessionalsWithMedia",
     );
   });
 });

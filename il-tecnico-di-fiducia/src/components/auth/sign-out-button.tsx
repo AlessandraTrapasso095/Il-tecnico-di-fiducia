@@ -27,9 +27,25 @@ export function SignOutButton({ className, children }: SignOutButtonProps) {
   }
 
   return (
-    <button type="button" className={className} onClick={onClick} disabled={loading}>
-      {children ?? (loading ? "Uscita…" : "Esci")}
+    <button
+      type="button"
+      className={className}
+      onClick={onClick}
+      disabled={loading}
+    >
+      {loading ? (
+        <>
+          <span
+            className="material-symbols-outlined animate-spin text-[19px]"
+            aria-hidden
+          >
+            progress_activity
+          </span>
+          Caricamento…
+        </>
+      ) : (
+        (children ?? "Esci")
+      )}
     </button>
   );
 }
-

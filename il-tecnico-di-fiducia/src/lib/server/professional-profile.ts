@@ -15,6 +15,7 @@ export type ProfessionalProfileDetails = {
   website_url: string | null;
   province_code: string | null;
   headline: string | null;
+  search_summary: string | null;
   bio: string | null;
   specializations: string[];
   avatar_url: string | null;
@@ -109,7 +110,7 @@ export async function loadProfessionalProfile({
   const { data: directory } = await supabase
     .from("professional_directory")
     .select(
-      "id, first_name, last_name, province_code, headline, bio, specializations, avatar_url, cover_url, available_remote, available_travel, is_ctu, is_ctp",
+      "id, first_name, last_name, province_code, headline, search_summary, bio, specializations, avatar_url, cover_url, available_remote, available_travel, is_ctu, is_ctp",
     )
     .eq("id", professionalId)
     .maybeSingle();
@@ -129,7 +130,7 @@ export async function loadProfessionalProfile({
   const { data: professional } = await service
     .from("professional_profiles")
     .select(
-      "id, headline, bio, specializations, avatar_url, cover_url, public_email, website_url, subcategory_id, education, work_experiences, certifications, services_offered, operational_provinces, available_remote, available_travel, is_ctu, is_ctp",
+      "id, headline, search_summary, bio, specializations, avatar_url, cover_url, public_email, website_url, subcategory_id, education, work_experiences, certifications, services_offered, operational_provinces, available_remote, available_travel, is_ctu, is_ctp",
     )
     .eq("id", professionalId)
     .maybeSingle();
@@ -219,6 +220,8 @@ export async function loadProfessionalProfile({
     website_url: professional.website_url,
     province_code: profile.province_code ?? directory?.province_code ?? null,
     headline: professional.headline ?? directory?.headline ?? null,
+    search_summary:
+      professional.search_summary ?? directory?.search_summary ?? null,
     bio: professional.bio ?? directory?.bio ?? null,
     specializations: toStringArray(professional.specializations),
     avatar_url: professional.avatar_url ?? directory?.avatar_url ?? null,
@@ -262,6 +265,7 @@ export type PublicProfessionalProfileDetails = {
   last_name: string;
   province_code: string | null;
   headline: string | null;
+  search_summary: string | null;
   bio: string | null;
   specializations: string[];
   avatar_url: string | null;
@@ -283,6 +287,7 @@ export type PublicProfessionalProfileDetails = {
   }[];
   work_posts: {
     id: string;
+    title: string | null;
     body: string;
     created_at: string;
     attachments: {
@@ -334,14 +339,14 @@ export async function loadPublicProfessionalProfile(
     service
       .from("professional_directory")
       .select(
-        "id, first_name, last_name, province_code, headline, bio, specializations, avatar_url, available_remote, available_travel, subcategory_id",
+        "id, first_name, last_name, province_code, headline, search_summary, bio, specializations, avatar_url, available_remote, available_travel, subcategory_id",
       )
       .eq("id", professionalId)
       .maybeSingle(),
     service
       .from("professional_profiles")
       .select(
-        "id, headline, bio, specializations, avatar_url, subcategory_id, services_offered, operational_provinces, education, work_experiences, certifications, available_remote, available_travel, is_ctu, is_ctp",
+        "id, headline, search_summary, bio, specializations, avatar_url, subcategory_id, services_offered, operational_provinces, education, work_experiences, certifications, available_remote, available_travel, is_ctu, is_ctp",
       )
       .eq("id", professionalId)
       .maybeSingle(),
@@ -363,7 +368,7 @@ export async function loadPublicProfessionalProfile(
       .order("created_at", { ascending: false }),
     service
       .from("posts")
-      .select("id, body, created_at")
+      .select("id, title, body, created_at")
       .eq("author_id", professionalId)
       .order("created_at", { ascending: false }),
   ]);
@@ -404,6 +409,8 @@ export async function loadPublicProfessionalProfile(
     last_name: directory.last_name ?? "",
     province_code: directory.province_code ?? null,
     headline: professional.headline ?? directory.headline ?? null,
+    search_summary:
+      professional.search_summary ?? directory.search_summary ?? null,
     bio: professional.bio ?? directory.bio ?? null,
     specializations: toStringArray(
       professional.specializations ?? directory.specializations,
@@ -435,6 +442,7 @@ export async function loadPublicProfessionalProfile(
       })),
     work_posts: (workPosts ?? []).map((post) => ({
       id: post.id,
+      title: post.title ?? null,
       body: post.body,
       created_at: post.created_at,
       attachments: (workMedia ?? [])

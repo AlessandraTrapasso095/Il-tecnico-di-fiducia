@@ -14,6 +14,7 @@ export type PostMediaAttachment = {
 
 export type PostEditable = {
   id: string;
+  title?: string | null;
   body: string;
   attachments?: PostMediaAttachment[];
 };
@@ -93,11 +94,23 @@ export function ConfirmActionModal({
           </button>
           <button
             type="button"
-            className="min-h-11 rounded-full bg-error px-6 py-3 font-button text-white shadow-lg shadow-error/20 transition hover:opacity-90 disabled:opacity-60"
+            className="inline-flex min-h-11 items-center justify-center gap-2 rounded-full bg-error px-6 py-3 font-button text-white shadow-lg shadow-error/20 transition hover:opacity-90 disabled:cursor-wait disabled:opacity-60"
             disabled={busy || confirmDisabled}
             onClick={onConfirm}
           >
-            {busy ? "Eliminazione…" : confirmLabel}
+            {busy ? (
+              <>
+                <span
+                  className="material-symbols-outlined animate-spin text-[19px]"
+                  aria-hidden
+                >
+                  progress_activity
+                </span>
+                Caricamento…
+              </>
+            ) : (
+              confirmLabel
+            )}
           </button>
         </div>
       </div>
@@ -204,7 +217,9 @@ export function PostAttachmentGrid({
           <span className="absolute inset-0 bg-primary/0 transition group-hover:bg-primary/15" />
           <span className="absolute right-3 top-3 flex h-10 w-10 items-center justify-center rounded-full bg-white/90 text-primary shadow-md">
             <span className="material-symbols-outlined">
-              {attachment.media_type === "image" ? "open_in_full" : "play_arrow"}
+              {attachment.media_type === "image"
+                ? "open_in_full"
+                : "play_arrow"}
             </span>
           </span>
         </button>
@@ -223,13 +238,17 @@ export function PostEditModal({
   busy?: boolean;
   onCancel: () => void;
   onSave: (
+    title: string,
     body: string,
     removedAttachmentIds: string[],
     newFiles: File[],
   ) => Promise<void>;
 }) {
+  const [title, setTitle] = useState(post.title ?? "");
   const [body, setBody] = useState(post.body);
-  const [removedAttachmentIds, setRemovedAttachmentIds] = useState<string[]>([]);
+  const [removedAttachmentIds, setRemovedAttachmentIds] = useState<string[]>(
+    [],
+  );
   const [newFiles, setNewFiles] = useState<File[]>([]);
   const [error, setError] = useState<string | null>(null);
 
@@ -249,17 +268,28 @@ export function PostEditModal({
   }
 
   async function submit() {
+    const cleanTitle = title.replace(/\s+/g, " ").trim();
     const cleanBody = body.replace(/\s+/g, " ").trim();
+
+    if (!cleanTitle) {
+      setError("Il titolo del post non può essere vuoto.");
+      return;
+    }
+
     if (!cleanBody) {
-      setError("Il testo del post non può essere vuoto.");
+      setError("Il corpo del post non può essere vuoto.");
       return;
     }
 
     setError(null);
     try {
-      await onSave(cleanBody, removedAttachmentIds, newFiles);
+      await onSave(cleanTitle, cleanBody, removedAttachmentIds, newFiles);
     } catch (saveError) {
-      setError(saveError instanceof Error ? saveError.message : "Modifica non riuscita.");
+      setError(
+        saveError instanceof Error
+          ? saveError.message
+          : "Modifica non riuscita.",
+      );
     }
   }
 
@@ -290,12 +320,27 @@ export function PostEditModal({
           Modifica post
         </h2>
         <p className="mt-1 text-sm text-on-surface-variant">
-          Aggiorna testo e allegati reali del post.
+          Aggiorna titolo, corpo e allegati reali del post.
         </p>
 
         <div className="mt-5 space-y-5">
           <label className="block font-label-md text-primary">
-            Testo post
+            Titolo
+            <input
+              type="text"
+              value={title}
+              maxLength={120}
+              onChange={(event) => setTitle(event.target.value)}
+              placeholder="Inserisci un titolo chiaro e sintetico"
+              className="mt-2 min-h-11 w-full rounded-2xl border border-outline-variant px-4 py-3 font-body-md outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/20"
+            />
+            <span className="mt-1 block text-right text-xs text-on-surface-variant">
+              {title.length}/120
+            </span>
+          </label>
+
+          <label className="block font-label-md text-primary">
+            Corpo
             <textarea
               className="mt-2 min-h-36 w-full resize-none rounded-2xl border border-outline-variant px-4 py-3 font-body-md outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/20"
               value={body}
@@ -344,7 +389,9 @@ export function PostEditModal({
                       <div className="flex items-center justify-between gap-3 p-3">
                         <span className="truncate text-sm font-bold text-primary">
                           {attachment.file_name ??
-                            (attachment.media_type === "image" ? "Foto" : "Video")}
+                            (attachment.media_type === "image"
+                              ? "Foto"
+                              : "Video")}
                         </span>
                         <button
                           type="button"
@@ -380,7 +427,9 @@ export function PostEditModal({
             <div className="mb-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <h3 className="font-label-md text-primary">Nuovi allegati</h3>
               <label className="inline-flex min-h-11 cursor-pointer items-center justify-center gap-2 rounded-full border border-primary px-4 py-2 text-sm font-bold text-primary transition hover:bg-primary-fixed">
-                <span className="material-symbols-outlined text-[20px]">add_photo_alternate</span>
+                <span className="material-symbols-outlined text-[20px]">
+                  add_photo_alternate
+                </span>
                 Aggiungi foto/video
                 <input
                   type="file"
@@ -408,7 +457,9 @@ export function PostEditModal({
                       className="rounded-full px-3 py-2 text-xs font-bold text-error hover:bg-error-container"
                       disabled={busy}
                       onClick={() =>
-                        setNewFiles((current) => current.filter((_, i) => i !== index))
+                        setNewFiles((current) =>
+                          current.filter((_, i) => i !== index),
+                        )
                       }
                     >
                       Rimuovi
@@ -441,11 +492,24 @@ export function PostEditModal({
           </button>
           <button
             type="button"
-            className="min-h-11 rounded-full bg-[#FF8500] px-6 py-3 font-button text-white shadow-lg shadow-[#FF8500]/20 hover:bg-[#FF9A2B] disabled:opacity-60"
-            disabled={busy}
+            className="inline-flex min-h-11 items-center justify-center gap-2 rounded-full bg-[#FF8500] px-6 py-3 font-button text-white shadow-lg shadow-[#FF8500]/20 hover:bg-[#FF9A2B] disabled:cursor-wait disabled:opacity-60"
+            disabled={busy || !title.trim() || !body.trim()}
+            aria-busy={busy}
             onClick={() => void submit()}
           >
-            {busy ? "Salvataggio…" : "Salva modifiche"}
+            {busy ? (
+              <>
+                <span
+                  className="inline-flex items-center justify-center gap-2 material-symbols-outlined animate-spin text-[19px]"
+                  aria-hidden
+                >
+                  progress_activity
+                </span>
+                Caricamento…
+              </>
+            ) : (
+              "Salva modifiche"
+            )}
           </button>
         </div>
       </div>

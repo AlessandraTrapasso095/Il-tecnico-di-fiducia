@@ -38,7 +38,9 @@ export default function AdminManagementClient() {
       setReloadSignal((value) => value + 1);
       setMessage("Nuovo admin creato. Al primo login dovrà cambiare password.");
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Creazione admin non riuscita.");
+      setError(
+        err instanceof Error ? err.message : "Creazione admin non riuscita.",
+      );
     } finally {
       setLoading(false);
     }
@@ -47,22 +49,44 @@ export default function AdminManagementClient() {
   return (
     <div className="grid gap-6 xl:grid-cols-[0.9fr_1.1fr]">
       <section className="rounded-[24px] border border-outline-variant/30 bg-surface-container-lowest p-5 shadow-[0_4px_20px_rgba(8,43,95,0.08)]">
-        <h2 className="font-headline-sm text-[26px] text-primary">Aggiungi nuovo admin</h2>
+        <h2 className="font-headline-sm text-[26px] text-primary">
+          Aggiungi nuovo admin
+        </h2>
         <p className="mt-1 text-sm text-on-surface-variant">
           La password è provvisoria: al primo login verrà richiesto il cambio.
         </p>
         {message ? (
-          <div className="mt-4 rounded-2xl bg-emerald-50 p-4 text-emerald-700">{message}</div>
+          <div className="mt-4 rounded-2xl bg-emerald-50 p-4 text-emerald-700">
+            {message}
+          </div>
         ) : null}
         {error ? (
-          <div className="mt-4 rounded-2xl bg-error-container p-4 text-on-error-container">{error}</div>
+          <div className="mt-4 rounded-2xl bg-error-container p-4 text-on-error-container">
+            {error}
+          </div>
         ) : null}
         <form className="mt-5 space-y-4" onSubmit={createAdmin}>
           <div className="grid gap-4 sm:grid-cols-2">
-            <TextField label="Nome" value={firstName} onChange={setFirstName} required />
-            <TextField label="Cognome" value={lastName} onChange={setLastName} required />
+            <TextField
+              label="Nome"
+              value={firstName}
+              onChange={setFirstName}
+              required
+            />
+            <TextField
+              label="Cognome"
+              value={lastName}
+              onChange={setLastName}
+              required
+            />
           </div>
-          <TextField label="Email" value={email} onChange={setEmail} type="email" required />
+          <TextField
+            label="Email"
+            value={email}
+            onChange={setEmail}
+            type="email"
+            required
+          />
           <PasswordField
             label="Password provvisoria"
             value={password}
@@ -73,10 +97,22 @@ export default function AdminManagementClient() {
           />
           <button
             type="submit"
-            className="rounded-full bg-[#FF8500] px-5 py-3 font-button text-white transition hover:bg-[#FF9A2B] disabled:opacity-60"
+            className="inline-flex items-center justify-center gap-2 rounded-full bg-[#FF8500] px-5 py-3 font-button text-white transition hover:bg-[#FF9A2B] disabled:cursor-wait disabled:opacity-60"
             disabled={loading}
           >
-            {loading ? "Creazione…" : "Crea admin"}
+            {loading ? (
+              <>
+                <span
+                  className="material-symbols-outlined animate-spin text-[19px]"
+                  aria-hidden
+                >
+                  progress_activity
+                </span>
+                Caricamento…
+              </>
+            ) : (
+              "Crea admin"
+            )}
           </button>
         </form>
       </section>

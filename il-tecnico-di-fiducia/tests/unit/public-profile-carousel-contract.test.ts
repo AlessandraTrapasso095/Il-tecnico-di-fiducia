@@ -16,7 +16,8 @@ describe("public professional profile work carousel contract", () => {
     expect(component).toContain("window.requestAnimationFrame");
     expect(component).toContain("window.cancelAnimationFrame");
     expect(component).toContain("pixelsPerSecond = 26");
-    expect(component).toContain(
+    expect(component).toContain("profile.work_media.map");
+    expect(component).not.toContain(
       "[...profile.work_media, ...profile.work_media]",
     );
     expect(component).toContain("worksCarouselRef");
@@ -37,7 +38,8 @@ describe("public professional profile work carousel contract", () => {
 
   it("remains horizontally scrollable on phone and tablet", () => {
     expect(component).toContain("overflow-x-auto");
-    expect(component).toContain("scroll-smooth");
+    expect(component).toContain('WebkitOverflowScrolling: "touch"');
+    expect(component).not.toContain("touch-pan-x");
   });
 
   it("opens the Works tab at the post connected to a clicked photo", () => {
@@ -47,7 +49,7 @@ describe("public professional profile work carousel contract", () => {
   });
 
   it("shows a clickable review summary above sidebar profile details", () => {
-    expect(component).toContain('onClick={() => setTab("reviews")}');
+    expect(component).toContain('onClick={() => selectProfileTab("reviews")}');
     expect(component).toContain("profile.rating_average");
     expect(component).toContain("profile.reviews_count");
   });

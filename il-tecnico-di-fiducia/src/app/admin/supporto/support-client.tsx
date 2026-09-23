@@ -1,6 +1,12 @@
 "use client";
 
-import { type ReactNode, useCallback, useEffect, useMemo, useState } from "react";
+import {
+  type ReactNode,
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+} from "react";
 
 import { ProfileAvatar } from "@/components/ui/profile-avatar";
 import { fetchJson } from "@/lib/api/fetch-json";
@@ -110,12 +116,18 @@ const subscriptionLabels: Record<SubscriptionStatus, string> = {
   admin_forced_active: "Forzato admin",
 };
 
-function fullName(user: Pick<AdminUserSummary, "first_name" | "last_name" | "email"> | null) {
+function fullName(
+  user: Pick<AdminUserSummary, "first_name" | "last_name" | "email"> | null,
+) {
   if (!user) return "Utente";
-  return `${user.first_name ?? ""} ${user.last_name ?? ""}`.trim() || user.email;
+  return (
+    `${user.first_name ?? ""} ${user.last_name ?? ""}`.trim() || user.email
+  );
 }
 
-function initials(user: Pick<AdminUserSummary, "first_name" | "last_name" | "email"> | null) {
+function initials(
+  user: Pick<AdminUserSummary, "first_name" | "last_name" | "email"> | null,
+) {
   const name = fullName(user);
   return (
     name
@@ -156,8 +168,10 @@ function statusLabel(status: SupportTicket["status"]) {
 }
 
 function statusTone(status: SupportTicket["status"]) {
-  if (status === "waiting") return "bg-primary-fixed text-on-primary-fixed-variant";
-  if (status === "closed") return "bg-surface-container-high text-on-surface-variant";
+  if (status === "waiting")
+    return "bg-primary-fixed text-on-primary-fixed-variant";
+  if (status === "closed")
+    return "bg-surface-container-high text-on-surface-variant";
   return "bg-tertiary-fixed text-on-tertiary-fixed-variant";
 }
 
@@ -166,7 +180,9 @@ function cleanTicketField(value: string | null | undefined) {
   return normalized ? normalized : null;
 }
 
-function isPublicContactTicket(ticket: Pick<SupportTicket, "subject" | "body">) {
+function isPublicContactTicket(
+  ticket: Pick<SupportTicket, "subject" | "body">,
+) {
   return (
     ticket.body.includes(`Origine: ${PUBLIC_CONTACT_SOURCE}`) ||
     ticket.body.startsWith(PUBLIC_CONTACT_INTRO) ||
@@ -179,7 +195,10 @@ function parsePublicContactTicket(
 ): PublicContactTicketDetails | null {
   if (!isPublicContactTicket(ticket)) return null;
 
-  const fields: Record<"origin" | "firstName" | "lastName" | "email" | "title", string | null> = {
+  const fields: Record<
+    "origin" | "firstName" | "lastName" | "email" | "title",
+    string | null
+  > = {
     origin: null,
     firstName: null,
     lastName: null,
@@ -212,7 +231,10 @@ function parsePublicContactTicket(
     }
   }
 
-  const titleFromSubject = ticket.subject.replace(/^Contatto pubblico:\s*/i, "");
+  const titleFromSubject = ticket.subject.replace(
+    /^Contatto pubblico:\s*/i,
+    "",
+  );
 
   return {
     origin: PUBLIC_CONTACT_LABEL,
@@ -247,20 +269,33 @@ function DetailField({
   );
 }
 
-function PublicContactTicketBody({ details }: { details: PublicContactTicketDetails }) {
-  const emailIsValid = details.email ? EMAIL_PATTERN.test(details.email) : false;
+function PublicContactTicketBody({
+  details,
+}: {
+  details: PublicContactTicketDetails;
+}) {
+  const emailIsValid = details.email
+    ? EMAIL_PATTERN.test(details.email)
+    : false;
 
   return (
     <div className="rounded-[24px] bg-surface-container-low p-5 text-on-surface">
       <p className="mb-4 font-label-md text-primary">Richiesta iniziale</p>
       <div className="grid gap-3 sm:grid-cols-2">
         <DetailField label="Origine">{details.origin}</DetailField>
-        <DetailField label="Nome">{details.firstName ?? "Non indicato"}</DetailField>
-        <DetailField label="Cognome">{details.lastName ?? "Non indicato"}</DetailField>
+        <DetailField label="Nome">
+          {details.firstName ?? "Non indicato"}
+        </DetailField>
+        <DetailField label="Cognome">
+          {details.lastName ?? "Non indicato"}
+        </DetailField>
         <DetailField label="Email">
           {details.email ? (
             emailIsValid ? (
-              <a className="text-[#FF8500] underline-offset-4 hover:underline" href={`mailto:${details.email}`}>
+              <a
+                className="text-[#FF8500] underline-offset-4 hover:underline"
+                href={`mailto:${details.email}`}
+              >
                 {details.email}
               </a>
             ) : (
@@ -271,7 +306,9 @@ function PublicContactTicketBody({ details }: { details: PublicContactTicketDeta
           )}
         </DetailField>
         <div className="sm:col-span-2">
-          <DetailField label="Titolo">{details.title ?? "Non indicato"}</DetailField>
+          <DetailField label="Titolo">
+            {details.title ?? "Non indicato"}
+          </DetailField>
         </div>
       </div>
       <div className="mt-3 rounded-2xl border border-outline-variant/25 bg-white p-4">
@@ -289,11 +326,18 @@ function PublicContactTicketBody({ details }: { details: PublicContactTicketDeta
 function subscriptionDot(status: SubscriptionStatus | undefined) {
   if (status === "stripe_active") return "bg-emerald-500";
   if (status === "admin_forced_active") return "bg-orange-500";
-  if (status === "suspended" || status === "stripe_canceled") return "bg-yellow-400";
+  if (status === "suspended" || status === "stripe_canceled")
+    return "bg-yellow-400";
   return "bg-red-500";
 }
 
-function Avatar({ user, size = "md" }: { user: AdminUserSummary | null; size?: "sm" | "md" }) {
+function Avatar({
+  user,
+  size = "md",
+}: {
+  user: AdminUserSummary | null;
+  size?: "sm" | "md";
+}) {
   return (
     <ProfileAvatar
       person={user}
@@ -308,10 +352,12 @@ function Avatar({ user, size = "md" }: { user: AdminUserSummary | null; size?: "
 function ConfirmModal({
   action,
   busy,
+  busyAction,
   onClose,
 }: {
   action: ConfirmAction;
   busy: boolean;
+  busyAction: string | null;
   onClose: () => void;
 }) {
   if (!action) return null;
@@ -321,8 +367,12 @@ function ConfirmModal({
       <div className="max-h-[calc(100dvh-1.5rem)] w-full max-w-lg overflow-y-auto rounded-[24px] bg-surface-container-lowest p-4 shadow-2xl sm:rounded-[28px] sm:p-6">
         <div className="flex items-start justify-between gap-4">
           <div>
-            <h3 className="font-headline-sm text-[26px] text-primary">{action.title}</h3>
-            <p className="mt-2 leading-7 text-on-surface-variant">{action.body}</p>
+            <h3 className="font-headline-sm text-[26px] text-primary">
+              {action.title}
+            </h3>
+            <p className="mt-2 leading-7 text-on-surface-variant">
+              {action.body}
+            </p>
           </div>
           <button
             type="button"
@@ -344,11 +394,23 @@ function ConfirmModal({
           </button>
           <button
             type="button"
-            className="min-h-11 rounded-full bg-error px-5 py-3 font-button text-white transition hover:opacity-90 disabled:opacity-60"
+            className="inline-flex min-h-11 items-center justify-center gap-2 rounded-full bg-error px-5 py-3 font-button text-white transition hover:opacity-90 disabled:cursor-wait disabled:opacity-60"
             onClick={() => void action.onConfirm()}
             disabled={busy}
           >
-            {action.confirmLabel}
+            {busyAction === "delete-user" ? (
+              <>
+                <span
+                  className="material-symbols-outlined animate-spin text-[19px]"
+                  aria-hidden
+                >
+                  progress_activity
+                </span>
+                Caricamento…
+              </>
+            ) : (
+              action.confirmLabel
+            )}
           </button>
         </div>
       </div>
@@ -359,6 +421,7 @@ function ConfirmModal({
 function UserDetailsModal({
   user,
   busy,
+  busyAction,
   onClose,
   onPatchUser,
   onUserAction,
@@ -367,24 +430,54 @@ function UserDetailsModal({
 }: {
   user: AdminUserSummary | null;
   busy: boolean;
+  busyAction: string | null;
   onClose: () => void;
-  onPatchUser: (user: AdminUserSummary, body: Record<string, unknown>, success: string) => void;
-  onUserAction: (user: AdminUserSummary, endpoint: string, success: string) => void;
+  onPatchUser: (
+    user: AdminUserSummary,
+    body: Record<string, unknown>,
+    success: string,
+    actionKey: string,
+  ) => void;
+  onUserAction: (
+    user: AdminUserSummary,
+    endpoint: string,
+    success: string,
+  ) => void;
   onDeleteUser: (user: AdminUserSummary) => void;
   onSubscription: (
     user: AdminUserSummary,
     status: "none" | "admin_forced_active" | "suspended",
     currentPeriodEnd?: string | null,
+    actionKey?: string,
   ) => void;
 }) {
   if (!user) return null;
 
   const isSuspended =
     Boolean(user.is_banned) ||
-    (user.suspended_until ? new Date(user.suspended_until) > new Date() : false);
+    (user.suspended_until
+      ? new Date(user.suspended_until) > new Date()
+      : false);
   const subscriptionStatus = user.subscription?.status ?? "none";
   const subscriptionActive =
-    subscriptionStatus === "stripe_active" || subscriptionStatus === "admin_forced_active";
+    subscriptionStatus === "stripe_active" ||
+    subscriptionStatus === "admin_forced_active";
+
+  function loadingContent(actionKey: string, label: string) {
+    return busyAction === actionKey ? (
+      <>
+        <span
+          className="material-symbols-outlined animate-spin text-[18px]"
+          aria-hidden
+        >
+          progress_activity
+        </span>
+        Caricamento…
+      </>
+    ) : (
+      label
+    );
+  }
 
   return (
     <div className="fixed inset-0 z-[80] flex items-center justify-center bg-inverse-surface/45 p-3 backdrop-blur-sm sm:p-4">
@@ -417,15 +510,21 @@ function UserDetailsModal({
             <dl className="mt-3 space-y-2 text-sm">
               <div className="flex justify-between gap-4">
                 <dt className="text-on-surface-variant">Provincia</dt>
-                <dd className="font-semibold text-primary">{user.province_code ?? "Non indicata"}</dd>
+                <dd className="font-semibold text-primary">
+                  {user.province_code ?? "Non indicata"}
+                </dd>
               </div>
               <div className="flex justify-between gap-4">
                 <dt className="text-on-surface-variant">Telefono</dt>
-                <dd className="font-semibold text-primary">{user.phone ?? "Non indicato"}</dd>
+                <dd className="font-semibold text-primary">
+                  {user.phone ?? "Non indicato"}
+                </dd>
               </div>
               <div className="flex justify-between gap-4">
                 <dt className="text-on-surface-variant">Registrazione</dt>
-                <dd className="text-right font-semibold text-primary">{formatDate(user.created_at)}</dd>
+                <dd className="text-right font-semibold text-primary">
+                  {formatDate(user.created_at)}
+                </dd>
               </div>
               <div className="flex justify-between gap-4">
                 <dt className="text-on-surface-variant">Stato account</dt>
@@ -438,7 +537,9 @@ function UserDetailsModal({
 
           {user.role === "professional" ? (
             <div className="rounded-[22px] bg-surface-container-low p-4">
-              <p className="font-label-md text-primary">Profilo professionista</p>
+              <p className="font-label-md text-primary">
+                Profilo professionista
+              </p>
               <dl className="mt-3 space-y-2 text-sm">
                 <div className="flex justify-between gap-4">
                   <dt className="text-on-surface-variant">Professione</dt>
@@ -449,7 +550,8 @@ function UserDetailsModal({
                 <div className="flex justify-between gap-4">
                   <dt className="text-on-surface-variant">Sottocategorie</dt>
                   <dd className="text-right font-semibold text-primary">
-                    {user.professional_directory?.specializations?.join(", ") || "Non indicate"}
+                    {user.professional_directory?.specializations?.join(", ") ||
+                      "Non indicate"}
                   </dd>
                 </div>
                 <div className="flex justify-between gap-4">
@@ -476,67 +578,71 @@ function UserDetailsModal({
           {isSuspended ? (
             <button
               type="button"
-              className="rounded-full bg-emerald-600 px-4 py-2 font-button text-white disabled:opacity-60"
+              className="inline-flex items-center justify-center gap-2 rounded-full bg-emerald-600 px-4 py-2 font-button text-white disabled:opacity-60"
               onClick={() =>
                 onPatchUser(
                   user,
                   { is_banned: false, suspended_until: null },
                   "Account riattivato.",
+                  "reactivate-account",
                 )
               }
               disabled={busy}
             >
-              Riattiva account
+              {loadingContent("reactivate-account", "Riattiva account")}
             </button>
           ) : (
             <>
               <button
                 type="button"
-                className="rounded-full bg-yellow-400 px-4 py-2 font-button text-primary disabled:opacity-60"
+                className="inline-flex items-center justify-center gap-2 rounded-full bg-yellow-400 px-4 py-2 font-button text-primary disabled:opacity-60"
                 onClick={() =>
                   onPatchUser(
                     user,
                     { is_banned: true, suspended_until: addDays(7) },
                     "Account sospeso per 1 settimana.",
+                    "suspend-week",
                   )
                 }
                 disabled={busy}
               >
-                Sospendi 1 settimana
+                {loadingContent("suspend-week", "Sospendi 1 settimana")}
               </button>
               <button
                 type="button"
-                className="rounded-full bg-yellow-400 px-4 py-2 font-button text-primary disabled:opacity-60"
+                className="inline-flex items-center justify-center gap-2 rounded-full bg-yellow-400 px-4 py-2 font-button text-primary disabled:opacity-60"
                 onClick={() =>
                   onPatchUser(
                     user,
                     { is_banned: true, suspended_until: addMonths(1) },
                     "Account sospeso per 1 mese.",
+                    "suspend-month",
                   )
                 }
                 disabled={busy}
               >
-                Sospendi 1 mese
+                {loadingContent("suspend-month", "Sospendi 1 mese")}
               </button>
               <button
                 type="button"
-                className="rounded-full bg-yellow-400 px-4 py-2 font-button text-primary disabled:opacity-60"
+                className="inline-flex items-center justify-center gap-2 rounded-full bg-yellow-400 px-4 py-2 font-button text-primary disabled:opacity-60"
                 onClick={() =>
                   onPatchUser(
                     user,
                     { is_banned: true, suspended_until: null },
                     "Account sospeso a tempo indeterminato.",
+                    "suspend-forever",
                   )
                 }
                 disabled={busy}
               >
-                Sospendi sempre
+                {loadingContent("suspend-forever", "Sospendi sempre")}
               </button>
             </>
           )}
           <button
             type="button"
-            className="rounded-full border border-primary px-4 py-2 font-button text-primary disabled:opacity-60"
+            className="inline-flex items-center justify-center gap-2 rounded-full border border-primary px-4 py-2 font-button text-primary disabled:opacity-60"
             onClick={() =>
               onUserAction(
                 user,
@@ -546,11 +652,11 @@ function UserDetailsModal({
             }
             disabled={busy}
           >
-            Invia reset password
+            {loadingContent("send-password-reset", "Invia reset password")}
           </button>
           <button
             type="button"
-            className="rounded-full border border-primary px-4 py-2 font-button text-primary disabled:opacity-60"
+            className="inline-flex items-center justify-center gap-2 rounded-full border border-primary px-4 py-2 font-button text-primary disabled:opacity-60"
             onClick={() =>
               onUserAction(
                 user,
@@ -560,43 +666,66 @@ function UserDetailsModal({
             }
             disabled={busy}
           >
-            Invia conferma email
+            {loadingContent("resend-confirmation", "Invia conferma email")}
           </button>
           {user.role === "professional" ? (
             subscriptionActive ? (
               <button
                 type="button"
-                className="rounded-full bg-surface-container-high px-4 py-2 font-button text-primary disabled:opacity-60"
-                onClick={() => onSubscription(user, "none", null)}
+                className="inline-flex items-center justify-center gap-2 rounded-full bg-surface-container-high px-4 py-2 font-button text-primary disabled:opacity-60"
+                onClick={() =>
+                  onSubscription(user, "none", null, "subscription-cancel")
+                }
                 disabled={busy}
               >
-                Annulla abbonamento
+                {loadingContent("subscription-cancel", "Annulla abbonamento")}
               </button>
             ) : (
               <>
                 <button
                   type="button"
-                  className="rounded-full bg-[#FF8500] px-4 py-2 font-button text-white disabled:opacity-60"
-                  onClick={() => onSubscription(user, "admin_forced_active", addDays(7))}
+                  className="inline-flex items-center justify-center gap-2 rounded-full bg-[#FF8500] px-4 py-2 font-button text-white disabled:opacity-60"
+                  onClick={() =>
+                    onSubscription(
+                      user,
+                      "admin_forced_active",
+                      addDays(7),
+                      "subscription-week",
+                    )
+                  }
                   disabled={busy}
                 >
-                  Forza 1 settimana
+                  {loadingContent("subscription-week", "Forza 1 settimana")}
                 </button>
                 <button
                   type="button"
-                  className="rounded-full bg-[#FF8500] px-4 py-2 font-button text-white disabled:opacity-60"
-                  onClick={() => onSubscription(user, "admin_forced_active", addMonths(1))}
+                  className="inline-flex items-center justify-center gap-2 rounded-full bg-[#FF8500] px-4 py-2 font-button text-white disabled:opacity-60"
+                  onClick={() =>
+                    onSubscription(
+                      user,
+                      "admin_forced_active",
+                      addMonths(1),
+                      "subscription-month",
+                    )
+                  }
                   disabled={busy}
                 >
-                  Forza 1 mese
+                  {loadingContent("subscription-month", "Forza 1 mese")}
                 </button>
                 <button
                   type="button"
-                  className="rounded-full bg-[#FF8500] px-4 py-2 font-button text-white disabled:opacity-60"
-                  onClick={() => onSubscription(user, "admin_forced_active", null)}
+                  className="inline-flex items-center justify-center gap-2 rounded-full bg-[#FF8500] px-4 py-2 font-button text-white disabled:opacity-60"
+                  onClick={() =>
+                    onSubscription(
+                      user,
+                      "admin_forced_active",
+                      null,
+                      "subscription-unlimited",
+                    )
+                  }
                   disabled={busy}
                 >
-                  Forza illimitato
+                  {loadingContent("subscription-unlimited", "Forza illimitato")}
                 </button>
               </>
             )
@@ -624,13 +753,16 @@ export default function AdminSupportClient() {
   const [loading, setLoading] = useState(true);
   const [messagesLoading, setMessagesLoading] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [busyAction, setBusyAction] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
-  const [authorModalUser, setAuthorModalUser] = useState<AdminUserSummary | null>(null);
+  const [authorModalUser, setAuthorModalUser] =
+    useState<AdminUserSummary | null>(null);
   const [confirmAction, setConfirmAction] = useState<ConfirmAction>(null);
 
   const selected = useMemo(
-    () => tickets.find((ticket) => ticket.id === selectedId) ?? tickets[0] ?? null,
+    () =>
+      tickets.find((ticket) => ticket.id === selectedId) ?? tickets[0] ?? null,
     [selectedId, tickets],
   );
   const selectedPublicContactDetails = useMemo(
@@ -652,16 +784,19 @@ export default function AdminSupportClient() {
       setSelectedId((current) =>
         current && nextTickets.some((ticket) => ticket.id === current)
           ? current
-          : nextTickets[0]?.id ?? null,
+          : (nextTickets[0]?.id ?? null),
       );
       setAuthorModalUser((current) => {
         if (!current) return null;
         return (
-          nextTickets.find((ticket) => ticket.author_id === current.id)?.author ?? current
+          nextTickets.find((ticket) => ticket.author_id === current.id)
+            ?.author ?? current
         );
       });
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Impossibile caricare i ticket.");
+      setError(
+        err instanceof Error ? err.message : "Impossibile caricare i ticket.",
+      );
     } finally {
       setLoading(false);
     }
@@ -675,7 +810,9 @@ export default function AdminSupportClient() {
       );
       setMessages(response.messages ?? []);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Impossibile caricare i messaggi.");
+      setError(
+        err instanceof Error ? err.message : "Impossibile caricare i messaggi.",
+      );
       setMessages([]);
     } finally {
       setMessagesLoading(false);
@@ -713,6 +850,7 @@ export default function AdminSupportClient() {
     }
 
     setBusy(true);
+    setBusyAction(nextStatus === "closed" ? "reply-close" : "reply-waiting");
     setError(null);
     setMessage(null);
     try {
@@ -730,9 +868,12 @@ export default function AdminSupportClient() {
       await loadTickets();
       await loadMessages(selected.id);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Invio risposta non riuscito.");
+      setError(
+        err instanceof Error ? err.message : "Invio risposta non riuscito.",
+      );
     } finally {
       setBusy(false);
+      setBusyAction(null);
     }
   }
 
@@ -740,6 +881,7 @@ export default function AdminSupportClient() {
     if (!selected) return;
 
     setBusy(true);
+    setBusyAction("resolve-ticket");
     setError(null);
     setMessage(null);
     try {
@@ -750,9 +892,14 @@ export default function AdminSupportClient() {
       setMessage("Ticket segnato come risolto.");
       await loadTickets();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Aggiornamento ticket non riuscito.");
+      setError(
+        err instanceof Error
+          ? err.message
+          : "Aggiornamento ticket non riuscito.",
+      );
     } finally {
       setBusy(false);
+      setBusyAction(null);
     }
   }
 
@@ -760,8 +907,10 @@ export default function AdminSupportClient() {
     user: AdminUserSummary,
     body: Record<string, unknown>,
     success: string,
+    actionKey: string,
   ) {
     setBusy(true);
+    setBusyAction(actionKey);
     setError(null);
     setMessage(null);
     try {
@@ -772,23 +921,36 @@ export default function AdminSupportClient() {
       setMessage(success);
       await loadTickets();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Azione utente non riuscita.");
+      setError(
+        err instanceof Error ? err.message : "Azione utente non riuscita.",
+      );
     } finally {
       setBusy(false);
+      setBusyAction(null);
     }
   }
 
-  async function userAction(user: AdminUserSummary, endpoint: string, success: string) {
+  async function userAction(
+    user: AdminUserSummary,
+    endpoint: string,
+    success: string,
+  ) {
     setBusy(true);
+    setBusyAction(endpoint);
     setError(null);
     setMessage(null);
     try {
-      await fetchJson(`/api/admin/users/${user.id}/${endpoint}`, { method: "POST" });
+      await fetchJson(`/api/admin/users/${user.id}/${endpoint}`, {
+        method: "POST",
+      });
       setMessage(success);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Azione utente non riuscita.");
+      setError(
+        err instanceof Error ? err.message : "Azione utente non riuscita.",
+      );
     } finally {
       setBusy(false);
+      setBusyAction(null);
     }
   }
 
@@ -799,6 +961,7 @@ export default function AdminSupportClient() {
       confirmLabel: "Elimina account",
       onConfirm: async () => {
         setBusy(true);
+        setBusyAction("delete-user");
         setError(null);
         try {
           await fetchJson(`/api/admin/users/${user.id}`, { method: "DELETE" });
@@ -807,9 +970,12 @@ export default function AdminSupportClient() {
           setMessage("Account eliminato definitivamente.");
           await loadTickets();
         } catch (err) {
-          setError(err instanceof Error ? err.message : "Eliminazione non riuscita.");
+          setError(
+            err instanceof Error ? err.message : "Eliminazione non riuscita.",
+          );
         } finally {
           setBusy(false);
+          setBusyAction(null);
         }
       },
     });
@@ -819,8 +985,10 @@ export default function AdminSupportClient() {
     user: AdminUserSummary,
     nextStatus: "none" | "admin_forced_active" | "suspended",
     currentPeriodEnd?: string | null,
+    actionKey = "subscription",
   ) {
     setBusy(true);
+    setBusyAction(actionKey);
     setError(null);
     setMessage(null);
     try {
@@ -834,9 +1002,14 @@ export default function AdminSupportClient() {
       setMessage("Abbonamento aggiornato.");
       await loadTickets();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Aggiornamento abbonamento non riuscito.");
+      setError(
+        err instanceof Error
+          ? err.message
+          : "Aggiornamento abbonamento non riuscito.",
+      );
     } finally {
       setBusy(false);
+      setBusyAction(null);
     }
   }
 
@@ -871,16 +1044,22 @@ export default function AdminSupportClient() {
       </div>
 
       {message ? (
-        <div className="rounded-2xl bg-emerald-50 p-4 text-emerald-700">{message}</div>
+        <div className="rounded-2xl bg-emerald-50 p-4 text-emerald-700">
+          {message}
+        </div>
       ) : null}
       {error ? (
-        <div className="rounded-2xl bg-error-container p-4 text-on-error-container">{error}</div>
+        <div className="rounded-2xl bg-error-container p-4 text-on-error-container">
+          {error}
+        </div>
       ) : null}
 
       <div className="grid min-h-[620px] overflow-hidden rounded-[24px] border border-outline-variant/30 bg-surface-container-lowest shadow-[0_4px_20px_rgba(8,43,95,0.08)] sm:rounded-[28px] lg:min-h-[680px] lg:grid-cols-[420px_minmax(0,1fr)]">
         <section className="border-b border-outline-variant/30 lg:border-b-0 lg:border-r">
           <div className="border-b border-outline-variant/30 p-4">
-            <h2 className="font-headline-sm text-[24px] text-primary">Ticket</h2>
+            <h2 className="font-headline-sm text-[24px] text-primary">
+              Ticket
+            </h2>
             <p className="text-sm text-on-surface-variant">
               {loading ? "Caricamento…" : `${tickets.length} risultati`}
             </p>
@@ -911,7 +1090,9 @@ export default function AdminSupportClient() {
                           </p>
                           <p className="truncate text-xs text-on-surface-variant">
                             {ticket.author?.email ?? "Email non disponibile"} ·{" "}
-                            {ticket.author ? roleLabels[ticket.author.role] : "Utente"}
+                            {ticket.author
+                              ? roleLabels[ticket.author.role]
+                              : "Utente"}
                           </p>
                         </div>
                         <span
@@ -945,7 +1126,7 @@ export default function AdminSupportClient() {
                   <p className="font-label-md text-sm uppercase tracking-[0.14em] text-[#FF8500]">
                     Dettaglio ticket
                   </p>
-                    <h2 className="mt-1 font-headline-sm text-[24px] text-primary sm:text-[30px]">
+                  <h2 className="mt-1 font-headline-sm text-[24px] text-primary sm:text-[30px]">
                     {selected.subject}
                   </h2>
                   <div className="mt-3 flex items-center gap-3 text-sm text-on-surface-variant">
@@ -960,8 +1141,8 @@ export default function AdminSupportClient() {
                         {fullName(selected.author)}
                       </button>
                       <p>
-                        {selected.author?.email ?? "Email non disponibile"} · Creato:{" "}
-                        {formatDate(selected.created_at)}
+                        {selected.author?.email ?? "Email non disponibile"} ·
+                        Creato: {formatDate(selected.created_at)}
                       </p>
                     </div>
                   </div>
@@ -974,11 +1155,17 @@ export default function AdminSupportClient() {
               </div>
 
               {selectedPublicContactDetails ? (
-                <PublicContactTicketBody details={selectedPublicContactDetails} />
+                <PublicContactTicketBody
+                  details={selectedPublicContactDetails}
+                />
               ) : (
                 <div className="rounded-[24px] bg-surface-container-low p-5 leading-7 text-on-surface">
-                  <p className="mb-2 font-label-md text-primary">Richiesta iniziale</p>
-                  <p className="break-words [overflow-wrap:anywhere]">{selected.body}</p>
+                  <p className="mb-2 font-label-md text-primary">
+                    Richiesta iniziale
+                  </p>
+                  <p className="break-words [overflow-wrap:anywhere]">
+                    {selected.body}
+                  </p>
                 </div>
               )}
 
@@ -988,7 +1175,9 @@ export default function AdminSupportClient() {
                     Storico messaggi
                   </h3>
                   <span className="text-sm text-on-surface-variant">
-                    {messagesLoading ? "Caricamento…" : `${messages.length} messaggi`}
+                    {messagesLoading
+                      ? "Caricamento…"
+                      : `${messages.length} messaggi`}
                   </span>
                 </div>
 
@@ -1003,9 +1192,10 @@ export default function AdminSupportClient() {
                       return (
                         <div
                           key={supportMessage.id}
-                          className={["flex", isAuthor ? "justify-start" : "justify-end"].join(
-                            " ",
-                          )}
+                          className={[
+                            "flex",
+                            isAuthor ? "justify-start" : "justify-end",
+                          ].join(" ")}
                         >
                           <div
                             className={[
@@ -1033,7 +1223,10 @@ export default function AdminSupportClient() {
               </div>
 
               <div className="rounded-[24px] border border-outline-variant/30 bg-white p-4">
-                <label className="font-label-md text-primary" htmlFor="admin-support-reply">
+                <label
+                  className="font-label-md text-primary"
+                  htmlFor="admin-support-reply"
+                >
                   Risposta admin
                 </label>
                 <textarea
@@ -1051,27 +1244,67 @@ export default function AdminSupportClient() {
                 <div className="mt-4 flex flex-wrap gap-3">
                   <button
                     type="button"
-                    className="min-h-11 rounded-full bg-primary px-5 py-3 font-button text-white transition hover:bg-primary-container disabled:opacity-60"
-                    disabled={busy || selected.status === "closed" || !replyBody.trim()}
+                    className="inline-flex min-h-11 items-center justify-center gap-2 rounded-full bg-primary px-5 py-3 font-button text-white transition hover:bg-primary-container disabled:opacity-60"
+                    disabled={
+                      busy || selected.status === "closed" || !replyBody.trim()
+                    }
                     onClick={() => void sendReply("waiting")}
                   >
-                    Invia risposta
+                    {busyAction === "reply-waiting" ? (
+                      <>
+                        <span
+                          className="material-symbols-outlined animate-spin text-[18px]"
+                          aria-hidden
+                        >
+                          progress_activity
+                        </span>
+                        Caricamento…
+                      </>
+                    ) : (
+                      "Invia risposta"
+                    )}
                   </button>
                   <button
                     type="button"
-                    className="min-h-11 rounded-full bg-[#FF8500] px-5 py-3 font-button text-white transition hover:bg-[#FF9A2B] disabled:opacity-60"
-                    disabled={busy || selected.status === "closed" || !replyBody.trim()}
+                    className="inline-flex min-h-11 items-center justify-center gap-2 rounded-full bg-[#FF8500] px-5 py-3 font-button text-white transition hover:bg-[#FF9A2B] disabled:opacity-60"
+                    disabled={
+                      busy || selected.status === "closed" || !replyBody.trim()
+                    }
                     onClick={() => void sendReply("closed")}
                   >
-                    Invia risposta e chiudi
+                    {busyAction === "reply-close" ? (
+                      <>
+                        <span
+                          className="material-symbols-outlined animate-spin text-[18px]"
+                          aria-hidden
+                        >
+                          progress_activity
+                        </span>
+                        Caricamento…
+                      </>
+                    ) : (
+                      "Invia risposta e chiudi"
+                    )}
                   </button>
                   <button
                     type="button"
-                    className="min-h-11 rounded-full border-2 border-primary px-5 py-3 font-button text-primary transition hover:bg-primary-fixed disabled:opacity-60"
+                    className="inline-flex min-h-11 items-center justify-center gap-2 rounded-full border-2 border-primary px-5 py-3 font-button text-primary transition hover:bg-primary-fixed disabled:opacity-60"
                     disabled={busy || selected.status === "closed"}
                     onClick={() => void resolveTicket()}
                   >
-                    Segna come risolto
+                    {busyAction === "resolve-ticket" ? (
+                      <>
+                        <span
+                          className="material-symbols-outlined animate-spin text-[18px]"
+                          aria-hidden
+                        >
+                          progress_activity
+                        </span>
+                        Caricamento…
+                      </>
+                    ) : (
+                      "Segna come risolto"
+                    )}
                   </button>
                 </div>
               </div>
@@ -1087,17 +1320,23 @@ export default function AdminSupportClient() {
       <UserDetailsModal
         user={authorModalUser}
         busy={busy}
+        busyAction={busyAction}
         onClose={() => setAuthorModalUser(null)}
-        onPatchUser={(user, body, success) => void patchUser(user, body, success)}
-        onUserAction={(user, endpoint, success) => void userAction(user, endpoint, success)}
+        onPatchUser={(user, body, success, actionKey) =>
+          void patchUser(user, body, success, actionKey)
+        }
+        onUserAction={(user, endpoint, success) =>
+          void userAction(user, endpoint, success)
+        }
         onDeleteUser={deleteUser}
-        onSubscription={(user, nextStatus, currentPeriodEnd) =>
-          void updateSubscription(user, nextStatus, currentPeriodEnd)
+        onSubscription={(user, nextStatus, currentPeriodEnd, actionKey) =>
+          void updateSubscription(user, nextStatus, currentPeriodEnd, actionKey)
         }
       />
       <ConfirmModal
         action={confirmAction}
         busy={busy}
+        busyAction={busyAction}
         onClose={() => {
           if (!busy) setConfirmAction(null);
         }}

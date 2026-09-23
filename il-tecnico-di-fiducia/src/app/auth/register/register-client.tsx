@@ -37,7 +37,6 @@ type ConfirmOtpResponse = {
   profile: { id: string; role: Role | "admin" };
 };
 
-
 function normalizeOtp(raw: string) {
   return raw.replace(/\s+/g, "").trim();
 }
@@ -65,7 +64,6 @@ type RegisterClientProps = {
 };
 
 export default function RegisterClient({ initialRole }: RegisterClientProps) {
-
   const [role, setRole] = useState<Role>(initialRole);
   const [step, setStep] = useState<"form" | "otp">("form");
 
@@ -81,19 +79,25 @@ export default function RegisterClient({ initialRole }: RegisterClientProps) {
 
   const [otp, setOtp] = useState("");
 
-  const [provinces, setProvinces] = useState<ItalianProvince[]>(ITALIAN_PROVINCES_BY_NAME);
+  const [provinces, setProvinces] = useState<ItalianProvince[]>(
+    ITALIAN_PROVINCES_BY_NAME,
+  );
   const [categories, setCategories] = useState<ProfessionCategory[]>([]);
   const [categoriesLoading, setCategoriesLoading] = useState(false);
   const [categoriesError, setCategoriesError] = useState<string | null>(null);
   const [categoriesReloadKey, setCategoriesReloadKey] = useState(0);
   const [loading, setLoading] = useState(false);
+  const [resendingOtp, setResendingOtp] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [otpError, setOtpError] = useState<string | null>(null);
   const [otpInfo, setOtpInfo] = useState<string | null>(null);
 
   const emailValue = useMemo(() => normalizeEmail(email), [email]);
   const currentCategory = useMemo(
-    () => categories.find((category) => categoryOptionValue(category) === categoryKey) ?? null,
+    () =>
+      categories.find(
+        (category) => categoryOptionValue(category) === categoryKey,
+      ) ?? null,
     [categories, categoryKey],
   );
   const currentSubcategories = useMemo(
@@ -137,9 +141,12 @@ export default function RegisterClient({ initialRole }: RegisterClientProps) {
       setCategoriesError(null);
 
       try {
-        const response = await fetchJson<CategoriesResponse>("/api/categories", {
-          method: "GET",
-        });
+        const response = await fetchJson<CategoriesResponse>(
+          "/api/categories",
+          {
+            method: "GET",
+          },
+        );
 
         if (cancelled) {
           return;
@@ -215,7 +222,9 @@ export default function RegisterClient({ initialRole }: RegisterClientProps) {
           category_id: role === "professional" ? selectedCategoryId : null,
           subcategory_id:
             role === "professional" && currentSubcategory
-              ? subcategoryIdFromOption(subcategoryOptionValue(currentSubcategory)) || null
+              ? subcategoryIdFromOption(
+                  subcategoryOptionValue(currentSubcategory),
+                ) || null
               : null,
           accept_terms: acceptTerms,
         }),
@@ -239,10 +248,13 @@ export default function RegisterClient({ initialRole }: RegisterClientProps) {
 
     try {
       const token = normalizeOtp(otp);
-      const res = await fetchJson<ConfirmOtpResponse>("/api/auth/confirm-email-otp", {
-        method: "POST",
-        body: JSON.stringify({ email: emailValue, token }),
-      });
+      const res = await fetchJson<ConfirmOtpResponse>(
+        "/api/auth/confirm-email-otp",
+        {
+          method: "POST",
+          body: JSON.stringify({ email: emailValue, token }),
+        },
+      );
 
       navigateAfterLogin(nextPathByRole(res.profile.role));
     } catch (err) {
@@ -252,9 +264,11 @@ export default function RegisterClient({ initialRole }: RegisterClientProps) {
   }
 
   async function onResendOtp() {
+    if (resendingOtp || loading) return;
+
     setOtpError(null);
     setOtpInfo(null);
-    setLoading(true);
+    setResendingOtp(true);
     try {
       await fetchJson<{ ok: true }>("/api/auth/resend-signup-otp", {
         method: "POST",
@@ -264,347 +278,391 @@ export default function RegisterClient({ initialRole }: RegisterClientProps) {
     } catch (err) {
       setOtpError(err instanceof Error ? err.message : "Errore imprevisto.");
     } finally {
-      setLoading(false);
+      setResendingOtp(false);
     }
   }
 
   return (
     <div className="mx-auto w-full max-w-[720px] bg-surface-container-lowest rounded-[28px] shadow-[0_8px_30px_rgba(8,43,95,0.10)] border border-outline-variant/30 overflow-hidden">
-        <div className="p-6 sm:p-8 border-b border-outline-variant/30 bg-surface-container-lowest">
-          <div className="flex items-center justify-between gap-4">
-            <div className="min-w-0">
-              <div className="font-headline-sm text-primary text-[18px] truncate">
-                Il tecnico di fiducia
-              </div>
-              <div className="text-[12px] text-on-surface-variant">
-                Crea un account e verifica l’email
-              </div>
+      <div className="p-6 sm:p-8 border-b border-outline-variant/30 bg-surface-container-lowest">
+        <div className="flex items-center justify-between gap-4">
+          <div className="min-w-0">
+            <div className="font-headline-sm text-primary text-[18px] truncate">
+              Il tecnico di fiducia
             </div>
-            <Link
-              href="/auth/login"
-              className="font-button text-button text-primary px-4 py-2 rounded-full hover:bg-surface-container-high transition-colors shrink-0"
-            >
-              Log In
-            </Link>
+            <div className="text-[12px] text-on-surface-variant">
+              Crea un account e verifica l’email
+            </div>
           </div>
+          <Link
+            href="/auth/login"
+            className="font-button text-button text-primary px-4 py-2 rounded-full hover:bg-surface-container-high transition-colors shrink-0"
+          >
+            Log In
+          </Link>
         </div>
+      </div>
 
-        {step === "form" ? (
-          <form className="p-6 sm:p-8 space-y-5" onSubmit={onSignUp}>
-            <div className="flex bg-surface-container-low p-1 rounded-full">
-              <button
-                type="button"
-                className={[
-                  "flex-1 py-3 px-4 rounded-full font-label-md text-label-md transition-all duration-200",
-                  role === "customer"
-                    ? "bg-primary text-on-primary"
-                    : "text-on-surface-variant hover:text-primary",
-                ].join(" ")}
-                onClick={() => setRole("customer")}
-              >
-                Cliente
-              </button>
-              <button
-                type="button"
-                className={[
-                  "flex-1 py-3 px-4 rounded-full font-label-md text-label-md transition-all duration-200",
-                  role === "professional"
-                    ? "bg-primary text-on-primary"
-                    : "text-on-surface-variant hover:text-primary",
-                ].join(" ")}
-                onClick={() => setRole("professional")}
-              >
-                Professionista
-              </button>
-            </div>
+      {step === "form" ? (
+        <form className="p-6 sm:p-8 space-y-5" onSubmit={onSignUp}>
+          <div className="flex bg-surface-container-low p-1 rounded-full">
+            <button
+              type="button"
+              className={[
+                "flex-1 py-3 px-4 rounded-full font-label-md text-label-md transition-all duration-200",
+                role === "customer"
+                  ? "bg-primary text-on-primary"
+                  : "text-on-surface-variant hover:text-primary",
+              ].join(" ")}
+              onClick={() => setRole("customer")}
+            >
+              Cliente
+            </button>
+            <button
+              type="button"
+              className={[
+                "flex-1 py-3 px-4 rounded-full font-label-md text-label-md transition-all duration-200",
+                role === "professional"
+                  ? "bg-primary text-on-primary"
+                  : "text-on-surface-variant hover:text-primary",
+              ].join(" ")}
+              onClick={() => setRole("professional")}
+            >
+              Professionista
+            </button>
+          </div>
 
-            <div>
-              <h1 className="font-headline-md text-headline-md text-primary mb-1">
-                Crea il tuo account
-              </h1>
-              <p className="font-body-md text-body-md text-on-surface-variant">
-                {role === "professional"
-                  ? "Crea il tuo profilo tecnico e completa i dati dopo la verifica email."
-                  : "Inizia subito a trovare il professionista giusto per te."}
-              </p>
-            </div>
+          <div>
+            <h1 className="font-headline-md text-headline-md text-primary mb-1">
+              Crea il tuo account
+            </h1>
+            <p className="font-body-md text-body-md text-on-surface-variant">
+              {role === "professional"
+                ? "Crea il tuo profilo tecnico e completa i dati dopo la verifica email."
+                : "Inizia subito a trovare il professionista giusto per te."}
+            </p>
+          </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <label className="font-label-md text-label-md text-on-surface-variant">
-                  Nome
-                </label>
-                <input
-                  className="w-full px-4 py-3 bg-surface-container-lowest border border-outline-variant rounded-xl focus:ring-2 focus:ring-primary focus:border-primary outline-none transition-all font-body-md text-body-md"
-                  value={firstName}
-                  onChange={(e) => setFirstName(e.target.value)}
-                  autoComplete="given-name"
-                  placeholder="Es. Mario"
-                  required
-                />
-              </div>
-              <div className="space-y-2">
-                <label className="font-label-md text-label-md text-on-surface-variant">
-                  Cognome
-                </label>
-                <input
-                  className="w-full px-4 py-3 bg-surface-container-lowest border border-outline-variant rounded-xl focus:ring-2 focus:ring-primary focus:border-primary outline-none transition-all font-body-md text-body-md"
-                  value={lastName}
-                  onChange={(e) => setLastName(e.target.value)}
-                  autoComplete="family-name"
-                  placeholder="Es. Rossi"
-                  required
-                />
-              </div>
-            </div>
-
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="space-y-2">
               <label className="font-label-md text-label-md text-on-surface-variant">
-                Email
+                Nome
               </label>
               <input
                 className="w-full px-4 py-3 bg-surface-container-lowest border border-outline-variant rounded-xl focus:ring-2 focus:ring-primary focus:border-primary outline-none transition-all font-body-md text-body-md"
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                autoComplete="email"
-                placeholder="mario.rossi@esempio.it"
+                value={firstName}
+                onChange={(e) => setFirstName(e.target.value)}
+                autoComplete="given-name"
+                placeholder="Es. Mario"
                 required
               />
             </div>
+            <div className="space-y-2">
+              <label className="font-label-md text-label-md text-on-surface-variant">
+                Cognome
+              </label>
+              <input
+                className="w-full px-4 py-3 bg-surface-container-lowest border border-outline-variant rounded-xl focus:ring-2 focus:ring-primary focus:border-primary outline-none transition-all font-body-md text-body-md"
+                value={lastName}
+                onChange={(e) => setLastName(e.target.value)}
+                autoComplete="family-name"
+                placeholder="Es. Rossi"
+                required
+              />
+            </div>
+          </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div className="space-y-2">
+            <label className="font-label-md text-label-md text-on-surface-variant">
+              Email
+            </label>
+            <input
+              className="w-full px-4 py-3 bg-surface-container-lowest border border-outline-variant rounded-xl focus:ring-2 focus:ring-primary focus:border-primary outline-none transition-all font-body-md text-body-md"
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              autoComplete="email"
+              placeholder="mario.rossi@esempio.it"
+              required
+            />
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <label className="font-label-md text-label-md text-on-surface-variant">
+                Provincia
+              </label>
+              <select
+                className="w-full px-4 py-3 bg-surface-container-lowest border border-outline-variant rounded-xl focus:ring-2 focus:ring-primary focus:border-primary outline-none transition-all font-body-md text-body-md"
+                value={provinceCode}
+                onChange={(e) => setProvinceCode(e.target.value)}
+                required
+              >
+                <option value="">Seleziona provincia</option>
+                {provinces.map((p) => (
+                  <option key={p.code} value={p.code}>
+                    {p.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="space-y-2">
+              <label className="font-label-md text-label-md text-on-surface-variant">
+                Telefono (opzionale)
+              </label>
+              <input
+                className="w-full px-4 py-3 bg-surface-container-lowest border border-outline-variant rounded-xl focus:ring-2 focus:ring-primary focus:border-primary outline-none transition-all font-body-md text-body-md"
+                value={phone}
+                onChange={(e) => setPhone(e.target.value)}
+                autoComplete="tel"
+                placeholder="+39 333 1234567"
+              />
+            </div>
+          </div>
+
+          {role === "professional" ? (
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <div className="space-y-2">
                 <label className="font-label-md text-label-md text-on-surface-variant">
-                  Provincia
+                  Categoria
                 </label>
                 <select
-                  className="w-full px-4 py-3 bg-surface-container-lowest border border-outline-variant rounded-xl focus:ring-2 focus:ring-primary focus:border-primary outline-none transition-all font-body-md text-body-md"
-                  value={provinceCode}
-                  onChange={(e) => setProvinceCode(e.target.value)}
+                  className="w-full px-4 py-3 bg-surface-container-lowest border border-outline-variant rounded-xl focus:ring-2 focus:ring-primary focus:border-primary outline-none transition-all font-body-md text-body-md disabled:bg-surface-container-low disabled:text-outline"
+                  value={categoryKey}
+                  onChange={(e) => {
+                    setCategoryKey(e.target.value);
+                    setSubcategoryKey("");
+                  }}
                   required
+                  disabled={categoriesLoading || Boolean(categoriesError)}
                 >
-                  <option value="">Seleziona provincia</option>
-                  {provinces.map((p) => (
-                    <option key={p.code} value={p.code}>
-                      {p.name}
+                  <option value="">
+                    {categoriesLoading
+                      ? "Caricamento categorie…"
+                      : "Seleziona una categoria"}
+                  </option>
+                  {categories.map((category) => (
+                    <option
+                      key={categoryOptionValue(category)}
+                      value={categoryOptionValue(category)}
+                    >
+                      {category.name}
+                    </option>
+                  ))}
+                </select>
+                {categoriesError ? (
+                  <div className="flex flex-wrap items-center gap-2 text-sm text-error">
+                    <span>{categoriesError}</span>
+                    <button
+                      type="button"
+                      className="font-label-md text-label-md underline underline-offset-4"
+                      onClick={() => {
+                        setCategories([]);
+                        setCategoriesError(null);
+                        setCategoriesReloadKey((value) => value + 1);
+                      }}
+                    >
+                      Riprova
+                    </button>
+                  </div>
+                ) : null}
+              </div>
+
+              <div className="space-y-2">
+                <label className="font-label-md text-label-md text-on-surface-variant">
+                  Sottocategoria (facoltativa)
+                </label>
+                <select
+                  className="w-full px-4 py-3 bg-surface-container-lowest border border-outline-variant rounded-xl focus:ring-2 focus:ring-primary focus:border-primary outline-none transition-all font-body-md text-body-md disabled:bg-surface-container-low disabled:text-outline"
+                  value={subcategoryKey}
+                  onChange={(e) => setSubcategoryKey(e.target.value)}
+                  disabled={
+                    !currentCategory || currentSubcategories.length === 0
+                  }
+                >
+                  <option value="">
+                    {!currentCategory
+                      ? "Seleziona prima una categoria"
+                      : currentSubcategories.length === 0
+                        ? "Nessuna sottocategoria disponibile"
+                        : "Seleziona una sottocategoria"}
+                  </option>
+                  {currentSubcategories.map((subcategory) => (
+                    <option
+                      key={subcategoryOptionValue(subcategory)}
+                      value={subcategoryOptionValue(subcategory)}
+                    >
+                      {subcategory.name}
                     </option>
                   ))}
                 </select>
               </div>
-              <div className="space-y-2">
-                <label className="font-label-md text-label-md text-on-surface-variant">
-                  Telefono (opzionale)
-                </label>
-                <input
-                  className="w-full px-4 py-3 bg-surface-container-lowest border border-outline-variant rounded-xl focus:ring-2 focus:ring-primary focus:border-primary outline-none transition-all font-body-md text-body-md"
-                  value={phone}
-                  onChange={(e) => setPhone(e.target.value)}
-                  autoComplete="tel"
-                  placeholder="+39 333 1234567"
-                />
-              </div>
             </div>
+          ) : null}
 
-            {role === "professional" ? (
-              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                <div className="space-y-2">
-                  <label className="font-label-md text-label-md text-on-surface-variant">
-                    Categoria
-                  </label>
-                  <select
-                    className="w-full px-4 py-3 bg-surface-container-lowest border border-outline-variant rounded-xl focus:ring-2 focus:ring-primary focus:border-primary outline-none transition-all font-body-md text-body-md disabled:bg-surface-container-low disabled:text-outline"
-                    value={categoryKey}
-                    onChange={(e) => {
-                      setCategoryKey(e.target.value);
-                      setSubcategoryKey("");
-                    }}
-                    required
-                    disabled={categoriesLoading || Boolean(categoriesError)}
-                  >
-                    <option value="">
-                      {categoriesLoading ? "Caricamento categorie…" : "Seleziona una categoria"}
-                    </option>
-                    {categories.map((category) => (
-                      <option key={categoryOptionValue(category)} value={categoryOptionValue(category)}>
-                        {category.name}
-                      </option>
-                    ))}
-                  </select>
-                  {categoriesError ? (
-                    <div className="flex flex-wrap items-center gap-2 text-sm text-error">
-                      <span>{categoriesError}</span>
-                      <button
-                        type="button"
-                        className="font-label-md text-label-md underline underline-offset-4"
-                        onClick={() => {
-                          setCategories([]);
-                          setCategoriesError(null);
-                          setCategoriesReloadKey((value) => value + 1);
-                        }}
-                      >
-                        Riprova
-                      </button>
-                    </div>
-                  ) : null}
-                </div>
+          <PasswordField
+            label="Password"
+            value={password}
+            onChange={setPassword}
+            autoComplete="new-password"
+            placeholder="Minimo 8 caratteri"
+            minLength={8}
+            required
+          />
 
-                <div className="space-y-2">
-                  <label className="font-label-md text-label-md text-on-surface-variant">
-                    Sottocategoria (facoltativa)
-                  </label>
-                  <select
-                    className="w-full px-4 py-3 bg-surface-container-lowest border border-outline-variant rounded-xl focus:ring-2 focus:ring-primary focus:border-primary outline-none transition-all font-body-md text-body-md disabled:bg-surface-container-low disabled:text-outline"
-                    value={subcategoryKey}
-                    onChange={(e) => setSubcategoryKey(e.target.value)}
-                    disabled={!currentCategory || currentSubcategories.length === 0}
-                  >
-                    <option value="">
-                      {!currentCategory
-                        ? "Seleziona prima una categoria"
-                        : currentSubcategories.length === 0
-                          ? "Nessuna sottocategoria disponibile"
-                          : "Seleziona una sottocategoria"}
-                    </option>
-                    {currentSubcategories.map((subcategory) => (
-                      <option
-                        key={subcategoryOptionValue(subcategory)}
-                        value={subcategoryOptionValue(subcategory)}
-                      >
-                        {subcategory.name}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-            ) : null}
-
-            <PasswordField
-              label="Password"
-              value={password}
-              onChange={setPassword}
-              autoComplete="new-password"
-              placeholder="Minimo 8 caratteri"
-              minLength={8}
+          <label className="flex items-start gap-3 text-on-surface-variant">
+            <input
+              type="checkbox"
+              className="mt-1 w-5 h-5 rounded border-outline-variant text-primary focus:ring-primary"
+              checked={acceptTerms}
+              onChange={(e) => setAcceptTerms(e.target.checked)}
               required
             />
+            <span className="font-body-md text-body-md leading-relaxed">
+              Accetto i{" "}
+              <span className="text-primary font-bold">
+                Termini di Servizio
+              </span>{" "}
+              e la{" "}
+              <span className="text-primary font-bold">Privacy Policy</span>.
+            </span>
+          </label>
 
-            <label className="flex items-start gap-3 text-on-surface-variant">
-              <input
-                type="checkbox"
-                className="mt-1 w-5 h-5 rounded border-outline-variant text-primary focus:ring-primary"
-                checked={acceptTerms}
-                onChange={(e) => setAcceptTerms(e.target.checked)}
-                required
-              />
-              <span className="font-body-md text-body-md leading-relaxed">
-                Accetto i{" "}
-                <span className="text-primary font-bold">Termini di Servizio</span> e la{" "}
-                <span className="text-primary font-bold">Privacy Policy</span>.
+          {error ? (
+            <div className="text-on-error-container bg-error-container border border-error/20 rounded-xl px-4 py-3 text-sm">
+              {error}
+            </div>
+          ) : null}
+
+          <button
+            className="inline-flex w-full items-center justify-center gap-2 bg-[#FF8500] hover:bg-[#FF9A2B] text-white font-button text-button py-4 rounded-full transition-all duration-200 active:scale-[0.99] shadow-lg shadow-orange-500/20 disabled:cursor-wait disabled:cursor-wait disabled:opacity-60"
+            type="submit"
+            disabled={loading}
+          >
+            {loading ? (
+              <span
+                className="material-symbols-outlined animate-spin text-[19px]"
+                aria-hidden
+              >
+                progress_activity
               </span>
-            </label>
-
-            {error ? (
-              <div className="text-on-error-container bg-error-container border border-error/20 rounded-xl px-4 py-3 text-sm">
-                {error}
-              </div>
             ) : null}
+            {loading
+              ? "Caricamento…"
+              : `Registrati come ${role === "professional" ? "professionista" : "cliente"}`}
+          </button>
 
+          <div className="text-center text-on-surface-variant">
+            Sei un professionista?{" "}
             <button
-              className="w-full bg-[#FF8500] hover:bg-[#FF9A2B] text-white font-button text-button py-4 rounded-full transition-all duration-200 active:scale-[0.99] shadow-lg shadow-orange-500/20 disabled:opacity-60"
-              type="submit"
-              disabled={loading}
+              type="button"
+              className="text-primary font-bold hover:underline"
+              onClick={() => setRole("professional")}
             >
-              {loading
-                ? "Creazione…"
-                : `Registrati come ${role === "professional" ? "professionista" : "cliente"}`}
+              Crea un profilo tecnico
             </button>
+          </div>
+        </form>
+      ) : (
+        <form className="p-6 sm:p-8 space-y-5" onSubmit={onConfirmOtp}>
+          <div>
+            <h1 className="font-headline-md text-headline-md text-primary mb-1">
+              Verifica la tua email
+            </h1>
+            <p className="font-body-md text-body-md text-on-surface-variant">
+              Inserisci il codice ricevuto via email per completare l’accesso.
+            </p>
+          </div>
 
-            <div className="text-center text-on-surface-variant">
-              Sei un professionista?{" "}
-              <button
-                type="button"
-                className="text-primary font-bold hover:underline"
-                onClick={() => setRole("professional")}
-              >
-                Crea un profilo tecnico
-              </button>
+          {otpInfo ? (
+            <div className="text-on-surface-variant bg-surface-container-low border border-outline-variant/30 rounded-xl px-4 py-3 text-sm">
+              {otpInfo}
             </div>
-          </form>
-        ) : (
-          <form className="p-6 sm:p-8 space-y-5" onSubmit={onConfirmOtp}>
-            <div>
-              <h1 className="font-headline-md text-headline-md text-primary mb-1">
-                Verifica la tua email
-              </h1>
-              <p className="font-body-md text-body-md text-on-surface-variant">
-                Inserisci il codice ricevuto via email per completare l’accesso.
-              </p>
+          ) : null}
+
+          <div className="space-y-2">
+            <label className="font-label-md text-label-md text-on-surface-variant">
+              Codice (OTP)
+            </label>
+            <input
+              className="w-full px-4 py-4 tracking-[0.25em] text-center bg-surface-container-lowest border border-outline-variant rounded-xl focus:ring-2 focus:ring-primary focus:border-primary outline-none transition-all font-body-lg text-body-lg"
+              value={otp}
+              onChange={(e) => setOtp(e.target.value)}
+              inputMode="numeric"
+              placeholder="••••••••"
+              required
+            />
+            <p className="text-xs text-on-surface-variant">
+              Il codice può essere lungo 6–10 cifre (dipende dalla
+              configurazione Supabase).
+            </p>
+          </div>
+
+          {otpError ? (
+            <div className="text-on-error-container bg-error-container border border-error/20 rounded-xl px-4 py-3 text-sm">
+              {otpError}
             </div>
+          ) : null}
 
-            {otpInfo ? (
-              <div className="text-on-surface-variant bg-surface-container-low border border-outline-variant/30 rounded-xl px-4 py-3 text-sm">
-                {otpInfo}
-              </div>
-            ) : null}
+          <div className="flex flex-col sm:flex-row gap-3">
+            <button
+              className="inline-flex flex-1 items-center justify-center gap-2 bg-primary text-white font-button text-button py-4 rounded-full hover:bg-secondary transition-colors disabled:cursor-wait disabled:opacity-60"
+              type="submit"
+              disabled={loading || resendingOtp}
+            >
+              {loading ? (
+                <>
+                  <span
+                    className="material-symbols-outlined animate-spin text-[19px]"
+                    aria-hidden
+                  >
+                    progress_activity
+                  </span>
+                  Caricamento…
+                </>
+              ) : (
+                "Conferma codice"
+              )}
+            </button>
+            <button
+              className="inline-flex flex-1 items-center justify-center gap-2 border-2 border-primary text-primary font-button text-button py-4 rounded-full hover:bg-surface-container-low transition-colors disabled:cursor-wait disabled:opacity-60"
+              type="button"
+              onClick={() => void onResendOtp()}
+              disabled={loading || resendingOtp || emailValue.length === 0}
+              aria-busy={resendingOtp}
+            >
+              {resendingOtp ? (
+                <>
+                  <span
+                    className="material-symbols-outlined animate-spin text-[19px]"
+                    aria-hidden
+                  >
+                    progress_activity
+                  </span>
+                  Caricamento…
+                </>
+              ) : (
+                "Reinvia codice"
+              )}
+            </button>
+          </div>
 
-            <div className="space-y-2">
-              <label className="font-label-md text-label-md text-on-surface-variant">
-                Codice (OTP)
-              </label>
-              <input
-                className="w-full px-4 py-4 tracking-[0.25em] text-center bg-surface-container-lowest border border-outline-variant rounded-xl focus:ring-2 focus:ring-primary focus:border-primary outline-none transition-all font-body-lg text-body-lg"
-                value={otp}
-                onChange={(e) => setOtp(e.target.value)}
-                inputMode="numeric"
-                placeholder="••••••••"
-                required
-              />
-              <p className="text-xs text-on-surface-variant">
-                Il codice può essere lungo 6–10 cifre (dipende dalla configurazione Supabase).
-              </p>
-            </div>
-
-            {otpError ? (
-              <div className="text-on-error-container bg-error-container border border-error/20 rounded-xl px-4 py-3 text-sm">
-                {otpError}
-              </div>
-            ) : null}
-
-            <div className="flex flex-col sm:flex-row gap-3">
-              <button
-                className="flex-1 bg-primary text-white font-button text-button py-4 rounded-full hover:bg-secondary transition-colors disabled:opacity-60"
-                type="submit"
-                disabled={loading}
-              >
-                {loading ? "Verifica…" : "Conferma codice"}
-              </button>
-              <button
-                className="flex-1 border-2 border-primary text-primary font-button text-button py-4 rounded-full hover:bg-surface-container-low transition-colors disabled:opacity-60"
-                type="button"
-                onClick={onResendOtp}
-                disabled={loading || emailValue.length === 0}
-              >
-                Reinvia codice
-              </button>
-            </div>
-
-            <div className="text-center">
-              <button
-                type="button"
-                className="text-on-surface-variant hover:text-primary transition-colors font-label-md text-label-md"
-                onClick={() => {
-                  setStep("form");
-                  setOtp("");
-                  setOtpError(null);
-                  setOtpInfo(null);
-                }}
-              >
-                Modifica dati
-              </button>
-            </div>
-          </form>
-        )}
-      </div>
+          <div className="text-center">
+            <button
+              type="button"
+              className="text-on-surface-variant hover:text-primary transition-colors font-label-md text-label-md"
+              onClick={() => {
+                setStep("form");
+                setOtp("");
+                setOtpError(null);
+                setOtpInfo(null);
+              }}
+            >
+              Modifica dati
+            </button>
+          </div>
+        </form>
+      )}
+    </div>
   );
 }
