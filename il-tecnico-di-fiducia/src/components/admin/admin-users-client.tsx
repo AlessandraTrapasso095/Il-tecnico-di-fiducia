@@ -760,7 +760,10 @@ export function AdminUsersClient({
                                       });
                                     }}
                                   >
-                                    Annulla abbonamento
+                                    {user.subscription?.status ===
+                                    "admin_forced_active"
+                                      ? "Revoca forzatura"
+                                      : "Sospendi accesso"}
                                   </MenuItem>
                                 ) : (
                                   <>

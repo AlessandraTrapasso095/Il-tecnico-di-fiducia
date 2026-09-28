@@ -4,12 +4,16 @@ import { useState } from "react";
 
 import { fetchJson } from "@/lib/api/fetch-json";
 
+type SubscriptionPlan = "monthly" | "annual";
+
 type StartCheckoutButtonProps = {
+  plan: SubscriptionPlan;
   className?: string;
   children?: React.ReactNode;
 };
 
 export function StartCheckoutButton({
+  plan,
   className,
   children,
 }: StartCheckoutButtonProps) {
@@ -18,15 +22,20 @@ export function StartCheckoutButton({
 
   async function onClick() {
     if (loading) return;
+
     setLoading(true);
     setError(null);
+
     try {
       const res = await fetchJson<{ url: string }>("/api/billing/checkout", {
         method: "POST",
+        body: JSON.stringify({ plan }),
       });
+
       if (!res.url) {
         throw new Error("Checkout URL missing");
       }
+
       window.location.assign(res.url);
     } catch (checkoutError) {
       if (process.env.NODE_ENV !== "production") {
@@ -35,6 +44,7 @@ export function StartCheckoutButton({
           checkoutError,
         );
       }
+
       setError("Non è stato possibile avviare il pagamento. Riprova.");
     } finally {
       setLoading(false);
@@ -64,6 +74,7 @@ export function StartCheckoutButton({
           (children ?? "Attiva abbonamento")
         )}
       </button>
+
       {error ? <p className="text-sm font-medium text-error">{error}</p> : null}
     </div>
   );

@@ -5,7 +5,10 @@ import Link from "next/link";
 
 import { PasswordField } from "@/components/auth/password-field";
 import { fetchJson } from "@/lib/api/fetch-json";
-import { navigateAfterLogin } from "@/lib/auth/post-login-navigation";
+import {
+  navigateAfterLogin,
+  safeNextPathForRole,
+} from "@/lib/auth/post-login-navigation";
 import {
   ITALIAN_PROVINCES_BY_NAME,
   normalizeItalianProvinceCode,
@@ -61,9 +64,13 @@ function subcategoryIdFromOption(value: string) {
 
 type RegisterClientProps = {
   initialRole: Role;
+  nextPath?: string | null;
 };
 
-export default function RegisterClient({ initialRole }: RegisterClientProps) {
+export default function RegisterClient({
+  initialRole,
+  nextPath = null,
+}: RegisterClientProps) {
   const [role, setRole] = useState<Role>(initialRole);
   const [step, setStep] = useState<"form" | "otp">("form");
 
@@ -93,6 +100,10 @@ export default function RegisterClient({ initialRole }: RegisterClientProps) {
   const [otpInfo, setOtpInfo] = useState<string | null>(null);
 
   const emailValue = useMemo(() => normalizeEmail(email), [email]);
+
+  const loginHref = nextPath
+    ? `/auth/login?next=${encodeURIComponent(nextPath)}`
+    : "/auth/login";
   const currentCategory = useMemo(
     () =>
       categories.find(
@@ -256,7 +267,9 @@ export default function RegisterClient({ initialRole }: RegisterClientProps) {
         },
       );
 
-      navigateAfterLogin(nextPathByRole(res.profile.role));
+      const resumedPath = safeNextPathForRole(nextPath, res.profile.role);
+
+      navigateAfterLogin(resumedPath ?? nextPathByRole(res.profile.role));
     } catch (err) {
       setOtpError(err instanceof Error ? err.message : "Errore imprevisto.");
       setLoading(false);
@@ -295,7 +308,7 @@ export default function RegisterClient({ initialRole }: RegisterClientProps) {
             </div>
           </div>
           <Link
-            href="/auth/login"
+            href={loginHref}
             className="font-button text-button text-primary px-4 py-2 rounded-full hover:bg-surface-container-high transition-colors shrink-0"
           >
             Log In
@@ -519,12 +532,25 @@ export default function RegisterClient({ initialRole }: RegisterClientProps) {
               required
             />
             <span className="font-body-md text-body-md leading-relaxed">
-              Accetto i{" "}
-              <span className="text-primary font-bold">
+              Dichiaro di avere almeno 18 anni e accetto i{" "}
+              <Link
+                href="/termini-di-servizio"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="font-bold text-primary underline underline-offset-4"
+              >
                 Termini di Servizio
-              </span>{" "}
-              e la{" "}
-              <span className="text-primary font-bold">Privacy Policy</span>.
+              </Link>{" "}
+              e dichiaro di aver letto la{" "}
+              <Link
+                href="/privacy"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="font-bold text-primary underline underline-offset-4"
+              >
+                Privacy Policy
+              </Link>
+              .
             </span>
           </label>
 

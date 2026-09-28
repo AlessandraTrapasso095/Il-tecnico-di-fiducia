@@ -1,3 +1,5 @@
+import type { Metadata } from "next";
+import { cache } from "react";
 import { notFound, redirect } from "next/navigation";
 
 import ProfessionalShell from "@/app/professionista/professional-shell";
@@ -17,6 +19,100 @@ type ProfessionalProfilePageProps = {
   params: Promise<{ id: string }>;
 };
 
+const getPublicProfessionalProfile = cache(loadPublicProfessionalProfile);
+
+function seoDescription(value: string | null | undefined, fallback: string) {
+  const normalized = value?.replace(/\s+/g, " ").trim() || fallback;
+
+  return normalized.length > 160
+    ? `${normalized.slice(0, 157).trimEnd()}...`
+    : normalized;
+}
+
+export async function generateMetadata({
+  params,
+}: ProfessionalProfilePageProps): Promise<Metadata> {
+  const { id } = await params;
+  const profile = await getPublicProfessionalProfile(id);
+
+  const canonicalPath = `/professionisti/${encodeURIComponent(id)}`;
+
+  if (!profile) {
+    return {
+      title: "Profilo professionista | Il Tecnico di Fiducia",
+      robots: {
+        index: false,
+        follow: false,
+      },
+    };
+  }
+
+  const fullName =
+    `${profile.first_name} ${profile.last_name}`.trim() || "Professionista";
+
+  const profession =
+    profile.subcategory?.name ||
+    profile.categories[0]?.name ||
+    profile.headline ||
+    "Professionista";
+
+  const location = profile.province_code
+    ? ` in provincia di ${profile.province_code}`
+    : "";
+
+  const title = `${fullName} — ${profession} | Il Tecnico di Fiducia`;
+
+  const description = seoDescription(
+    profile.search_summary || profile.bio || profile.headline,
+    `${fullName}, ${profession}${location}. Consulta il profilo professionale su Il Tecnico di Fiducia.`,
+  );
+
+  const images = profile.avatar_url
+    ? [
+        {
+          url: profile.avatar_url,
+          alt: fullName,
+        },
+      ]
+    : [
+        {
+          url: "/img/logo-mark.png",
+          alt: "Il Tecnico di Fiducia",
+        },
+      ];
+
+  return {
+    title,
+    description,
+
+    alternates: {
+      canonical: canonicalPath,
+    },
+
+    openGraph: {
+      type: "profile",
+      locale: "it_IT",
+      url: canonicalPath,
+      siteName: "Il Tecnico di Fiducia",
+      title,
+      description,
+      images,
+    },
+
+    twitter: {
+      card: "summary",
+      title,
+      description,
+      images: images.map((image) => image.url),
+    },
+
+    robots: {
+      index: true,
+      follow: true,
+    },
+  };
+}
+
 export default async function ProfessionalProfilePage({
   params,
 }: ProfessionalProfilePageProps) {
@@ -29,7 +125,7 @@ export default async function ProfessionalProfilePage({
   } = await sessionClient.auth.getUser();
 
   if (!optionalUser) {
-    const publicProfile = await loadPublicProfessionalProfile(id);
+    const publicProfile = await getPublicProfessionalProfile(id);
 
     if (!publicProfile) {
       notFound();

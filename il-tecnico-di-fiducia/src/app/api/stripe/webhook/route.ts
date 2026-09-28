@@ -3,10 +3,8 @@ import { NextResponse } from "next/server";
 import type Stripe from "stripe";
 
 import { createServiceClient } from "@/lib/supabase/service";
-import {
-  getStripe,
-  getStripeWebhookSecret,
-} from "@/lib/server/stripe";
+import { getStripe, getStripeWebhookSecret } from "@/lib/server/stripe";
+import { internalServerError } from "@/lib/api/internal-server-error";
 import {
   isProfessionSuggestionCheckoutSession,
   recordProfessionSuggestionFromCheckout,
@@ -19,7 +17,7 @@ import {
 export const runtime = "nodejs";
 
 function toStringId(value: unknown) {
-  return typeof value === "string" ? value : value?.toString?.() ?? null;
+  return typeof value === "string" ? value : (value?.toString?.() ?? null);
 }
 
 export async function POST(request: Request) {
@@ -28,7 +26,10 @@ export async function POST(request: Request) {
   const signature = request.headers.get("stripe-signature");
 
   if (!signature) {
-    return NextResponse.json({ error: "Missing stripe-signature" }, { status: 400 });
+    return NextResponse.json(
+      { error: "Missing stripe-signature" },
+      { status: 400 },
+    );
   }
 
   const rawBody = await request.text();
@@ -46,9 +47,7 @@ export async function POST(request: Request) {
   try {
     service = createServiceClient();
   } catch (err) {
-    const message =
-      err instanceof Error ? err.message : "Failed to initialize service client";
-    return NextResponse.json({ error: message }, { status: 500 });
+    return internalServerError("STRIPE WEBHOOK SERVICE CLIENT ERROR", err);
   }
 
   try {
@@ -76,7 +75,8 @@ export async function POST(request: Request) {
 
         if (!professionalId || !subscriptionId) break;
 
-        const subscription = await stripe.subscriptions.retrieve(subscriptionId);
+        const subscription =
+          await stripe.subscriptions.retrieve(subscriptionId);
 
         await upsertProfessionalSubscriptionFromStripe(service, {
           professionalId,
@@ -84,6 +84,8 @@ export async function POST(request: Request) {
           stripeSubscriptionId: subscription.id,
           stripeStatus: subscription.status,
           currentPeriodEnd: subscription.current_period_end ?? null,
+          stripeEventId: event.id,
+          stripeEventCreated: event.created,
         });
 
         break;
@@ -105,6 +107,8 @@ export async function POST(request: Request) {
           stripeSubscriptionId: subscription.id,
           stripeStatus: subscription.status,
           currentPeriodEnd: subscription.current_period_end ?? null,
+          stripeEventId: event.id,
+          stripeEventCreated: event.created,
         });
 
         break;
@@ -114,9 +118,7 @@ export async function POST(request: Request) {
         break;
     }
   } catch (err) {
-    const message =
-      err instanceof Error ? err.message : "Failed to process Stripe webhook";
-    return NextResponse.json({ error: message }, { status: 500 });
+    return internalServerError("STRIPE WEBHOOK PROCESSING ERROR", err);
   }
 
   return NextResponse.json({ ok: true });

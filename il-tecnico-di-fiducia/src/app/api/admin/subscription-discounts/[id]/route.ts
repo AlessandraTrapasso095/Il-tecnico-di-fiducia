@@ -4,6 +4,7 @@ import { writeAuditLog } from "@/lib/api/audit-log";
 import { requireAuth } from "@/lib/api/auth";
 import { isNonEmptyString } from "@/lib/api/validation";
 import { getStripe } from "@/lib/server/stripe";
+import { internalServerError } from "@/lib/api/internal-server-error";
 
 type UpdateDiscountPayload = {
   is_active: boolean;
@@ -41,11 +42,16 @@ export async function PATCH(
     .maybeSingle();
 
   if (currentError) {
-    return NextResponse.json({ error: currentError.message }, { status: 500 });
+    return internalServerError("ADMIN DISCOUNT LOAD ERROR", currentError, {
+      discount_id: id,
+    });
   }
 
   if (!current) {
-    return NextResponse.json({ error: "Codice sconto non trovato." }, { status: 404 });
+    return NextResponse.json(
+      { error: "Codice sconto non trovato." },
+      { status: 404 },
+    );
   }
 
   try {
@@ -54,9 +60,9 @@ export async function PATCH(
       active: payload.is_active,
     });
   } catch (error) {
-    const message =
-      error instanceof Error ? error.message : "Impossibile aggiornare il codice su Stripe.";
-    return NextResponse.json({ error: message }, { status: 500 });
+    return internalServerError("ADMIN DISCOUNT STRIPE UPDATE ERROR", error, {
+      discount_id: id,
+    });
   }
 
   const { data, error } = await supabase

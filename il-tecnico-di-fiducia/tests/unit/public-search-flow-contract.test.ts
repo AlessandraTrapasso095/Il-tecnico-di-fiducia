@@ -50,9 +50,12 @@ describe("public search flow contract", () => {
       "const contactPath = `${profilePath}?action=contact`;",
     );
     expect(source).toContain(
-      "const loginPath = `/auth/login?next=${encodeURIComponent(contactPath)}`;",
+      "const loginPath = `/auth/login?next=${encodeURIComponent(",
     );
+    expect(source).toContain("contactPath,");
+    expect(source).toContain(")}`;");
     expect(source).toContain("href={profilePath}");
-    expect(source).toContain("href={loginPath}");
+    expect(source).toContain("loginHref: loginPath");
+    expect(source).toContain("registerHref: registerPath");
   });
 });

@@ -33,9 +33,10 @@ describe("CTU / CTP public UI contract", () => {
   });
 
   it("shows CTU / CTP badges on public search cards", () => {
-    expect(publicSearch).toContain(
-      "professional.is_ctu || professional.is_ctp",
-    );
+    expect(publicSearch).toContain("professional.is_ctu");
+    expect(publicSearch).toContain("professional.is_ctp");
+    expect(publicSearch).toContain("CTU");
+    expect(publicSearch).toContain("CTP");
     expect(publicSearch).toContain("professional.is_ctu ?");
     expect(publicSearch).toContain("professional.is_ctp ?");
   });

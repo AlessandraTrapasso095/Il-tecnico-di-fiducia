@@ -36,7 +36,10 @@ describe("public professional profile contract", () => {
     );
 
     expect(source).toContain("if (!optionalUser)");
-    expect(source).toContain("loadPublicProfessionalProfile(id)");
+    expect(source).toContain(
+      "const getPublicProfessionalProfile = cache(loadPublicProfessionalProfile)",
+    );
+    expect(source).toContain("getPublicProfessionalProfile(id)");
     expect(source).toContain("<PublicProfessionalProfile");
   });
 

@@ -30,16 +30,8 @@ function metadataValue(value: string, maxLength = 500) {
   return value.slice(0, maxLength);
 }
 
-function checkoutEnvErrorMessage(error: Error) {
-  if (error.message === "Missing env: STRIPE_PROFESSION_SUGGESTION_PRICE_ID") {
-    return "Pagamento temporaneamente non configurato: manca STRIPE_PROFESSION_SUGGESTION_PRICE_ID.";
-  }
-
-  if (error.message === "Missing env: STRIPE_SECRET_KEY") {
-    return "Pagamento temporaneamente non configurato: manca STRIPE_SECRET_KEY.";
-  }
-
-  return "Pagamento temporaneamente non configurato. Riprova più tardi.";
+function checkoutEnvErrorMessage() {
+  return "Pagamento temporaneamente non disponibile. Riprova più tardi.";
 }
 
 function maskStripeId(value: string) {
@@ -60,18 +52,27 @@ export async function POST(request: Request) {
   const email = normalize(payload.email, 180).toLowerCase();
   const professionName = normalize(payload.profession_name, 120);
   const motivation = normalize(payload.motivation, 450);
-  const suggestedSubcategories = normalize(payload.suggested_subcategories, 350);
+  const suggestedSubcategories = normalize(
+    payload.suggested_subcategories,
+    350,
+  );
 
   if (!isNonEmptyString(firstName)) {
     return NextResponse.json({ error: "Inserisci il nome." }, { status: 400 });
   }
 
   if (!isNonEmptyString(lastName)) {
-    return NextResponse.json({ error: "Inserisci il cognome." }, { status: 400 });
+    return NextResponse.json(
+      { error: "Inserisci il cognome." },
+      { status: 400 },
+    );
   }
 
   if (!EMAIL_RE.test(email)) {
-    return NextResponse.json({ error: "Inserisci un’email valida." }, { status: 400 });
+    return NextResponse.json(
+      { error: "Inserisci un’email valida." },
+      { status: 400 },
+    );
   }
 
   if (!isNonEmptyString(professionName)) {
@@ -122,7 +123,9 @@ export async function POST(request: Request) {
       mode: session.mode,
       has_url: Boolean(session.url),
       payment_status: session.payment_status,
-      price_env_present: Boolean(process.env.STRIPE_PROFESSION_SUGGESTION_PRICE_ID),
+      price_env_present: Boolean(
+        process.env.STRIPE_PROFESSION_SUGGESTION_PRICE_ID,
+      ),
       email_present: Boolean(email),
       profession_name_present: Boolean(professionName),
       success_url_path: "/proponi-un-tecnico?checkout=success",
@@ -131,7 +134,7 @@ export async function POST(request: Request) {
 
     if (!session.url) {
       return NextResponse.json(
-        { error: "Stripe non ha restituito un URL di checkout." },
+        { error: "Non è stato possibile avviare il pagamento. Riprova." },
         { status: 500 },
       );
     }
@@ -147,12 +150,13 @@ export async function POST(request: Request) {
     });
 
     const missingStripeEnv =
-      error instanceof Error && error.message.startsWith("Missing env: STRIPE_");
+      error instanceof Error &&
+      error.message.startsWith("Missing env: STRIPE_");
 
     return NextResponse.json(
       {
         error: missingStripeEnv
-          ? checkoutEnvErrorMessage(error)
+          ? checkoutEnvErrorMessage()
           : "Non è stato possibile avviare il pagamento. Riprova.",
       },
       { status: missingStripeEnv ? 503 : 500 },

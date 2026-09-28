@@ -31,9 +31,7 @@ function desktopNavLinkClass(active: boolean) {
     "transition-colors duration-200",
     "min-[1450px]:px-2.5 min-[1450px]:text-[15px]",
     "min-[1650px]:px-3 min-[1650px]:text-[16px]",
-    active
-      ? "text-primary"
-      : "text-on-surface-variant hover:text-primary",
+    active ? "text-primary" : "text-on-surface-variant hover:text-primary",
   ].join(" ");
 }
 
@@ -126,12 +124,12 @@ export function TopNav() {
             priority
           />
 
-          <span className="hidden min-w-0 flex-col leading-none sm:flex">
-            <span className="whitespace-nowrap text-[19px] font-bold text-primary min-[1500px]:text-[22px]">
+          <span className="flex min-w-0 flex-col leading-none">
+            <span className="whitespace-nowrap text-[15px] font-bold text-primary sm:text-[19px] min-[1500px]:text-[22px]">
               Il tecnico
             </span>
 
-            <span className="whitespace-nowrap text-[11px] font-extrabold uppercase tracking-[0.1em] text-on-tertiary-container min-[1500px]:text-[13px]">
+            <span className="whitespace-nowrap text-[9px] font-extrabold uppercase tracking-[0.08em] text-on-tertiary-container sm:text-[11px] sm:tracking-[0.1em] min-[1500px]:text-[13px]">
               di fiducia
             </span>
           </span>
@@ -142,9 +140,7 @@ export function TopNav() {
             <Link
               key={link.id}
               href={link.href}
-              className={desktopNavLinkClass(
-                isDesktopNavActive(link.href),
-              )}
+              className={desktopNavLinkClass(isDesktopNavActive(link.href))}
             >
               {link.label}
 
@@ -188,10 +184,7 @@ export function TopNav() {
       </div>
 
       {open ? (
-        <div
-          className="fixed inset-0 z-[200] xl:hidden"
-          id={mobileMenuId}
-        >
+        <div className="fixed inset-0 z-[200] xl:hidden" id={mobileMenuId}>
           <button
             type="button"
             className="absolute inset-0 h-full w-full bg-inverse-surface/45 backdrop-blur-sm"

@@ -6,7 +6,8 @@ import { StartCheckoutButton } from "@/components/billing/start-checkout-button"
 import { StartPortalButton } from "@/components/billing/start-portal-button";
 import { fetchJson } from "@/lib/api/fetch-json";
 
-type SubscriptionStatus = "none" | "stripe_active" | "admin_forced_active" | "suspended";
+type SubscriptionStatus =
+  "none" | "stripe_active" | "admin_forced_active" | "suspended";
 
 type SubscriptionResponse = {
   subscription: {
@@ -44,13 +45,18 @@ function formatDate(value: string | null | undefined) {
 }
 
 function fullName(profile: SubscriptionSettingsClientProps["profile"]) {
-  return `${profile.first_name ?? ""} ${profile.last_name ?? ""}`.trim() || profile.email;
+  return (
+    `${profile.first_name ?? ""} ${profile.last_name ?? ""}`.trim() ||
+    profile.email
+  );
 }
 
 export default function SubscriptionSettingsClient({
   profile,
 }: SubscriptionSettingsClientProps) {
-  const [subscription, setSubscription] = useState<SubscriptionResponse | null>(null);
+  const [subscription, setSubscription] = useState<SubscriptionResponse | null>(
+    null,
+  );
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -64,7 +70,11 @@ export default function SubscriptionSettingsClient({
       })
       .catch((err) => {
         if (!mounted) return;
-        setError(err instanceof Error ? err.message : "Impossibile caricare l’abbonamento.");
+        setError(
+          err instanceof Error
+            ? err.message
+            : "Impossibile caricare l’abbonamento.",
+        );
       })
       .finally(() => {
         if (!mounted) return;
@@ -127,8 +137,8 @@ export default function SubscriptionSettingsClient({
           Impostazioni abbonamento
         </h1>
         <p className="mt-4 text-on-surface-variant">
-          Gestisci qui la visibilità del profilo e le azioni Stripe, senza partire
-          direttamente dalla dashboard.
+          Gestisci qui la visibilità del profilo e le azioni Stripe, senza
+          partire direttamente dalla dashboard.
         </p>
         <div className="mt-6 rounded-2xl bg-surface-container-low p-4">
           <div className="font-label-md text-primary">{fullName(profile)}</div>
@@ -155,7 +165,9 @@ export default function SubscriptionSettingsClient({
           <div className={`rounded-[24px] border p-6 ${copy.className}`}>
             <div className="flex flex-col gap-5 md:flex-row md:items-start md:justify-between">
               <div>
-                <span className={`inline-flex rounded-full px-4 py-2 text-sm font-bold ${copy.badge}`}>
+                <span
+                  className={`inline-flex rounded-full px-4 py-2 text-sm font-bold ${copy.badge}`}
+                >
                   {status}
                 </span>
                 <h2 className="mt-5 font-headline-md text-headline-md">
@@ -183,26 +195,75 @@ export default function SubscriptionSettingsClient({
                 </p>
                 <p className="mt-2 text-body-md">
                   Usa il codice sconto{" "}
-                  <span className="font-bold">“{subscription.discount_code.code}”</span>{" "}
+                  <span className="font-bold">
+                    “{subscription.discount_code.code}”
+                  </span>{" "}
                   in fase di checkout per ricevere il{" "}
                   {subscription.discount_code.percent_off}% di sconto.
                 </p>
               </div>
             ) : null}
 
-            <div className="mt-8 flex flex-col gap-3 sm:flex-row">
+            <div className="mt-8">
               {status === "stripe_active" ? (
                 <StartPortalButton className="rounded-full bg-primary px-7 py-3 font-button text-button text-white shadow-md transition hover:bg-primary-container disabled:opacity-60">
                   Gestisci abbonamento
                 </StartPortalButton>
               ) : (
-                <StartCheckoutButton className="rounded-full bg-[#FF8500] px-7 py-3 font-button text-button text-white shadow-md transition hover:bg-[#FF9A2B] disabled:opacity-60">
-                  {status === "suspended"
-                    ? "Riattiva abbonamento"
-                    : status === "admin_forced_active"
-                      ? "Abbonati a pagamento"
-                      : "Attiva abbonamento"}
-                </StartCheckoutButton>
+                <div className="grid gap-4 md:grid-cols-2">
+                  <div className="rounded-3xl border border-outline-variant/30 bg-white/75 p-5">
+                    <p className="font-label-md text-sm uppercase tracking-[0.14em] text-primary">
+                      Mensile
+                    </p>
+
+                    <p className="mt-2 font-headline-md text-[30px] text-primary">
+                      €9,99
+                      <span className="ml-1 text-base font-normal text-on-surface-variant">
+                        / mese
+                      </span>
+                    </p>
+
+                    <p className="mt-2 text-sm leading-6 text-on-surface-variant">
+                      Flessibile, con rinnovo mensile tramite Stripe.
+                    </p>
+
+                    <StartCheckoutButton
+                      plan="monthly"
+                      className="mt-5 w-full rounded-full bg-[#FF8500] px-7 py-3 font-button text-button text-white shadow-md transition hover:bg-[#FF9A2B] disabled:opacity-60"
+                    >
+                      Scegli mensile
+                    </StartCheckoutButton>
+                  </div>
+
+                  <div className="rounded-3xl border-2 border-[#FF8500]/40 bg-white/85 p-5">
+                    <span className="inline-flex rounded-full bg-[#FF8500]/10 px-3 py-1 text-xs font-bold uppercase tracking-[0.12em] text-[#C85F00]">
+                      Più conveniente
+                    </span>
+
+                    <p className="mt-3 font-label-md text-sm uppercase tracking-[0.14em] text-primary">
+                      Annuale
+                    </p>
+
+                    <p className="mt-2 font-headline-md text-[30px] text-primary">
+                      €99,99
+                      <span className="ml-1 text-base font-normal text-on-surface-variant">
+                        / anno
+                      </span>
+                    </p>
+
+                    <p className="mt-2 text-sm leading-6 text-on-surface-variant">
+                      Un unico rinnovo annuale, con un costo medio più basso
+                      rispetto al mensile.
+                    </p>
+
+                    <StartCheckoutButton
+                      plan="annual"
+                      className="mt-5 w-full rounded-full bg-primary px-7 py-3 font-button text-button text-white shadow-md transition hover:bg-primary-container disabled:opacity-60"
+                    >
+                      Scegli annuale
+                    </StartCheckoutButton>
+                  </div>
+                </div>
               )}
             </div>
           </div>

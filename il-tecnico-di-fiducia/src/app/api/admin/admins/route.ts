@@ -4,6 +4,7 @@ import { writeAuditLog } from "@/lib/api/audit-log";
 import { requireAuth } from "@/lib/api/auth";
 import { isNonEmptyString } from "@/lib/api/validation";
 import { createServiceClient } from "@/lib/supabase/service";
+import { internalServerError } from "@/lib/api/internal-server-error";
 
 type CreateAdminPayload = {
   email: string;
@@ -48,9 +49,7 @@ export async function POST(request: Request) {
   try {
     service = createServiceClient();
   } catch (err) {
-    const message =
-      err instanceof Error ? err.message : "Failed to initialize service client";
-    return NextResponse.json({ error: message }, { status: 500 });
+    return internalServerError("ADMIN CREATE SERVICE CLIENT ERROR", err);
   }
 
   const { data, error } = await service.auth.admin.createUser({
@@ -70,7 +69,10 @@ export async function POST(request: Request) {
 
   const userId = data.user?.id;
   if (!userId) {
-    return NextResponse.json({ error: "Failed to create admin user" }, { status: 500 });
+    return internalServerError(
+      "ADMIN CREATE USER ID MISSING",
+      new Error("Supabase admin.createUser returned no user id"),
+    );
   }
 
   // Promote to admin + force password change on first login.
@@ -85,7 +87,13 @@ export async function POST(request: Request) {
     .eq("id", userId);
 
   if (profileError) {
-    return NextResponse.json({ error: profileError.message }, { status: 500 });
+    return internalServerError(
+      "ADMIN CREATE PROFILE UPDATE ERROR",
+      profileError,
+      {
+        target_user_id: userId,
+      },
+    );
   }
 
   // Ensure the admin is not present in customer/professional directory tables.

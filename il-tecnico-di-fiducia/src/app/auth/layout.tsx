@@ -3,7 +3,11 @@ import Link from "next/link";
 
 import { HeaderBackButton } from "@/components/navigation/header-back-button";
 
-export default function AuthLayout({ children }: { children: React.ReactNode }) {
+export default function AuthLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
   return (
     <div className="grid min-h-dvh w-full grid-cols-1 lg:grid-cols-[minmax(0,45%)_minmax(0,55%)]">
       <aside className="relative hidden lg:flex min-w-0 flex-col justify-between px-12 py-14 overflow-hidden bg-primary">
@@ -28,8 +32,15 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
                 className="bg-white/10 text-on-primary hover:bg-white/20"
               />
               <Link href="/" className="inline-flex items-center gap-3">
-                <div className="w-12 h-12 bg-on-primary rounded-full flex items-center justify-center">
-                  <span className="text-primary text-[28px] font-bold">✓</span>
+                <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-white p-1.5 shadow-sm">
+                  <Image
+                    src="/img/logo-mark.png"
+                    alt="Il Tecnico di Fiducia"
+                    width={48}
+                    height={48}
+                    className="h-full w-full object-contain"
+                    priority
+                  />
                 </div>
                 <span className="font-headline-sm text-headline-sm text-on-primary font-bold">
                   Il tecnico di fiducia
@@ -42,8 +53,9 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
                 Bentornato
               </h2>
               <p className="font-body-lg text-body-lg text-primary-fixed-dim leading-relaxed">
-                Accedi al tuo portale sicuro per gestire richieste, comunicazioni e attività.
-                La tua tranquillità è la nostra priorità.
+                Accedi al tuo portale sicuro per gestire richieste,
+                comunicazioni e attività. La tua tranquillità è la nostra
+                priorità.
               </p>
             </div>
           </div>
@@ -62,10 +74,20 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
       <section className="flex min-w-0 flex-col justify-center bg-surface-container-low px-4 py-8 sm:px-6 sm:py-12 lg:px-12">
         <div className="mx-auto w-full max-w-[672px]">
           <div className="mb-6 flex items-center gap-3 sm:mb-8 lg:hidden">
-            <HeaderBackButton fallbackHref="/" hiddenPathnames={["/auth/login"]} />
+            <HeaderBackButton
+              fallbackHref="/"
+              hiddenPathnames={["/auth/login"]}
+            />
             <Link href="/" className="inline-flex items-center gap-3">
-              <div className="w-12 h-12 bg-primary rounded-full flex items-center justify-center">
-                <span className="text-on-primary text-[28px] font-bold">✓</span>
+              <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-white p-1.5 shadow-sm">
+                <Image
+                  src="/img/logo-mark.png"
+                  alt="Il Tecnico di Fiducia"
+                  width={48}
+                  height={48}
+                  className="h-full w-full object-contain"
+                  priority
+                />
               </div>
               <span className="font-headline-sm text-[22px] text-primary sm:font-headline-md sm:text-headline-md">
                 Il tecnico di fiducia

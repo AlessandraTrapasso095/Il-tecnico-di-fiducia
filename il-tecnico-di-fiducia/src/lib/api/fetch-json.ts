@@ -26,12 +26,15 @@ export async function fetchJson<T>(
   const payload = (await res.json().catch(() => null)) as unknown;
 
   if (!res.ok) {
+    const serverMessage = (payload as { error?: string } | null)?.error;
+
     const message =
-      (payload as { error?: string } | null)?.error ??
-      `Request failed (${res.status})`;
+      res.status >= 500
+        ? "Si è verificato un problema del servizio. Riprova tra qualche istante."
+        : (serverMessage ?? `Request failed (${res.status})`);
+
     throw new ApiError(message, res.status);
   }
 
   return payload as T;
 }
-

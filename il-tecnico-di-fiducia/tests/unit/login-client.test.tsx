@@ -11,10 +11,16 @@ vi.mock("@/lib/api/fetch-json", () => ({
   fetchJson: (...args: unknown[]) => fetchJsonMock(...args),
 }));
 
-vi.mock("@/lib/auth/post-login-navigation", () => ({
-  navigateAfterLogin: (destination: string) =>
-    navigateAfterLoginMock(destination),
-}));
+vi.mock("@/lib/auth/post-login-navigation", async (importOriginal) => {
+  const actual =
+    await importOriginal<typeof import("@/lib/auth/post-login-navigation")>();
+
+  return {
+    ...actual,
+    navigateAfterLogin: (destination: string) =>
+      navigateAfterLoginMock(destination),
+  };
+});
 
 import LoginClient from "@/app/auth/login/login-client";
 
@@ -151,7 +157,7 @@ describe("LoginClient", () => {
     });
   });
 
-  it("ignora percorsi precedenti e porta sempre alla dashboard del ruolo", async () => {
+  it("porta alla dashboard del ruolo quando non esiste un next esplicito", async () => {
     fetchJsonMock.mockResolvedValue({
       user: {
         id: "user-1",
@@ -184,6 +190,49 @@ describe("LoginClient", () => {
 
     await waitFor(() => {
       expect(navigateAfterLoginMock).toHaveBeenCalledWith("/customer");
+    });
+  });
+  it("riprende un next interno sicuro dopo il login", async () => {
+    fetchJsonMock.mockResolvedValue({
+      user: {
+        id: "user-1",
+        email: "cliente@example.it",
+      },
+      profile: {
+        id: "user-1",
+        role: "customer",
+        must_change_password: false,
+        is_banned: false,
+      },
+    });
+
+    const user = userEvent.setup();
+
+    render(
+      <LoginClient
+        initialRole="customer"
+        infoMessage={null}
+        nextPath="/professionisti/pro-123?action=contact"
+      />,
+    );
+
+    await user.type(
+      screen.getByRole("textbox", { name: /indirizzo email/i }),
+      "cliente@example.it",
+    );
+
+    const password = document.querySelector(
+      'input[type="password"]',
+    ) as HTMLInputElement;
+
+    await user.type(password, "Password123!");
+
+    await user.click(screen.getByRole("button", { name: /^accedi$/i }));
+
+    await waitFor(() => {
+      expect(navigateAfterLoginMock).toHaveBeenCalledWith(
+        "/professionisti/pro-123?action=contact",
+      );
     });
   });
 });

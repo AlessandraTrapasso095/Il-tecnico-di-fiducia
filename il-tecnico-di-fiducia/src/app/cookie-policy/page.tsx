@@ -63,7 +63,7 @@ const COOKIE_SECTIONS = [
   {
     title: "8. Contatti",
     content: [
-      "Per richieste relative all’uso di cookie e strumenti tecnici è possibile scrivere a admin@iltecnicodifiducia.it.",
+      "Per richieste relative all’uso di cookie e strumenti tecnici è possibile scrivere a info@iltecnicodifiducia.it.",
     ],
   },
 ];

@@ -10,8 +10,8 @@ export function Footer() {
             Il tecnico di fiducia
           </div>
           <p className="font-body-md text-body-md text-surface-container-highest/80">
-            La tua piattaforma di riferimento per trovare professionisti verificati in
-            Italia.
+            La tua piattaforma di riferimento per trovare professionisti
+            verificati in Italia.
           </p>
         </div>
 
@@ -84,6 +84,12 @@ export function Footer() {
             >
               Privacy Policy
             </Link>
+            <Link
+              className="text-surface-container-highest hover:text-on-primary-container transition-colors"
+              href="/cookie-policy"
+            >
+              Cookie Policy
+            </Link>
           </div>
         </div>
       </Container>
@@ -91,7 +97,8 @@ export function Footer() {
       <div className="border-t border-white/10">
         <Container className="flex flex-col items-center justify-between gap-4 py-6 text-center sm:flex-row sm:text-left">
           <div className="text-surface-container-highest/70 text-sm">
-            © {new Date().getFullYear()} Il Tecnico di Fiducia. Tutti i diritti riservati.
+            © {new Date().getFullYear()} Il Tecnico di Fiducia. Tutti i diritti
+            riservati.
           </div>
         </Container>
       </div>

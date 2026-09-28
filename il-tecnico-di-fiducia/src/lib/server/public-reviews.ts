@@ -1,5 +1,7 @@
 import "server-only";
 
+import { unstable_cache } from "next/cache";
+
 import { logApiError } from "@/lib/server/api-logger";
 import { createServiceClient } from "@/lib/supabase/service";
 
@@ -44,8 +46,14 @@ type ProfessionalDetailsRow = {
 
 function isMissingReviewTitleColumn(error: unknown) {
   if (!error || typeof error !== "object") return false;
-  const record = error as { code?: string; message?: string; details?: string; hint?: string };
-  const haystack = `${record.message ?? ""} ${record.details ?? ""} ${record.hint ?? ""}`.toLowerCase();
+  const record = error as {
+    code?: string;
+    message?: string;
+    details?: string;
+    hint?: string;
+  };
+  const haystack =
+    `${record.message ?? ""} ${record.details ?? ""} ${record.hint ?? ""}`.toLowerCase();
   return (
     ["42703", "PGRST204", "PGRST205"].includes(record.code ?? "") &&
     haystack.includes("title")
@@ -53,7 +61,10 @@ function isMissingReviewTitleColumn(error: unknown) {
 }
 
 function displayName(profile: ProfileRow | null | undefined, fallback: string) {
-  return `${profile?.first_name ?? ""} ${profile?.last_name ?? ""}`.trim() || fallback;
+  return (
+    `${profile?.first_name ?? ""} ${profile?.last_name ?? ""}`.trim() ||
+    fallback
+  );
 }
 
 function customerDisplayName(profile: ProfileRow | null | undefined) {
@@ -61,7 +72,9 @@ function customerDisplayName(profile: ProfileRow | null | undefined) {
   const lastInitial = profile?.last_name?.trim().slice(0, 1).toUpperCase();
 
   if (!firstName && !lastInitial) return "Cliente verificato";
-  return [firstName, lastInitial ? `${lastInitial}.` : ""].filter(Boolean).join(" ");
+  return [firstName, lastInitial ? `${lastInitial}.` : ""]
+    .filter(Boolean)
+    .join(" ");
 }
 
 function initials(profile: ProfileRow | null | undefined) {
@@ -74,7 +87,7 @@ function cleanBody(value: string | null | undefined) {
   return (value ?? "").replace(/\s+/g, " ").trim();
 }
 
-export async function getPublicHomepageReviews(): Promise<PublicHomepageReview[]> {
+async function loadPublicHomepageReviews(): Promise<PublicHomepageReview[]> {
   try {
     const service = createServiceClient();
 
@@ -120,9 +133,12 @@ export async function getPublicHomepageReviews(): Promise<PublicHomepageReview[]
     }
 
     const reviewRows = ((data ?? []) as ReviewRow[]).filter(
-      (review) => Number(review.rating) >= 4 && cleanBody(review.body).length > 0,
+      (review) =>
+        Number(review.rating) >= 4 && cleanBody(review.body).length > 0,
     );
-    const customerIds = Array.from(new Set(reviewRows.map((review) => review.customer_id)));
+    const customerIds = Array.from(
+      new Set(reviewRows.map((review) => review.customer_id)),
+    );
     const professionalIds = Array.from(
       new Set(reviewRows.map((review) => review.professional_id)),
     );
@@ -174,44 +190,54 @@ export async function getPublicHomepageReviews(): Promise<PublicHomepageReview[]
     }
 
     const customersById = new Map(
-      ((customers ?? []) as ProfileRow[]).map((profile) => [profile.id, profile]),
-    );
-    const professionalsById = new Map(
-      ((professionals ?? []) as ProfileRow[]).map((profile) => [profile.id, profile]),
-    );
-    const professionalDetailsById = new Map(
-      ((professionalDetails ?? []) as ProfessionalDetailsRow[]).map((profile) => [
+      ((customers ?? []) as ProfileRow[]).map((profile) => [
         profile.id,
         profile,
       ]),
     );
+    const professionalsById = new Map(
+      ((professionals ?? []) as ProfileRow[]).map((profile) => [
+        profile.id,
+        profile,
+      ]),
+    );
+    const professionalDetailsById = new Map(
+      ((professionalDetails ?? []) as ProfessionalDetailsRow[]).map(
+        (profile) => [profile.id, profile],
+      ),
+    );
 
-    const publicReviews = reviewRows.flatMap((review): PublicHomepageReview[] => {
-      const customer = customersById.get(review.customer_id);
-      const professional = professionalsById.get(review.professional_id);
-      const details = professionalDetailsById.get(review.professional_id);
+    const publicReviews = reviewRows.flatMap(
+      (review): PublicHomepageReview[] => {
+        const customer = customersById.get(review.customer_id);
+        const professional = professionalsById.get(review.professional_id);
+        const details = professionalDetailsById.get(review.professional_id);
 
-      if (!customer || !professional || !details) return [];
+        if (!customer || !professional || !details) return [];
 
-      return [
-        {
-          rating: Number(review.rating),
-          title: review.title ?? null,
-          body: cleanBody(review.body),
-          created_at: review.created_at,
-          customer: {
-            display_name: customerDisplayName(customer),
-            initials: initials(customer),
-            avatar_url: null,
+        return [
+          {
+            rating: Number(review.rating),
+            title: review.title ?? null,
+            body: cleanBody(review.body),
+            created_at: review.created_at,
+            customer: {
+              display_name: customerDisplayName(customer),
+              initials: initials(customer),
+              avatar_url: null,
+            },
+            professional: {
+              display_name: displayName(
+                professional,
+                "Professionista verificato",
+              ),
+              headline: details.headline,
+              avatar_url: details.avatar_url,
+            },
           },
-          professional: {
-            display_name: displayName(professional, "Professionista verificato"),
-            headline: details.headline,
-            avatar_url: details.avatar_url,
-          },
-        },
-      ];
-    });
+        ];
+      },
+    );
 
     return publicReviews
       .sort((a, b) => {
@@ -221,7 +247,9 @@ export async function getPublicHomepageReviews(): Promise<PublicHomepageReview[]
         const lengthDelta = b.body.length - a.body.length;
         if (lengthDelta !== 0) return lengthDelta;
 
-        return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+        return (
+          new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+        );
       })
       .slice(0, 10);
   } catch (error) {
@@ -232,3 +260,12 @@ export async function getPublicHomepageReviews(): Promise<PublicHomepageReview[]
     return [];
   }
 }
+
+export const getPublicHomepageReviews = unstable_cache(
+  loadPublicHomepageReviews,
+  ["public-homepage-reviews"],
+  {
+    revalidate: 300,
+    tags: ["public-homepage-reviews"],
+  },
+);

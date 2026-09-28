@@ -5,6 +5,7 @@ import { writeAuditLog } from "@/lib/api/audit-log";
 import { createServiceClient } from "@/lib/supabase/service";
 import { createClient } from "@/lib/supabase/server";
 import { deleteAllStorageObjectsForUser } from "@/lib/storage/delete-user-storage";
+import { internalServerError } from "@/lib/api/internal-server-error";
 
 type DeleteAccountPayload = {
   confirm?: string;
@@ -55,7 +56,10 @@ export async function DELETE(request: Request) {
       );
     }
 
-    if (subscription?.status === "stripe_active" && subscription.stripe_subscription_id) {
+    if (
+      subscription?.status === "stripe_active" &&
+      subscription.stripe_subscription_id
+    ) {
       return NextResponse.json(
         {
           error:
@@ -73,9 +77,9 @@ export async function DELETE(request: Request) {
       return NextResponse.json({ error: guard.message }, { status: 400 });
     }
   } catch (err) {
-    const message =
-      err instanceof Error ? err.message : "Failed to validate admin safety";
-    return NextResponse.json({ error: message }, { status: 500 });
+    return internalServerError("ACCOUNT DELETE ADMIN SAFETY ERROR", err, {
+      user_id: user.id,
+    });
   }
 
   await writeAuditLog(supabase, {
@@ -92,16 +96,17 @@ export async function DELETE(request: Request) {
   try {
     service = createServiceClient();
   } catch (err) {
-    const message =
-      err instanceof Error ? err.message : "Failed to initialize service client";
-    return NextResponse.json({ error: message }, { status: 500 });
+    return internalServerError("ACCOUNT DELETE SERVICE CLIENT ERROR", err, {
+      user_id: user.id,
+    });
   }
 
   try {
     await deleteAllStorageObjectsForUser(service, user.id);
   } catch (err) {
-    const message = err instanceof Error ? err.message : "Storage cleanup failed";
-    return NextResponse.json({ error: message }, { status: 500 });
+    return internalServerError("ACCOUNT DELETE STORAGE CLEANUP ERROR", err, {
+      user_id: user.id,
+    });
   }
 
   // Best-effort: revoke refresh tokens across devices before deleting.
@@ -113,7 +118,9 @@ export async function DELETE(request: Request) {
 
   const { error: deleteError } = await service.auth.admin.deleteUser(user.id);
   if (deleteError) {
-    return NextResponse.json({ error: deleteError.message }, { status: 500 });
+    return internalServerError("ACCOUNT DELETE AUTH USER ERROR", deleteError, {
+      user_id: user.id,
+    });
   }
 
   return NextResponse.json({ ok: true });

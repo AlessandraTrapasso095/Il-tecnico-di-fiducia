@@ -19,8 +19,10 @@ describe("contact resume flow contract", () => {
       "const contactPath = `${profilePath}?action=contact`;",
     );
     expect(source).toContain(
-      "const loginPath = `/auth/login?next=${encodeURIComponent(contactPath)}`;",
+      "const loginPath = `/auth/login?next=${encodeURIComponent(",
     );
+    expect(source).toContain("contactPath,");
+    expect(source).toContain(")}`;");
   });
 
   it("preserves the contact intent from the public profile", () => {

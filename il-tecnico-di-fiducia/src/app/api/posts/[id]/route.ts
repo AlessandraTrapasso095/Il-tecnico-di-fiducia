@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { requireAuth } from "@/lib/api/auth";
 import { isNonEmptyString } from "@/lib/api/validation";
 import { createServiceClient } from "@/lib/supabase/service";
+import { internalServerError } from "@/lib/api/internal-server-error";
 
 type UpdatePayload = {
   title: string;
@@ -111,11 +112,10 @@ export async function DELETE(
       .remove(storagePaths);
 
     if (storageError) {
-      return NextResponse.json(
-        {
-          error: `Post deleted, but storage cleanup failed: ${storageError.message}`,
-        },
-        { status: 500 },
+      return internalServerError(
+        "POST DELETE STORAGE CLEANUP ERROR",
+        storageError,
+        { post_id: id },
       );
     }
   }

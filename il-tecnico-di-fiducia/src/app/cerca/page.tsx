@@ -4,8 +4,6 @@ import { Footer } from "@/components/site/footer";
 import { TopNav } from "@/components/site/top-nav";
 import { PublicProfessionalsSearch } from "@/components/public-search/public-professionals-search";
 
-export const dynamic = "force-dynamic";
-
 export default function PublicSearchPage() {
   return (
     <div className="flex min-h-dvh flex-col bg-surface">

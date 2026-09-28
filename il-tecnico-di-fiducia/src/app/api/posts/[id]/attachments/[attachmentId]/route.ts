@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 
 import { requireAuth } from "@/lib/api/auth";
 import { createServiceClient } from "@/lib/supabase/service";
+import { internalServerError } from "@/lib/api/internal-server-error";
 
 export async function DELETE(
   _request: Request,
@@ -39,11 +40,17 @@ export async function DELETE(
     .maybeSingle();
 
   if (attachmentError) {
-    return NextResponse.json({ error: attachmentError.message }, { status: 400 });
+    return NextResponse.json(
+      { error: attachmentError.message },
+      { status: 400 },
+    );
   }
 
   if (!attachment) {
-    return NextResponse.json({ error: "Attachment not found" }, { status: 404 });
+    return NextResponse.json(
+      { error: "Attachment not found" },
+      { status: 404 },
+    );
   }
 
   const { error: deleteError } = await supabase
@@ -63,9 +70,13 @@ export async function DELETE(
       .remove([attachment.file_path]);
 
     if (storageError) {
-      return NextResponse.json(
-        { error: `Attachment deleted, but storage cleanup failed: ${storageError.message}` },
-        { status: 500 },
+      return internalServerError(
+        "POST ATTACHMENT DELETE STORAGE CLEANUP ERROR",
+        storageError,
+        {
+          post_id: postId,
+          attachment_id: attachmentId,
+        },
       );
     }
   }

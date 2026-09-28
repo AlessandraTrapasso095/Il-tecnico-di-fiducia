@@ -5,7 +5,10 @@ import Link from "next/link";
 
 import { PasswordField } from "@/components/auth/password-field";
 import { fetchJson } from "@/lib/api/fetch-json";
-import { navigateAfterLogin } from "@/lib/auth/post-login-navigation";
+import {
+  navigateAfterLogin,
+  safeNextPathForRole,
+} from "@/lib/auth/post-login-navigation";
 import { nextPathByRole } from "@/lib/routes/role-paths";
 import { normalizeEmail } from "@/lib/auth/normalize-email";
 
@@ -24,22 +27,27 @@ type SignInResponse = {
 type LoginClientProps = {
   initialRole: "customer" | "professional";
   infoMessage?: string | null;
+  nextPath?: string | null;
 };
 
 export default function LoginClient({
   initialRole,
   infoMessage = null,
+  nextPath = null,
 }: LoginClientProps) {
   const [roleHint, setRoleHint] = useState<"customer" | "professional">(
     initialRole,
   );
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [remember, setRemember] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
   const emailValue = useMemo(() => normalizeEmail(email), [email]);
+
+  const registerHref = nextPath
+    ? `/auth/register?role=${roleHint}&next=${encodeURIComponent(nextPath)}`
+    : `/auth/register?role=${roleHint}`;
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -56,7 +64,9 @@ export default function LoginClient({
         return;
       }
 
-      navigateAfterLogin(nextPathByRole(res.profile.role));
+      const resumedPath = safeNextPathForRole(nextPath, res.profile.role);
+
+      navigateAfterLogin(resumedPath ?? nextPathByRole(res.profile.role));
     } catch (err) {
       setError(err instanceof Error ? err.message : "Errore imprevisto.");
       setLoading(false);
@@ -151,18 +161,6 @@ export default function LoginClient({
             />
           </div>
 
-          <label className="flex items-center gap-3 text-on-surface-variant">
-            <input
-              type="checkbox"
-              className="w-5 h-5 rounded border-outline-variant text-primary focus:ring-primary"
-              checked={remember}
-              onChange={(e) => setRemember(e.target.checked)}
-            />
-            <span className="font-body-md text-body-md">
-              Ricordami su questo dispositivo
-            </span>
-          </label>
-
           {error ? (
             <div className="text-on-error-container bg-error-container border border-error/20 rounded-xl px-4 py-3 text-sm">
               {error}
@@ -206,7 +204,7 @@ export default function LoginClient({
             Non hai ancora un account?{" "}
             <Link
               className="text-primary font-bold hover:underline"
-              href="/auth/register"
+              href={registerHref}
             >
               Registrati ora
             </Link>
@@ -217,19 +215,19 @@ export default function LoginClient({
       <div className="mt-6 flex flex-wrap justify-center gap-4 text-on-surface-variant">
         <Link
           className="font-label-md text-label-md hover:text-primary transition-colors"
-          href="#"
+          href="/faq"
         >
           Centro Assistenza
         </Link>
         <Link
           className="font-label-md text-label-md hover:text-primary transition-colors"
-          href="#"
+          href="/privacy"
         >
           Privacy Policy
         </Link>
         <Link
           className="font-label-md text-label-md hover:text-primary transition-colors"
-          href="#"
+          href="/termini-di-servizio"
         >
           Termini d’uso
         </Link>

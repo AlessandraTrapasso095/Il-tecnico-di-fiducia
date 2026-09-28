@@ -20,11 +20,22 @@ export function getStripe() {
   return cachedStripe;
 }
 
-export function getStripeProfessionalPriceId() {
-  const priceId = process.env.STRIPE_PRO_SUBSCRIPTION_PRICE_ID;
+export type ProfessionalSubscriptionPlan = "monthly" | "annual";
+
+export function getStripeProfessionalPriceId(
+  plan: ProfessionalSubscriptionPlan,
+) {
+  const envName =
+    plan === "annual"
+      ? "STRIPE_PRO_ANNUAL_PRICE_ID"
+      : "STRIPE_PRO_MONTHLY_PRICE_ID";
+
+  const priceId = process.env[envName];
+
   if (!priceId) {
-    throw new Error("Missing env: STRIPE_PRO_SUBSCRIPTION_PRICE_ID");
+    throw new Error(`Missing env: ${envName}`);
   }
+
   return priceId;
 }
 

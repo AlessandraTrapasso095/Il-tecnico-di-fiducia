@@ -441,7 +441,7 @@ function customerNavTextClass(active: boolean) {
 
 function customerIconButtonClass(active: boolean) {
   return [
-    "inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full transition-all hover:bg-surface-container-high sm:h-11 sm:w-11 md:h-12 md:w-12 md:[&_.material-symbols-outlined]:text-[24px] lg:h-16 lg:w-16 lg:[&_.material-symbols-outlined]:text-[32px]",
+    "inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full transition-all hover:bg-surface-container-high [&_.material-symbols-outlined]:text-[20px] sm:h-11 sm:w-11 sm:[&_.material-symbols-outlined]:text-[22px] md:h-12 md:w-12 md:[&_.material-symbols-outlined]:text-[24px] lg:h-16 lg:w-16 lg:[&_.material-symbols-outlined]:text-[32px]",
     active ? "bg-[#FF8500]/10 text-[#FF8500]" : "text-primary",
   ].join(" ");
 }
@@ -917,6 +917,10 @@ export default function CustomerDashboardClient({
     }
   }
 
+  const [homeSection, setHomeSection] = useState<"search" | "requests">(
+    "search",
+  );
+
   function openExplore() {
     setView("explore");
     setActiveConversationId(null);
@@ -949,14 +953,72 @@ export default function CustomerDashboardClient({
     });
   }
 
-  function goToRequests() {
-    openExplore();
-    window.requestAnimationFrame(() => {
-      document
-        .getElementById("richieste")
-        ?.scrollIntoView({ behavior: "smooth", block: "start" });
+  function scrollCustomerTo(top: number) {
+    window.scrollTo({
+      top: Math.max(0, top),
+      behavior: "smooth",
     });
   }
+
+  function goToExplore() {
+    openExplore();
+    setHomeSection("search");
+
+    window.requestAnimationFrame(() => {
+      scrollCustomerTo(0);
+    });
+  }
+
+  function goToRequests() {
+    openExplore();
+    setHomeSection("requests");
+
+    window.requestAnimationFrame(() => {
+      const requests = document.getElementById("richieste");
+      if (!requests) return;
+
+      const headerOffset = window.innerWidth >= 640 ? 104 : 88;
+      const absoluteTop =
+        window.scrollY + requests.getBoundingClientRect().top - headerOffset;
+
+      scrollCustomerTo(absoluteTop);
+    });
+  }
+
+  useEffect(() => {
+    if (view !== "explore") return;
+
+    function syncHomeSectionFromScroll() {
+      const requests = document.getElementById("richieste");
+
+      if (!requests) {
+        setHomeSection("search");
+        return;
+      }
+
+      const requestsAbsoluteTop =
+        window.scrollY + requests.getBoundingClientRect().top;
+
+      const activationPoint = Math.max(
+        0,
+        requestsAbsoluteTop - Math.min(window.innerHeight * 0.45, 320),
+      );
+
+      setHomeSection(window.scrollY >= activationPoint ? "requests" : "search");
+    }
+
+    syncHomeSectionFromScroll();
+
+    window.addEventListener("scroll", syncHomeSectionFromScroll, {
+      passive: true,
+    });
+    window.addEventListener("resize", syncHomeSectionFromScroll);
+
+    return () => {
+      window.removeEventListener("scroll", syncHomeSectionFromScroll);
+      window.removeEventListener("resize", syncHomeSectionFromScroll);
+    };
+  }, [view]);
 
   function updateCategory(nextKey: string) {
     setCategoryKey(nextKey);
@@ -1332,8 +1394,8 @@ export default function CustomerDashboardClient({
         activeConversationId={view === "messages" ? activeConversationId : null}
       >
         <header className="fixed top-0 z-50 h-20 w-full bg-surface-container-lowest/88 shadow-sm backdrop-blur-md sm:h-[92px]">
-          <div className="mx-auto flex h-full w-full max-w-[1280px] items-center justify-between gap-2 px-3 sm:gap-3 sm:px-6">
-            <div className="flex min-w-0 flex-1 items-center gap-1.5 sm:gap-2 lg:-ml-4 xl:-ml-8 2xl:-ml-12">
+          <div className="mx-auto flex h-full w-full max-w-[1280px] items-center justify-between gap-1 px-2 sm:gap-3 sm:px-6">
+            <div className="flex min-w-0 flex-1 items-center gap-1 sm:gap-2 lg:-ml-4 xl:-ml-8 2xl:-ml-12">
               <HeaderBackButton
                 fallbackHref="/customer"
                 hiddenPathnames={["/customer", "/cliente"]}
@@ -1342,21 +1404,21 @@ export default function CustomerDashboardClient({
               />
               <Link
                 href="/customer"
-                className="flex min-w-0 items-center gap-2 sm:gap-2.5"
+                className="flex min-w-0 items-center gap-1.5 sm:gap-2.5"
               >
                 <Image
                   src="/img/logo-mark.png"
                   alt="Il Tecnico di Fiducia"
                   width={54}
                   height={54}
-                  className="h-10 w-10 shrink-0 object-contain sm:h-[54px] sm:w-[54px]"
+                  className="h-9 w-9 shrink-0 object-contain sm:h-[54px] sm:w-[54px]"
                   priority
                 />
-                <span className="hidden min-w-0 leading-none min-[430px]:block">
-                  <span className="block font-headline-sm text-[15px] font-bold text-[#FF8500] sm:text-[21px]">
+                <span className="block min-w-0 leading-none">
+                  <span className="block whitespace-nowrap font-headline-sm text-[12px] font-bold text-primary min-[390px]:text-[13px] sm:text-[21px]">
                     Il tecnico
                   </span>
-                  <span className="block font-headline-sm text-[15px] font-bold text-primary sm:text-[21px]">
+                  <span className="block whitespace-nowrap font-headline-sm text-[8px] font-bold uppercase tracking-[0.04em] text-[#FF8500] min-[390px]:text-[9px] sm:text-[14px]">
                     di fiducia
                   </span>
                 </span>
@@ -1366,21 +1428,25 @@ export default function CustomerDashboardClient({
             <nav className="hidden items-center gap-8 lg:flex">
               <button
                 type="button"
-                className={customerNavTextClass(isSearchNavActive)}
-                onClick={openExplore}
+                className={customerNavTextClass(
+                  isSearchNavActive && homeSection === "search",
+                )}
+                onClick={goToExplore}
               >
                 Cerca
               </button>
               <button
                 type="button"
-                className={customerNavTextClass(false)}
+                className={customerNavTextClass(
+                  isSearchNavActive && homeSection === "requests",
+                )}
                 onClick={goToRequests}
               >
                 Richieste
               </button>
             </nav>
 
-            <div className="flex shrink-0 items-center gap-1 sm:gap-2">
+            <div className="flex shrink-0 items-center gap-0.5 sm:gap-2">
               <button
                 type="button"
                 className={`${customerIconButtonClass(isSearchNavActive)} lg:hidden`}
@@ -1659,8 +1725,9 @@ export default function CustomerDashboardClient({
                 </span>
               </Link>
               <SignOutButton
-                className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-error transition-all hover:bg-error-container/30 sm:h-11 sm:w-11 md:h-12 md:w-12 md:[&_.material-symbols-outlined]:text-[24px] lg:h-16 lg:w-16 lg:[&_.material-symbols-outlined]:text-[32px]"
+                className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-error transition-all hover:bg-error-container/30 disabled:cursor-wait disabled:opacity-80 [&_.material-symbols-outlined]:text-[20px] sm:h-11 sm:w-11 sm:[&_.material-symbols-outlined]:text-[22px] md:h-12 md:w-12 md:[&_.material-symbols-outlined]:text-[24px] lg:h-16 lg:w-16 lg:[&_.material-symbols-outlined]:text-[32px]"
                 aria-label="Logout"
+                loadingPresentation="compact"
               >
                 <span className="material-symbols-outlined" aria-hidden>
                   logout

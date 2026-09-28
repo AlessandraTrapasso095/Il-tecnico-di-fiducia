@@ -6,6 +6,7 @@ import { requireAuth } from "@/lib/api/auth";
 import { isNonEmptyString } from "@/lib/api/validation";
 import { createServiceClient } from "@/lib/supabase/service";
 import { deleteAllStorageObjectsForUser } from "@/lib/storage/delete-user-storage";
+import { internalServerError } from "@/lib/api/internal-server-error";
 
 type AdminUpdateUserPayload = {
   is_banned?: boolean;
@@ -46,24 +47,26 @@ export async function DELETE(
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
   } catch (err) {
-    const message = err instanceof Error ? err.message : "Failed to validate admin safety";
-    return NextResponse.json({ error: message }, { status: 500 });
+    return internalServerError("ADMIN USER SAFETY ERROR", err, {
+      target_user_id: targetUserId,
+    });
   }
 
   let service;
   try {
     service = createServiceClient();
   } catch (err) {
-    const message =
-      err instanceof Error ? err.message : "Failed to initialize service client";
-    return NextResponse.json({ error: message }, { status: 500 });
+    return internalServerError("ADMIN USER SERVICE CLIENT ERROR", err, {
+      target_user_id: targetUserId,
+    });
   }
 
   try {
     await deleteAllStorageObjectsForUser(service, targetUserId);
   } catch (err) {
-    const message = err instanceof Error ? err.message : "Storage cleanup failed";
-    return NextResponse.json({ error: message }, { status: 500 });
+    return internalServerError("ADMIN USER STORAGE CLEANUP ERROR", err, {
+      target_user_id: targetUserId,
+    });
   }
 
   // Best-effort: revoke refresh tokens across devices before deleting.
@@ -73,9 +76,12 @@ export async function DELETE(
     // ignore
   }
 
-  const { error: deleteError } = await service.auth.admin.deleteUser(targetUserId);
+  const { error: deleteError } =
+    await service.auth.admin.deleteUser(targetUserId);
   if (deleteError) {
-    return NextResponse.json({ error: deleteError.message }, { status: 500 });
+    return internalServerError("ADMIN USER DELETE AUTH ERROR", deleteError, {
+      target_user_id: targetUserId,
+    });
   }
 
   await writeAuditLog(supabase, {
@@ -113,7 +119,10 @@ export async function PATCH(
 
   if (payload.is_banned !== undefined) {
     if (typeof payload.is_banned !== "boolean") {
-      return NextResponse.json({ error: "is_banned must be boolean" }, { status: 400 });
+      return NextResponse.json(
+        { error: "is_banned must be boolean" },
+        { status: 400 },
+      );
     }
     updates.is_banned = payload.is_banned;
     if (payload.is_banned === false) {
@@ -122,7 +131,10 @@ export async function PATCH(
   }
 
   if (payload.suspended_until !== undefined) {
-    if (payload.suspended_until !== null && typeof payload.suspended_until !== "string") {
+    if (
+      payload.suspended_until !== null &&
+      typeof payload.suspended_until !== "string"
+    ) {
       return NextResponse.json(
         { error: "suspended_until must be an ISO date or null" },
         { status: 400 },
@@ -131,7 +143,10 @@ export async function PATCH(
     if (payload.suspended_until !== null) {
       const date = new Date(payload.suspended_until);
       if (Number.isNaN(date.getTime())) {
-        return NextResponse.json({ error: "Invalid suspended_until" }, { status: 400 });
+        return NextResponse.json(
+          { error: "Invalid suspended_until" },
+          { status: 400 },
+        );
       }
       updates.suspended_until = date.toISOString();
     } else if (payload.is_banned !== false) {
@@ -166,8 +181,9 @@ export async function PATCH(
         return NextResponse.json({ error: "Forbidden" }, { status: 403 });
       }
     } catch (err) {
-      const message = err instanceof Error ? err.message : "Failed to validate admin safety";
-      return NextResponse.json({ error: message }, { status: 500 });
+      return internalServerError("ADMIN USER UPDATE SAFETY ERROR", err, {
+        target_user_id: targetUserId,
+      });
     }
   }
 
@@ -175,7 +191,9 @@ export async function PATCH(
     .from("profiles")
     .update(updates)
     .eq("id", targetUserId)
-    .select("id, role, email, is_banned, suspended_until, must_change_password, created_at, updated_at")
+    .select(
+      "id, role, email, is_banned, suspended_until, must_change_password, created_at, updated_at",
+    )
     .maybeSingle();
 
   if (updateError) {

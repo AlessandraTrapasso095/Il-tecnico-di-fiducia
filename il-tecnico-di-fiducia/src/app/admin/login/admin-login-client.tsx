@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import Link from "next/link";
 import { useMemo, useState } from "react";
 
@@ -63,10 +64,15 @@ export default function AdminLoginClient({
             <div className="absolute inset-0 bg-[radial-gradient(circle_at_25%_25%,rgba(255,133,0,0.22),transparent_28%),linear-gradient(135deg,#002654,#0b3c78)]" />
             <div className="relative z-10 flex min-h-[620px] flex-col justify-between">
               <Link href="/" className="inline-flex items-center gap-3">
-                <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-white text-primary shadow-lg">
-                  <span className="material-symbols-outlined">
-                    admin_panel_settings
-                  </span>
+                <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-white p-1.5 shadow-lg">
+                  <Image
+                    src="/img/logo-mark.png"
+                    alt="Il Tecnico di Fiducia"
+                    width={48}
+                    height={48}
+                    className="h-full w-full object-contain"
+                    priority
+                  />
                 </span>
                 <span>
                   <span className="block font-headline-sm text-[24px] leading-none">
@@ -105,10 +111,15 @@ export default function AdminLoginClient({
                   href="/"
                   className="inline-flex items-center gap-3 rounded-2xl focus:outline-none focus:ring-4 focus:ring-primary/20"
                 >
-                  <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-primary text-white shadow-lg">
-                    <span className="material-symbols-outlined">
-                      admin_panel_settings
-                    </span>
+                  <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-white p-1 shadow-md">
+                    <Image
+                      src="/img/logo-mark.png"
+                      alt="Il Tecnico di Fiducia"
+                      width={44}
+                      height={44}
+                      className="h-full w-full object-contain"
+                      priority
+                    />
                   </span>
                   <span className="font-headline-sm text-[23px] leading-none text-primary">
                     Il Tecnico{" "}

@@ -40,7 +40,10 @@ export async function PATCH(
 
   let currentPeriodEnd: string | null | undefined;
   if (payload.current_period_end !== undefined) {
-    if (payload.current_period_end !== null && typeof payload.current_period_end !== "string") {
+    if (
+      payload.current_period_end !== null &&
+      typeof payload.current_period_end !== "string"
+    ) {
       return NextResponse.json(
         { error: "current_period_end must be an ISO date or null" },
         { status: 400 },
@@ -49,7 +52,10 @@ export async function PATCH(
     if (payload.current_period_end !== null) {
       const date = new Date(payload.current_period_end);
       if (Number.isNaN(date.getTime())) {
-        return NextResponse.json({ error: "Invalid current_period_end" }, { status: 400 });
+        return NextResponse.json(
+          { error: "Invalid current_period_end" },
+          { status: 400 },
+        );
       }
       currentPeriodEnd = date.toISOString();
     } else {
@@ -57,10 +63,39 @@ export async function PATCH(
     }
   }
 
+  const { data: existingSubscription, error: existingSubscriptionError } =
+    await supabase
+      .from("professional_subscriptions")
+      .select("status, stripe_customer_id, stripe_subscription_id")
+      .eq("professional_id", professionalId)
+      .maybeSingle();
+
+  if (existingSubscriptionError) {
+    return NextResponse.json(
+      { error: "Impossibile verificare l’abbonamento esistente." },
+      { status: 500 },
+    );
+  }
+
+  if (
+    existingSubscription?.stripe_subscription_id &&
+    (payload.status === "none" || payload.status === "admin_forced_active")
+  ) {
+    return NextResponse.json(
+      {
+        error:
+          "Questo professionista ha un abbonamento Stripe collegato. Lo stato Stripe non può essere rimosso o sostituito manualmente dall’amministrazione.",
+      },
+      { status: 409 },
+    );
+  }
+
   const baseRow = {
     professional_id: professionalId,
     status: payload.status,
-    ...(currentPeriodEnd !== undefined ? { current_period_end: currentPeriodEnd } : {}),
+    ...(currentPeriodEnd !== undefined
+      ? { current_period_end: currentPeriodEnd }
+      : {}),
   };
 
   const nextRow: Record<string, unknown> =
@@ -76,7 +111,9 @@ export async function PATCH(
   const { data, error } = await supabase
     .from("professional_subscriptions")
     .upsert(nextRow as never, { onConflict: "professional_id" })
-    .select("professional_id, status, stripe_customer_id, stripe_subscription_id, current_period_end, updated_at")
+    .select(
+      "professional_id, status, stripe_customer_id, stripe_subscription_id, current_period_end, updated_at",
+    )
     .single();
 
   if (error) {
@@ -88,7 +125,10 @@ export async function PATCH(
     action: "admin.update_subscription",
     targetType: "professional_subscription",
     targetId: professionalId,
-    metadata: { status: payload.status, current_period_end: currentPeriodEnd ?? null },
+    metadata: {
+      status: payload.status,
+      current_period_end: currentPeriodEnd ?? null,
+    },
   });
 
   return NextResponse.json({ subscription: data });

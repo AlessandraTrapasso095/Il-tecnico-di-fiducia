@@ -18,14 +18,27 @@ const TERMS_SECTIONS = [
     ],
   },
   {
-    title: "2. Ruolo della piattaforma",
+    title: "2. Gestore del servizio",
+    content: [
+      "Il portale Il Tecnico di Fiducia è gestito da Davide Mazza, codice fiscale MZZDVD94D20I872A, con indirizzo in Via Massara 45, 88100 Catanzaro (CZ), Italia. Per comunicazioni relative al servizio è possibile scrivere a info@iltecnicodifiducia.it.",
+    ],
+  },
+  {
+    title: "3. Requisito di maggiore età",
+    content: [
+      "La registrazione e l’utilizzo delle aree riservate sono consentiti esclusivamente agli utenti che abbiano compiuto 18 anni.",
+      "Creando un account l’utente dichiara di essere maggiorenne e di fornire informazioni veritiere.",
+    ],
+  },
+  {
+    title: "4. Ruolo della piattaforma",
     content: [
       "Il Tecnico di Fiducia fornisce strumenti digitali per mettere in contatto clienti e professionisti, consultare profili, inviare richieste, gestire conversazioni, ricevere preventivi e pubblicare recensioni secondo le regole del servizio.",
       "La piattaforma non sostituisce le valutazioni professionali, tecniche, contrattuali o economiche delle parti. Cliente e professionista restano responsabili degli accordi presi tra loro, della correttezza delle informazioni scambiate e dell’esecuzione delle prestazioni concordate.",
     ],
   },
   {
-    title: "3. Registrazione e account",
+    title: "5. Registrazione e account",
     content: [
       "La registrazione richiede dati veritieri, aggiornati e riferiti all’utente che crea l’account. L’utente è responsabile della custodia delle credenziali e di ogni attività svolta tramite il proprio account.",
       "Il portale distingue ruoli cliente, professionista e amministratore. Ogni area contiene funzionalità specifiche e protette da autenticazione e controlli di autorizzazione.",
@@ -33,7 +46,7 @@ const TERMS_SECTIONS = [
     ],
   },
   {
-    title: "4. Obblighi dei clienti",
+    title: "6. Obblighi dei clienti",
     content: [
       "Il cliente deve inviare richieste chiare, lecite e pertinenti, evitare contenuti offensivi o ingannevoli e usare la chat in modo corretto.",
       "Il cliente è responsabile delle informazioni fornite al professionista e delle decisioni prese sulla base dei profili, dei messaggi, dei preventivi e delle recensioni consultate.",
@@ -41,7 +54,7 @@ const TERMS_SECTIONS = [
     ],
   },
   {
-    title: "5. Obblighi dei professionisti",
+    title: "7. Obblighi dei professionisti",
     content: [
       "Il professionista deve inserire dati veritieri su identità, professione, competenze, località, disponibilità e informazioni di contatto.",
       "Il professionista è responsabile dei contenuti pubblicati, dei preventivi inviati, delle risposte ai clienti e dell’esecuzione delle attività concordate al di fuori del portale.",
@@ -49,7 +62,7 @@ const TERMS_SECTIONS = [
     ],
   },
   {
-    title: "6. Ricerca, visibilità e abbonamento professionista",
+    title: "8. Ricerca, visibilità e abbonamento professionista",
     content: [
       "La visibilità dei professionisti nei risultati di ricerca dipende dalle regole tecniche e commerciali del servizio, inclusi stato dell’account, completezza del profilo, sospensioni e stato dell’abbonamento.",
       "I professionisti con abbonamento attivo tramite Stripe o con visibilità forzata da un amministratore possono risultare visibili secondo le regole implementate. Account scaduti, sospesi, bannati o non conformi possono essere esclusi dalla ricerca.",
@@ -57,7 +70,7 @@ const TERMS_SECTIONS = [
     ],
   },
   {
-    title: "7. Pagamenti, rinnovi e cancellazione abbonamento",
+    title: "9. Pagamenti, rinnovi e cancellazione abbonamento",
     content: [
       "L’abbonamento professionista è gestito tramite Stripe. Il checkout, i metodi di pagamento, il portale di gestione, i rinnovi e gli stati di pagamento sono elaborati dall’infrastruttura Stripe.",
       "Il professionista deve verificare importi, durata e condizioni mostrate in checkout prima di confermare il pagamento. L’attivazione o disattivazione della visibilità dipende dallo stato comunicato da Stripe al portale.",
@@ -65,14 +78,14 @@ const TERMS_SECTIONS = [
     ],
   },
   {
-    title: "8. Messaggi, allegati e preventivi",
+    title: "10. Messaggi, allegati e preventivi",
     content: [
       "Le conversazioni consentono lo scambio di messaggi, allegati e preventivi tra partecipanti autorizzati. Gli utenti devono caricare soltanto file pertinenti, leciti e privi di contenuti dannosi.",
       "I preventivi inviati tramite chat costituiscono comunicazioni tra cliente e professionista. La piattaforma conserva il relativo stato operativo, come inviato, accettato o rifiutato, per gestire la conversazione e le notifiche.",
     ],
   },
   {
-    title: "9. Post, commenti, recensioni e contenuti",
+    title: "11. Post, commenti, recensioni e contenuti",
     content: [
       "Gli utenti sono responsabili dei contenuti pubblicati, inclusi post, commenti, recensioni, risposte e allegati. Non sono ammessi contenuti illeciti, offensivi, discriminatori, diffamatori, fraudolenti, promozionali non autorizzati o non pertinenti.",
       "Il gestore può rimuovere contenuti, oscurare informazioni, limitare funzionalità o sospendere account quando necessario per sicurezza, moderazione, rispetto dei Termini o tutela degli utenti.",
@@ -80,35 +93,35 @@ const TERMS_SECTIONS = [
     ],
   },
   {
-    title: "10. Assistenza e segnalazioni",
+    title: "12. Assistenza e segnalazioni",
     content: [
       "Gli utenti registrati possono utilizzare il Centro Assistenza disponibile nella propria area riservata. I visitatori possono inviare richieste tramite la pagina Contattaci.",
       "Le richieste di assistenza vengono gestite attraverso il sistema ticket del portale. Il gestore può usare le informazioni ricevute per rispondere alla segnalazione, verificare problemi tecnici e migliorare il servizio.",
     ],
   },
   {
-    title: "11. Uso corretto e divieti",
+    title: "13. Uso corretto e divieti",
     content: [
       "È vietato usare il portale per attività illecite, accessi non autorizzati, scraping aggressivo, tentativi di eludere i controlli di sicurezza, caricamento di malware, spam, raccolta impropria di dati o utilizzi incompatibili con la finalità del servizio.",
       "È vietato creare account falsi, impersonare terzi, pubblicare informazioni ingannevoli o usare la piattaforma per contattare utenti in modo abusivo.",
     ],
   },
   {
-    title: "12. Disponibilità del servizio",
+    title: "14. Disponibilità del servizio",
     content: [
       "Il gestore si impegna a mantenere il portale funzionante e sicuro, ma il servizio può subire interruzioni, rallentamenti o limitazioni dovute a manutenzione, aggiornamenti, fornitori tecnici, problemi di rete o eventi non controllabili.",
       "Funzionalità come autenticazione, database, storage, email, realtime e pagamenti dipendono anche da fornitori tecnici esterni utilizzati dal progetto.",
     ],
   },
   {
-    title: "13. Proprietà intellettuale",
+    title: "15. Proprietà intellettuale",
     content: [
       "Marchi, testi, interfacce, struttura grafica, componenti software e contenuti del portale appartengono ai rispettivi titolari e non possono essere copiati, riutilizzati o distribuiti senza autorizzazione.",
       "I contenuti caricati dagli utenti restano nella responsabilità di chi li pubblica. L’utente concede al portale il diritto tecnico di conservarli, mostrarli e trasmetterli nella misura necessaria a erogare le funzionalità richieste.",
     ],
   },
   {
-    title: "14. Limitazione di responsabilità",
+    title: "16. Limitazione di responsabilità",
     content: [
       "Il gestore non è responsabile della qualità, esecuzione, puntualità, idoneità o risultato delle prestazioni professionali concordate tra cliente e professionista.",
       "Il portale non garantisce che ogni informazione inserita dagli utenti sia sempre completa, aggiornata o priva di errori, pur potendo adottare controlli, verifiche e misure di moderazione.",
@@ -116,15 +129,31 @@ const TERMS_SECTIONS = [
     ],
   },
   {
-    title: "15. Modifiche ai Termini",
+    title: "17. Cancellazione, rinnovi e rimborsi",
+    content: [
+      "Gli abbonamenti professionista possono essere gestiti e cancellati tramite il portale Stripe disponibile nell’area riservata. La cancellazione impedisce i rinnovi futuri secondo le condizioni mostrate nel portale di pagamento.",
+      "Salvo gli eventuali diritti inderogabili previsti dalla normativa applicabile, la cancellazione non comporta automaticamente il rimborso di periodi di abbonamento già addebitati o già iniziati.",
+      "Eventuali richieste relative ad addebiti, errori di pagamento o rimborsi possono essere inviate a info@iltecnicodifiducia.it e saranno valutate in relazione alle circostanze concrete e alla normativa applicabile.",
+      "Restano fermi gli eventuali diritti inderogabili riconosciuti dalla normativa applicabile.",
+    ],
+  },
+  {
+    title: "18. Legge applicabile e controversie",
+    content: [
+      "I presenti Termini sono regolati dalla legge italiana, fatto salvo l’eventuale diritto dell’utente a beneficiare di disposizioni inderogabili previste dalla normativa applicabile.",
+      "In caso di controversia, il foro competente è individuato secondo le norme di legge applicabili. Restano impregiudicate le eventuali tutele inderogabili previste per gli utenti che rivestano la qualità di consumatore.",
+    ],
+  },
+  {
+    title: "19. Modifiche ai Termini",
     content: [
       "I Termini possono essere aggiornati per riflettere evoluzioni del servizio, nuove funzionalità, esigenze di sicurezza o adeguamenti normativi. La versione pubblicata sul sito è quella applicabile al momento dell’utilizzo.",
     ],
   },
   {
-    title: "16. Contatti",
+    title: "20. Contatti",
     content: [
-      "Per assistenza, segnalazioni o richieste relative ai presenti Termini è possibile scrivere a admin@iltecnicodifiducia.it.",
+      "Per assistenza, segnalazioni o richieste relative ai presenti Termini è possibile scrivere a info@iltecnicodifiducia.it.",
     ],
   },
 ];

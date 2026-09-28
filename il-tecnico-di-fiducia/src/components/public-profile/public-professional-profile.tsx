@@ -2,6 +2,7 @@
 
 import Image from "next/image";
 import Link from "next/link";
+import { ContactAuthRequiredModal } from "@/components/auth/contact-auth-required-modal";
 import { useSearchParams } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 
@@ -88,6 +89,7 @@ export function PublicProfessionalProfile({
 
   const searchParams = useSearchParams();
   const [contactOpen, setContactOpen] = useState(false);
+  const [guestContactPromptOpen, setGuestContactPromptOpen] = useState(false);
   const [contactSubject, setContactSubject] = useState("");
   const [contactMessage, setContactMessage] = useState("");
   const [contactPrivacy, setContactPrivacy] = useState(false);
@@ -154,6 +156,7 @@ export function PublicProfessionalProfile({
   const profilePath = `/professionisti/${profile.id}`;
   const contactPath = `${profilePath}?action=contact`;
   const contactLoginPath = `/auth/login?next=${encodeURIComponent(contactPath)}`;
+  const contactRegisterPath = `/auth/register?role=customer&next=${encodeURIComponent(contactPath)}`;
 
   function openContact() {
     setContactSubject("");
@@ -772,15 +775,16 @@ export function PublicProfessionalProfile({
                 </button>
               ) : null}
               {!viewerContext ? (
-                <Link
-                  href={contactLoginPath}
+                <button
+                  type="button"
+                  onClick={() => setGuestContactPromptOpen(true)}
                   className="inline-flex min-h-12 items-center justify-center gap-2 rounded-full bg-[#FF8500] px-6 py-3 font-button text-button text-white transition-colors hover:bg-[#FF9A2B]"
                 >
                   <span className="material-symbols-outlined text-[20px]">
                     chat
                   </span>
                   Contatta
-                </Link>
+                </button>
               ) : null}
 
               {viewerContext?.role === "customer" ? (
@@ -1736,6 +1740,12 @@ export function PublicProfessionalProfile({
           onClose={() => setOwnerEditOpen(false)}
         />
       ) : null}
+      <ContactAuthRequiredModal
+        open={guestContactPromptOpen}
+        onClose={() => setGuestContactPromptOpen(false)}
+        loginHref={contactLoginPath}
+        registerHref={contactRegisterPath}
+      />
     </main>
   );
 }

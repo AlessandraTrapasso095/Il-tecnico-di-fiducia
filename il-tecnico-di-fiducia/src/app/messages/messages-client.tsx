@@ -1609,8 +1609,20 @@ export default function MessagesClient({
   }
 
   async function submitReview() {
-    const requestId = activeDetail?.request?.id ?? null;
-    if (!requestId) return;
+    const requestId =
+      activeDetail?.request?.id ??
+      (activeId
+        ? (conversationsRef.current.find(
+            (conversation) => conversation.id === activeId,
+          )?.request_id ?? null)
+        : null);
+
+    if (!requestId) {
+      setReviewError(
+        "Impossibile identificare la richiesta. Riprova tra qualche istante.",
+      );
+      return;
+    }
 
     setReviewError(null);
     setReviewSubmitting(true);
@@ -2290,7 +2302,8 @@ export default function MessagesClient({
     chatEnabled &&
     !sending &&
     (Boolean(draft.trim()) || pendingFiles.length > 0);
-  const currentRequestId = activeDetail?.request?.id ?? null;
+  const currentRequestId =
+    activeDetail?.request?.id ?? activeConvListRow?.request_id ?? null;
   const reviewAlreadySent = currentRequestId
     ? reviewedRequestIds.has(currentRequestId)
     : false;

@@ -3,13 +3,18 @@ import { NextResponse } from "next/server";
 import { writeAuditLog } from "@/lib/api/audit-log";
 import { requireAuth } from "@/lib/api/auth";
 import { isNonEmptyString } from "@/lib/api/validation";
-import { appBaseUrl, escapeHtml, sendTransactionalEmail } from "@/lib/server/email";
+import {
+  appBaseUrl,
+  escapeHtml,
+  sendTransactionalEmail,
+} from "@/lib/server/email";
 import { getStripe } from "@/lib/server/stripe";
 import {
   loadEligibleDiscountRecipients,
   type SubscriptionDiscountCode,
 } from "@/lib/server/subscription-discounts";
 import { createServiceClient } from "@/lib/supabase/service";
+import { internalServerError } from "@/lib/api/internal-server-error";
 
 type CreateDiscountPayload = {
   title: string;
@@ -99,7 +104,10 @@ function validatePayload(payload: CreateDiscountPayload) {
     return "Applicazione sconto non valida.";
   }
 
-  if (!payload.applies_to_all && !isNonEmptyString(payload.professional_email)) {
+  if (
+    !payload.applies_to_all &&
+    !isNonEmptyString(payload.professional_email)
+  ) {
     return "Inserisci l’email del professionista destinatario.";
   }
 
@@ -107,27 +115,42 @@ function validatePayload(payload: CreateDiscountPayload) {
   const expiresAt = parseIsoDate(payload.expires_at, true);
   if (startsAt === undefined) return "Data inizio non valida.";
   if (expiresAt === undefined) return "Data fine non valida.";
-  if (startsAt && expiresAt && new Date(expiresAt).getTime() <= new Date(startsAt).getTime()) {
+  if (
+    startsAt &&
+    expiresAt &&
+    new Date(expiresAt).getTime() <= new Date(startsAt).getTime()
+  ) {
     return "La data fine deve essere successiva alla data inizio.";
   }
 
   return null;
 }
 
-function validityLabel(discount: Pick<SubscriptionDiscountCode, "starts_at" | "expires_at">) {
+function validityLabel(
+  discount: Pick<SubscriptionDiscountCode, "starts_at" | "expires_at">,
+) {
   const formatter = new Intl.DateTimeFormat("it-IT", {
     day: "2-digit",
     month: "long",
     year: "numeric",
   });
-  const start = discount.starts_at ? formatter.format(new Date(discount.starts_at)) : "subito";
-  const end = discount.expires_at ? formatter.format(new Date(discount.expires_at)) : "senza scadenza";
+  const start = discount.starts_at
+    ? formatter.format(new Date(discount.starts_at))
+    : "subito";
+  const end = discount.expires_at
+    ? formatter.format(new Date(discount.expires_at))
+    : "senza scadenza";
   return `Valido da ${start} a ${end}`;
 }
 
 async function notifyRecipients(
   discount: SubscriptionDiscountCode,
-  recipients: Array<{ id: string; email: string; first_name: string; last_name: string }>,
+  recipients: Array<{
+    id: string;
+    email: string;
+    first_name: string;
+    last_name: string;
+  }>,
   actorId: string,
 ) {
   const service = createServiceClient();
@@ -146,7 +169,10 @@ async function notifyRecipients(
       })),
     );
     if (error) {
-      console.error("[discounts] Failed to create discount notifications", error);
+      console.error(
+        "[discounts] Failed to create discount notifications",
+        error,
+      );
     }
   }
 
@@ -189,7 +215,7 @@ async function notifyRecipients(
         });
       } catch (error) {
         console.error("[discounts] Failed to send discount email", {
-          recipient: recipient.email,
+          recipient_domain: recipient.email.split("@")[1] ?? null,
           error,
         });
       }
@@ -223,10 +249,14 @@ export async function GET() {
       });
     }
 
-    const fallback = await supabase.from("subscription_discount_codes").select("*");
+    const fallback = await supabase
+      .from("subscription_discount_codes")
+      .select("*");
 
     if (fallback.error) {
-      logSupabaseDiscountError("GET list fallback", fallback.error, { select: "*" });
+      logSupabaseDiscountError("GET list fallback", fallback.error, {
+        select: "*",
+      });
 
       if (isSchemaCacheOrMissingTableError(fallback.error)) {
         return NextResponse.json({
@@ -236,15 +266,9 @@ export async function GET() {
         });
       }
 
-      return NextResponse.json(
-        {
-          error: "Impossibile caricare le scontistiche.",
-          code: fallback.error.code,
-          message: fallback.error.message,
-          details: fallback.error.details,
-          hint: fallback.error.hint,
-        },
-        { status: 500 },
+      return internalServerError(
+        "ADMIN DISCOUNTS FALLBACK LOAD ERROR",
+        fallback.error,
       );
     }
 
@@ -275,7 +299,8 @@ export async function POST(request: Request) {
   const code = normalizeCode(payload.code);
   const startsAt = parseIsoDate(payload.starts_at);
   const expiresAt = parseIsoDate(payload.expires_at, true);
-  const professionalEmail = payload.professional_email?.trim().toLowerCase() || null;
+  const professionalEmail =
+    payload.professional_email?.trim().toLowerCase() || null;
   const isActive = payload.is_active !== false;
 
   const service = createServiceClient();
@@ -313,7 +338,9 @@ export async function POST(request: Request) {
       coupon: coupon.id,
       code,
       active: isActive,
-      ...(expiresAt ? { expires_at: Math.floor(new Date(expiresAt).getTime() / 1000) } : {}),
+      ...(expiresAt
+        ? { expires_at: Math.floor(new Date(expiresAt).getTime() / 1000) }
+        : {}),
       metadata: {
         source: "il_tecnico_di_fiducia",
         created_by: profile.id,
@@ -323,9 +350,9 @@ export async function POST(request: Request) {
     });
     promotionCodeId = promotionCode.id;
   } catch (error) {
-    const message =
-      error instanceof Error ? error.message : "Impossibile creare il codice su Stripe.";
-    return NextResponse.json({ error: message }, { status: 500 });
+    return internalServerError("ADMIN DISCOUNT STRIPE CREATE ERROR", error, {
+      created_by: profile.id,
+    });
   }
 
   const { data: discount, error } = await supabase
@@ -339,7 +366,9 @@ export async function POST(request: Request) {
       starts_at: startsAt,
       expires_at: expiresAt,
       applies_to_all: payload.applies_to_all,
-      professional_id: payload.applies_to_all ? null : (recipients[0]?.id ?? null),
+      professional_id: payload.applies_to_all
+        ? null
+        : (recipients[0]?.id ?? null),
       professional_email: payload.applies_to_all ? null : professionalEmail,
       is_active: isActive,
       created_by: profile.id,
@@ -368,5 +397,8 @@ export async function POST(request: Request) {
 
   await notifyRecipients(typedDiscount, recipients, profile.id);
 
-  return NextResponse.json({ discount: typedDiscount, notified: recipients.length });
+  return NextResponse.json({
+    discount: typedDiscount,
+    notified: recipients.length,
+  });
 }

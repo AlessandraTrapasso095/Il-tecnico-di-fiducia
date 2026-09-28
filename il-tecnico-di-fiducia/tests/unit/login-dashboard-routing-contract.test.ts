@@ -8,21 +8,32 @@ const loginClient = fs.readFileSync(
   "utf8",
 );
 
+const loginPage = fs.readFileSync(
+  path.join(process.cwd(), "src/app/auth/login/page.tsx"),
+  "utf8",
+);
+
 const rolePaths = fs.readFileSync(
   path.join(process.cwd(), "src/lib/routes/role-paths.ts"),
   "utf8",
 );
 
 describe("login dashboard routing", () => {
-  it("always sends a successful login to the dashboard for the account role", () => {
+  it("uses the canonical role dashboard when no valid resume path exists", () => {
     expect(loginClient).toContain(
-      "navigateAfterLogin(nextPathByRole(res.profile.role))",
+      "resumedPath ?? nextPathByRole(res.profile.role)",
     );
+  });
 
-    expect(loginClient).not.toContain("safeNextPath");
-    expect(loginClient).not.toContain("routeBelongsToRole");
-    expect(loginClient).not.toContain("nextPath?:");
-    expect(loginClient).not.toContain("nextPath,");
+  it("accepts an explicit next path from the login page", () => {
+    expect(loginPage).toContain(
+      'const nextPath = typeof sp.next === "string" ? sp.next : null;',
+    );
+    expect(loginPage).toContain("nextPath={nextPath}");
+    expect(loginClient).toContain("nextPath?: string | null;");
+    expect(loginClient).toContain(
+      "safeNextPathForRole(nextPath, res.profile.role)",
+    );
   });
 
   it("keeps the canonical role dashboards", () => {
@@ -33,9 +44,26 @@ describe("login dashboard routing", () => {
     expect(rolePaths).toContain('return "/customer"');
   });
 
-  it("preserves forced admin password change before dashboard", () => {
-    expect(loginClient).toContain(
+  it("preserves forced admin password change before any resume path", () => {
+    const forcedChange = loginClient.indexOf(
       'navigateAfterLogin("/auth/change-password")',
     );
+    const resume = loginClient.indexOf(
+      "safeNextPathForRole(nextPath, res.profile.role)",
+    );
+
+    expect(forcedChange).toBeGreaterThan(-1);
+    expect(resume).toBeGreaterThan(forcedChange);
+  });
+
+  it("does not expose a fake remember-me control", () => {
+    expect(loginClient).not.toContain("Ricordami su questo dispositivo");
+    expect(loginClient).not.toContain("setRemember");
+  });
+
+  it("links the login footer to real public pages", () => {
+    expect(loginClient).toContain('href="/faq"');
+    expect(loginClient).toContain('href="/privacy"');
+    expect(loginClient).toContain('href="/termini-di-servizio"');
   });
 });

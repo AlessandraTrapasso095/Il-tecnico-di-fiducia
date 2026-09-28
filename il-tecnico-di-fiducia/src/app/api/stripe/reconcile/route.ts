@@ -2,8 +2,12 @@ import { NextResponse } from "next/server";
 
 import { requireAuth } from "@/lib/api/auth";
 import { getStripe } from "@/lib/server/stripe";
-import { upsertProfessionalSubscriptionFromStripe } from "@/lib/server/stripe-subscriptions";
+import {
+  applyProfessionalSubscriptionStateFromStripe,
+  upsertProfessionalSubscriptionFromStripe,
+} from "@/lib/server/stripe-subscriptions";
 import { createServiceClient } from "@/lib/supabase/service";
+import { internalServerError } from "@/lib/api/internal-server-error";
 
 export const runtime = "nodejs";
 
@@ -52,7 +56,10 @@ export async function POST(request: Request) {
 
   const { data: rows, error } = await builder;
   if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return internalServerError(
+      "STRIPE RECONCILE SUBSCRIPTION LOAD ERROR",
+      error,
+    );
   }
 
   const updates: Array<{ professional_id: string; status: string }> = [];
@@ -66,6 +73,7 @@ export async function POST(request: Request) {
 
     try {
       const subscription = await stripe.subscriptions.retrieve(subscriptionId);
+      const reconcileTimestamp = Math.floor(Date.now() / 1000);
 
       const nextRow = await upsertProfessionalSubscriptionFromStripe(service, {
         professionalId,
@@ -73,6 +81,8 @@ export async function POST(request: Request) {
         stripeSubscriptionId: subscription.id,
         stripeStatus: subscription.status,
         currentPeriodEnd: subscription.current_period_end ?? null,
+        stripeEventId: `reconcile:${subscription.id}:${reconcileTimestamp}`,
+        stripeEventCreated: reconcileTimestamp,
       });
 
       updates.push({ professional_id: professionalId, status: nextRow.status });
@@ -85,29 +95,35 @@ export async function POST(request: Request) {
         message.toLowerCase().includes("not found");
 
       if (notFound) {
-        const { error: clearError } = await service
-          .from("professional_subscriptions")
-          .update({
-            status: "none",
-            stripe_subscription_id: null,
-            current_period_end: null,
-          })
-          .eq("professional_id", professionalId);
+        const reconcileTimestamp = Math.floor(Date.now() / 1000);
 
-        if (!clearError) {
-          updates.push({ professional_id: professionalId, status: "none" });
-        }
+        const nextRow = await applyProfessionalSubscriptionStateFromStripe(
+          service,
+          {
+            professionalId,
+            status: "none",
+            stripeCustomerId: customerId,
+            stripeSubscriptionId: null,
+            currentPeriodEnd: null,
+            stripeEventId: `reconcile:not-found:${subscriptionId}:${reconcileTimestamp}`,
+            stripeEventCreated: reconcileTimestamp,
+          },
+        );
+
+        updates.push({
+          professional_id: professionalId,
+          status: nextRow.status,
+        });
 
         continue;
       }
 
-      return NextResponse.json(
-        { error: `Reconcile failed for ${professionalId}: ${message || "unknown error"}` },
-        { status: 500 },
-      );
+      return internalServerError("STRIPE RECONCILE PROFESSIONAL ERROR", err, {
+        professional_id: professionalId,
+        stripe_subscription_id: subscriptionId,
+      });
     }
   }
 
   return NextResponse.json({ ok: true, updated: updates.length, updates });
 }
-

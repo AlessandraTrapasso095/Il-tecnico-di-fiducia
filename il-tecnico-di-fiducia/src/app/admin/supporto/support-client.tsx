@@ -674,11 +674,23 @@ function UserDetailsModal({
                 type="button"
                 className="inline-flex items-center justify-center gap-2 rounded-full bg-surface-container-high px-4 py-2 font-button text-primary disabled:opacity-60"
                 onClick={() =>
-                  onSubscription(user, "none", null, "subscription-cancel")
+                  onSubscription(
+                    user,
+                    user.subscription?.status === "admin_forced_active"
+                      ? "none"
+                      : "suspended",
+                    null,
+                    "subscription-cancel",
+                  )
                 }
                 disabled={busy}
               >
-                {loadingContent("subscription-cancel", "Annulla abbonamento")}
+                {loadingContent(
+                  "subscription-cancel",
+                  user.subscription?.status === "admin_forced_active"
+                    ? "Revoca forzatura"
+                    : "Sospendi accesso",
+                )}
               </button>
             ) : (
               <>

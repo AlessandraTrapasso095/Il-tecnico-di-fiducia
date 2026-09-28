@@ -13,12 +13,19 @@ const PRIVACY_SECTIONS = [
   {
     title: "1. Titolare del trattamento e contatti",
     content: [
-      "Il titolare del trattamento è il gestore del portale Il Tecnico di Fiducia, contattabile all’indirizzo admin@iltecnicodifiducia.it per richieste relative alla protezione dei dati personali, all’esercizio dei diritti dell’interessato e alle segnalazioni sulla gestione dei dati.",
+      "Il titolare del trattamento e gestore del portale Il Tecnico di Fiducia è Davide Mazza, codice fiscale MZZDVD94D20I872A, con indirizzo in Via Massara 45, 88100 Catanzaro (CZ), Italia. Per richieste relative alla protezione dei dati personali, all’esercizio dei diritti dell’interessato e alla gestione dei dati è possibile scrivere a info@iltecnicodifiducia.it.",
       "La presente informativa descrive come vengono trattati i dati personali raccolti attraverso il sito, le aree riservate, i moduli pubblici e le funzionalità di piattaforma.",
     ],
   },
   {
-    title: "2. Tipologie di dati trattati",
+    title: "2. Età minima",
+    content: [
+      "La registrazione e l’utilizzo delle aree riservate di Il Tecnico di Fiducia sono consentiti esclusivamente a persone che abbiano compiuto 18 anni.",
+      "Con la registrazione l’utente dichiara di essere maggiorenne. Il portale non è destinato alla registrazione autonoma di minori.",
+    ],
+  },
+  {
+    title: "3. Tipologie di dati trattati",
     content: [
       "Dati identificativi e di contatto: nome, cognome, indirizzo email, numero di telefono, provincia/località e informazioni inserite nel profilo.",
       "Dati account e autenticazione: credenziali gestite tramite Supabase Auth, conferme email, reset password, sessioni e stato dell’account.",
@@ -29,7 +36,7 @@ const PRIVACY_SECTIONS = [
     ],
   },
   {
-    title: "3. Finalità del trattamento",
+    title: "4. Finalità del trattamento",
     content: [
       "Consentire la navigazione pubblica e l’uso delle pagine informative del sito.",
       "Permettere registrazione, autenticazione, gestione account e recupero password per clienti, professionisti e amministratori.",
@@ -42,7 +49,7 @@ const PRIVACY_SECTIONS = [
     ],
   },
   {
-    title: "4. Base giuridica",
+    title: "5. Base giuridica",
     content: [
       "Esecuzione del servizio richiesto dall’utente: gestione account, ricerca professionisti, richieste, chat, supporto, recensioni e abbonamenti.",
       "Adempimento di obblighi legali, fiscali, contabili o di sicurezza quando applicabili alle funzionalità utilizzate.",
@@ -51,7 +58,7 @@ const PRIVACY_SECTIONS = [
     ],
   },
   {
-    title: "5. Modalità del trattamento e sicurezza",
+    title: "6. Modalità del trattamento e sicurezza",
     content: [
       "I dati sono trattati con strumenti informatici e procedure organizzative proporzionate alla natura del servizio. L’accesso ai dati è limitato agli utenti autorizzati e alle funzioni strettamente necessarie.",
       "Il progetto utilizza controlli applicativi, autenticazione, ruoli, policy di accesso ai dati, log server-side e regole di sicurezza Supabase per limitare la visibilità delle informazioni a clienti, professionisti e amministratori autorizzati.",
@@ -59,7 +66,7 @@ const PRIVACY_SECTIONS = [
     ],
   },
   {
-    title: "6. Conservazione dei dati",
+    title: "7. Conservazione dei dati",
     content: [
       "I dati account e profilo sono conservati finché l’account resta attivo o finché sono necessari per erogare il servizio richiesto.",
       "Messaggi, richieste, ticket, preventivi e recensioni possono essere conservati per mantenere lo storico delle interazioni, garantire sicurezza, gestire contestazioni e preservare l’integrità della piattaforma.",
@@ -68,7 +75,7 @@ const PRIVACY_SECTIONS = [
     ],
   },
   {
-    title: "7. Comunicazione dei dati",
+    title: "8. Comunicazione dei dati",
     content: [
       "I dati possono essere comunicati ai professionisti o ai clienti solo quando necessario per gestire richieste, conversazioni, preventivi, recensioni e funzioni collegate.",
       "Gli amministratori autorizzati possono accedere ai dati necessari per moderazione, assistenza, sicurezza, gestione utenti, abbonamenti e ticket.",
@@ -76,7 +83,7 @@ const PRIVACY_SECTIONS = [
     ],
   },
   {
-    title: "8. Servizi terzi utilizzati",
+    title: "9. Servizi terzi utilizzati",
     content: [
       "Supabase è utilizzato per autenticazione, database, storage, sessioni, realtime e policy di accesso ai dati.",
       "Stripe è utilizzato per il checkout, la gestione degli abbonamenti professionista, il portale di pagamento, i webhook e gli stati di sottoscrizione.",
@@ -86,14 +93,14 @@ const PRIVACY_SECTIONS = [
     ],
   },
   {
-    title: "9. Stripe e pagamenti",
+    title: "10. Stripe e pagamenti",
     content: [
       "I dati di pagamento dell’abbonamento professionista sono gestiti da Stripe. Durante il checkout l’utente viene indirizzato all’ambiente Stripe, dove si applicano anche le informative e condizioni del fornitore di pagamento.",
       "Il portale riceve da Stripe informazioni sullo stato dell’abbonamento, come attivo, annullato, sospeso o scaduto, necessarie per regolare la visibilità del professionista e l’accesso alle funzionalità collegate.",
     ],
   },
   {
-    title: "10. Cookie e strumenti tecnici",
+    title: "11. Cookie e strumenti tecnici",
     content: [
       "Il sito utilizza cookie e strumenti tecnici necessari per autenticazione, sicurezza, mantenimento della sessione, navigazione e funzionamento delle aree riservate.",
       "Non risultano implementati strumenti di analytics, profilazione pubblicitaria o tracciamento marketing nel codice del progetto.",
@@ -101,14 +108,14 @@ const PRIVACY_SECTIONS = [
     ],
   },
   {
-    title: "11. Diritti dell’interessato",
+    title: "12. Diritti dell’interessato",
     content: [
       "L’utente può richiedere accesso ai dati personali, rettifica, cancellazione, limitazione del trattamento, opposizione, portabilità dei dati quando applicabile e revoca del consenso per i trattamenti basati su consenso.",
-      "Le richieste possono essere inviate a admin@iltecnicodifiducia.it. Per tutelare gli account, il titolare può richiedere informazioni necessarie a verificare l’identità del richiedente prima di eseguire la richiesta.",
+      "Le richieste possono essere inviate a info@iltecnicodifiducia.it. Per tutelare gli account, il titolare può richiedere informazioni necessarie a verificare l’identità del richiedente prima di eseguire la richiesta.",
     ],
   },
   {
-    title: "12. Aggiornamenti dell’informativa",
+    title: "13. Aggiornamenti dell’informativa",
     content: [
       "La Privacy Policy può essere aggiornata per riflettere modifiche del servizio, adeguamenti tecnici o nuove funzionalità. La versione pubblicata sul sito è quella applicabile al momento della consultazione.",
     ],
