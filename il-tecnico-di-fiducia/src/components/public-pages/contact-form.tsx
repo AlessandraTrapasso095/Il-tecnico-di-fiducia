@@ -69,9 +69,22 @@ export function ContactForm() {
 
   return (
     <form
-      className="rounded-[28px] border border-outline-variant/30 bg-surface-container-lowest p-5 shadow-[0_18px_60px_rgba(8,43,95,0.12)] sm:p-8"
+      className="rounded-[28px] border border-outline-variant/30 bg-surface-container-lowest p-5 shadow-[0_18px_55px_rgba(8,43,95,0.08)] sm:p-6 lg:p-7"
       onSubmit={submitContact}
     >
+      <div className="mb-5 border-b border-outline-variant/20 pb-5">
+        <p className="font-label-md text-sm uppercase tracking-[0.16em] text-[#FF8500]">
+          Scrivici
+        </p>
+        <h2 className="mt-2 font-headline-md text-[28px] leading-tight text-primary sm:text-[30px]">
+          Raccontaci come possiamo aiutarti
+        </h2>
+        <p className="mt-2 leading-6 text-on-surface-variant">
+          Compila i campi qui sotto. Ti invieremo una conferma via email e il nostro
+          team ti risponderà appena possibile.
+        </p>
+      </div>
+
       <div className="grid gap-4 sm:grid-cols-2">
         <TextField
           label="Nome"
@@ -104,7 +117,7 @@ export function ContactForm() {
       <label className="mt-4 block font-label-md text-primary">
         Messaggio
         <textarea
-          className="mt-2 min-h-40 w-full rounded-2xl border border-outline-variant bg-white px-4 py-3 text-base outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/20"
+          className="mt-2 min-h-36 w-full resize-y rounded-2xl border border-outline-variant bg-white px-4 py-3 text-base outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/20"
           value={form.message}
           onChange={(event) => updateField("message", event.target.value)}
           required
@@ -125,7 +138,7 @@ export function ContactForm() {
 
       <button
         type="submit"
-        className="mt-6 inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-full bg-[#FF8500] px-6 py-3 font-button text-white shadow-lg shadow-orange-500/20 transition hover:bg-[#FF9A2B] disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto"
+        className="mt-6 inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-full bg-[#FF8500] px-7 py-3 font-button text-white shadow-lg shadow-orange-500/20 transition hover:bg-[#FF9A2B] disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto"
         disabled={loading}
       >
         {loading ? (
