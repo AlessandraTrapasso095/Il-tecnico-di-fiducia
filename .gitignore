@@ -20,3 +20,6 @@ img/
 !il-tecnico-di-fiducia/public/img/
 !il-tecnico-di-fiducia/public/img/logo.png
 !il-tecnico-di-fiducia/public/img/logo-mark.png
+
+# Private local files — never commit
+il-tecnico-di-fiducia/Privato/

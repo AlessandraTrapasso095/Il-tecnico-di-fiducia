@@ -1,3 +1,5 @@
+import { randomUUID } from "node:crypto";
+
 import { NextResponse } from "next/server";
 
 import {
@@ -9,10 +11,15 @@ import { isNonEmptyString } from "@/lib/api/validation";
 import { logApiError } from "@/lib/server/api-logger";
 import {
   appBaseUrl,
+  emailReplyTo,
   escapeHtml,
   sendTransactionalEmail,
   supportAdminEmail,
 } from "@/lib/server/email";
+import {
+  generateGuestAccessToken,
+  hashGuestAccessToken,
+} from "@/lib/server/guest-support";
 import { createServiceClient } from "@/lib/supabase/service";
 
 export const runtime = "nodejs";
@@ -23,19 +30,6 @@ type PublicContactPayload = {
   email?: string;
   subject?: string;
   body?: string;
-};
-
-type AdminProfileRow = {
-  id: string;
-  role: "admin";
-  email: string;
-  first_name: string;
-  last_name: string;
-  province_code: string | null;
-  phone: string | null;
-  must_change_password: boolean;
-  is_banned: boolean;
-  suspended_until: string | null;
 };
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -53,33 +47,6 @@ function normalizeText(value: unknown, maxLength: number) {
 function normalizeBody(value: unknown) {
   if (typeof value !== "string") return "";
   return value.trim().slice(0, MAX_BODY_LENGTH);
-}
-
-function publicTicketBody({
-  firstName,
-  lastName,
-  email,
-  subject,
-  body,
-}: {
-  firstName: string;
-  lastName: string;
-  email: string;
-  subject: string;
-  body: string;
-}) {
-  return [
-    "Richiesta pubblica ricevuta dal form Contattaci.",
-    `Origine: ${PUBLIC_CONTACT_SOURCE}`,
-    "",
-    `Nome: ${firstName}`,
-    `Cognome: ${lastName}`,
-    `Email: ${email}`,
-    `Titolo: ${subject}`,
-    "",
-    "Messaggio:",
-    body,
-  ].join("\n");
 }
 
 function fullName({
@@ -100,7 +67,7 @@ function logPublicContact(message: string, context: Record<string, unknown>) {
   console.info(`PUBLIC_CONTACT ${message}`, context);
 }
 
-function publicContactEmail({
+function publicContactAdminEmail({
   ticket,
   firstName,
   lastName,
@@ -110,7 +77,6 @@ function publicContactEmail({
 }: {
   ticket: {
     id: string;
-    subject: string;
     created_at: string;
   };
   firstName: string;
@@ -124,6 +90,7 @@ function publicContactEmail({
     dateStyle: "medium",
     timeStyle: "short",
   }).format(new Date(ticket.created_at));
+
   const senderName = fullName({ firstName, lastName });
 
   return {
@@ -149,7 +116,10 @@ function publicContactEmail({
         <p><strong>Data invio:</strong> ${escapeHtml(createdAt)}</p>
         <p><strong>Ticket:</strong> ${escapeHtml(ticket.id)}</p>
         <p>
-          <a href="${escapeHtml(adminUrl)}" style="display:inline-block;background:#FF8500;color:#fff;text-decoration:none;border-radius:999px;padding:12px 20px;font-weight:700">
+          <a
+            href="${escapeHtml(adminUrl)}"
+            style="display:inline-block;background:#FF8500;color:#fff;text-decoration:none;border-radius:999px;padding:12px 20px;font-weight:700"
+          >
             Apri supporto admin
           </a>
         </p>
@@ -158,49 +128,53 @@ function publicContactEmail({
   };
 }
 
-async function loadSupportAuthor() {
-  const service = createServiceClient();
-  const adminEmail = supportAdminEmail()?.toLowerCase().trim();
-  const configuredEmails = Array.from(
-    new Set(
-      adminEmail ? [adminEmail] : [],
-    ),
-  );
+function publicContactGuestConfirmationEmail({
+  firstName,
+  subject,
+}: {
+  firstName: string;
+  subject: string;
+}) {
+  return {
+    subject: "Richiesta ricevuta - Il Tecnico di Fiducia",
+    text: [
+      `Ciao ${firstName},`,
+      "",
+      "abbiamo ricevuto la tua richiesta di assistenza.",
+      `Oggetto: ${subject}`,
+      "",
+      "Il nostro team la prenderà in carico e ti risponderà al più presto.",
+      "",
+      "Quando riceverai una risposta, ti invieremo un'email con il pulsante per aprire il ticket e continuare la conversazione.",
+      "",
+      "Questa casella email non è destinata alla ricezione delle risposte.",
+    ].join("\n"),
+    html: `
+      <div style="font-family:Arial,Helvetica,sans-serif;line-height:1.6;color:#141b2c">
+        <h2 style="color:#002654">Abbiamo ricevuto la tua richiesta</h2>
 
-  for (const configuredEmail of configuredEmails) {
-    const { data, error } = await service
-      .from("profiles")
-      .select(
-        "id, role, email, first_name, last_name, province_code, phone, must_change_password, is_banned, suspended_until",
-      )
-      .eq("role", "admin")
-      .ilike("email", configuredEmail)
-      .maybeSingle<AdminProfileRow>();
+        <p>Ciao ${escapeHtml(firstName)},</p>
 
-    if (error) {
-      throw error;
-    }
+        <p>
+          abbiamo ricevuto la tua richiesta di assistenza relativa a
+          <strong>${escapeHtml(subject)}</strong>.
+        </p>
 
-    if (data) {
-      return { service, adminProfile: data };
-    }
-  }
+        <p>
+          Il nostro team la prenderà in carico e ti risponderà al più presto.
+        </p>
 
-  const { data, error } = await service
-    .from("profiles")
-    .select(
-      "id, role, email, first_name, last_name, province_code, phone, must_change_password, is_banned, suspended_until",
-    )
-    .eq("role", "admin")
-    .order("created_at", { ascending: true })
-    .limit(1)
-    .maybeSingle<AdminProfileRow>();
+        <p>
+          Quando riceverai una risposta, ti invieremo un'email con il pulsante
+          per aprire il ticket e continuare la conversazione.
+        </p>
 
-  if (error) {
-    throw error;
-  }
-
-  return { service, adminProfile: data };
+        <p style="font-size:14px;color:#526070">
+          Questa casella email non è destinata alla ricezione delle risposte.
+        </p>
+      </div>
+    `,
+  };
 }
 
 export async function POST(request: Request) {
@@ -217,6 +191,7 @@ export async function POST(request: Request) {
   }
 
   let payload: PublicContactPayload;
+
   try {
     payload = (await request.json()) as PublicContactPayload;
   } catch (error) {
@@ -224,7 +199,11 @@ export async function POST(request: Request) {
       query: "request.json public contact",
       error,
     });
-    return NextResponse.json({ error: "Formato richiesta non valido." }, { status: 400 });
+
+    return NextResponse.json(
+      { error: "Formato richiesta non valido." },
+      { status: 400 },
+    );
   }
 
   const firstName = normalizeText(payload.first_name, MAX_NAME_LENGTH);
@@ -240,11 +219,17 @@ export async function POST(request: Request) {
     !isNonEmptyString(subject) ||
     !isNonEmptyString(body)
   ) {
-    return NextResponse.json({ error: "Compila tutti i campi richiesti." }, { status: 400 });
+    return NextResponse.json(
+      { error: "Compila tutti i campi richiesti." },
+      { status: 400 },
+    );
   }
 
   if (!EMAIL_PATTERN.test(email)) {
-    return NextResponse.json({ error: "Inserisci un indirizzo email valido." }, { status: 400 });
+    return NextResponse.json(
+      { error: "Inserisci un indirizzo email valido." },
+      { status: 400 },
+    );
   }
 
   const emailHash = await hashRateLimitId(`email:${email}`);
@@ -252,7 +237,8 @@ export async function POST(request: Request) {
     key: `v1:public-contact:email:${emailHash}`,
     maxHits: 3,
     windowSeconds: 900,
-    errorMessage: "Troppe richieste per questo indirizzo email. Riprova più tardi.",
+    errorMessage:
+      "Troppe richieste per questo indirizzo email. Riprova più tardi.",
   });
 
   if (emailLimited) {
@@ -268,55 +254,38 @@ export async function POST(request: Request) {
     source: PUBLIC_CONTACT_SOURCE,
   });
 
-  let supportAuthor;
-  try {
-    supportAuthor = await loadSupportAuthor();
-  } catch (error) {
-    logApiError("PUBLIC_CONTACT SUPPORT AUTHOR ERROR", {
-      query: "profiles select support admin author",
-      error,
-    });
-    return NextResponse.json(
-      { error: "Non è stato possibile inviare la richiesta. Riprova." },
-      { status: 500 },
-    );
-  }
+  const service = createServiceClient();
 
-  if (!supportAuthor.adminProfile) {
-    logApiError("PUBLIC_CONTACT SUPPORT AUTHOR ERROR", {
-      query: "profiles select first admin author",
-      error: new Error("No admin profile available for public support ticket"),
-    });
-    return NextResponse.json(
-      { error: "Non è stato possibile inviare la richiesta. Riprova." },
-      { status: 500 },
-    );
-  }
+  const ticketId = randomUUID();
+  const guestToken = generateGuestAccessToken(ticketId);
+  const guestTokenHash = hashGuestAccessToken(guestToken);
+  const accessCreatedAt = new Date().toISOString();
 
-  logPublicContact("SUPPORT_AUTHOR_RESOLVED", {
-    admin_profile_id: supportAuthor.adminProfile.id,
-    matched_admin_email_domain: emailDomain(supportAuthor.adminProfile.email),
-    source: PUBLIC_CONTACT_SOURCE,
-  });
-
-  const ticketBody = publicTicketBody({ firstName, lastName, email, subject, body });
-
-  const { data: ticket, error: ticketError } = await supportAuthor.service
+  const { data: ticket, error: ticketError } = await service
     .from("support_tickets")
     .insert({
-      author_id: supportAuthor.adminProfile.id,
+      id: ticketId,
+      author_id: null,
+      guest_first_name: firstName,
+      guest_last_name: lastName,
+      guest_email: email,
+      guest_access_token_hash: guestTokenHash,
+      guest_access_created_at: accessCreatedAt,
       subject: `Contatto pubblico: ${subject}`,
-      body: ticketBody,
+      body,
       status: "open",
     })
-    .select("id, author_id, subject, body, status, created_at, updated_at")
+    .select(
+      "id, author_id, guest_first_name, guest_last_name, guest_email, subject, body, status, created_at, updated_at",
+    )
     .single();
 
   if (ticketError) {
     logApiError("PUBLIC_CONTACT TICKET ERROR", {
-      query: "support_tickets insert public contact",
+      query: "support_tickets insert guest public contact",
       error: ticketError,
     });
+
     return NextResponse.json(
       { error: "Non è stato possibile inviare la richiesta. Riprova." },
       { status: 500 },
@@ -326,15 +295,18 @@ export async function POST(request: Request) {
   logPublicContact("TICKET_CREATED", {
     ticket_created: true,
     ticket_id: ticket.id,
-    author_id: ticket.author_id,
+    guest_ticket: true,
     status: ticket.status,
     source: PUBLIC_CONTACT_SOURCE,
   });
 
-  let emailSent = false;
+  let adminEmailSent = false;
+  let guestEmailSent = false;
+
   try {
     const adminRecipient = supportAdminEmail();
-    const emailContent = publicContactEmail({
+
+    const adminEmail = publicContactAdminEmail({
       ticket,
       firstName,
       lastName,
@@ -342,32 +314,56 @@ export async function POST(request: Request) {
       subject,
       body,
     });
-    const emailResult = await sendTransactionalEmail({
+
+    const result = await sendTransactionalEmail({
       to: adminRecipient,
-      ...emailContent,
+      ...adminEmail,
     });
 
-    emailSent = emailResult.sent;
-    logPublicContact("EMAIL_RESULT", {
-      ticket_id: ticket.id,
-      email_sent: emailSent,
-      recipient_domain: adminRecipient ? emailDomain(adminRecipient) : null,
-      recipient_from_support_admin_env: Boolean(supportAdminEmail()),
-      skipped: emailResult.sent ? false : emailResult.skipped,
-      reason: emailResult.sent ? null : emailResult.reason,
-      source: PUBLIC_CONTACT_SOURCE,
-    });
+    adminEmailSent = result.sent;
   } catch (emailError) {
-    logApiError("PUBLIC_CONTACT EMAIL ERROR", {
-      query: "send public support ticket email",
+    logApiError("PUBLIC_CONTACT ADMIN EMAIL ERROR", {
+      query: "send public support admin notification",
       ticket_id: ticket.id,
       error: emailError,
     });
   }
 
-  return NextResponse.json({
-    ok: true,
+  try {
+    const confirmationEmail = publicContactGuestConfirmationEmail({
+      firstName,
+      subject,
+    });
+
+    const result = await sendTransactionalEmail({
+      to: email,
+      replyTo: emailReplyTo(),
+      ...confirmationEmail,
+    });
+
+    guestEmailSent = result.sent;
+  } catch (emailError) {
+    logApiError("PUBLIC_CONTACT GUEST EMAIL ERROR", {
+      query: "send public support guest confirmation",
+      ticket_id: ticket.id,
+      recipient_domain: emailDomain(email),
+      error: emailError,
+    });
+  }
+
+  logPublicContact("DELIVERY_RESULT", {
     ticket_id: ticket.id,
-    email_sent: emailSent,
-  }, { status: 201 });
+    admin_email_sent: adminEmailSent,
+    guest_email_sent: guestEmailSent,
+    source: PUBLIC_CONTACT_SOURCE,
+  });
+
+  return NextResponse.json(
+    {
+      ok: true,
+      ticket_id: ticket.id,
+      confirmation_email_sent: guestEmailSent,
+    },
+    { status: 201 },
+  );
 }

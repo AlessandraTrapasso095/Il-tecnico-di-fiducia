@@ -54,8 +54,11 @@ type AdminUserSummary = {
 
 type SupportTicket = {
   id: string;
-  author_id: string;
+  author_id: string | null;
   author: AdminUserSummary | null;
+  guest_first_name: string | null;
+  guest_last_name: string | null;
+  guest_email: string | null;
   subject: string;
   body: string;
   status: "open" | "waiting" | "closed";
@@ -63,13 +66,25 @@ type SupportTicket = {
   updated_at: string;
 };
 
+type SupportMessageAttachment = {
+  id: string;
+  file_type: "image" | "video";
+  mime_type: string;
+  file_name: string;
+  file_size: number;
+  signed_url: string;
+  expires_at: string;
+  created_at: string;
+};
+
 type SupportMessage = {
   id: string;
   ticket_id: string;
   sender_id: string | null;
-  sender_role: UserRole;
+  sender_role: UserRole | "guest";
   body: string;
   created_at: string;
+  attachments?: SupportMessageAttachment[];
 };
 
 type TicketsResponse = {
@@ -147,6 +162,14 @@ function formatDate(value: string | null | undefined) {
     hour: "2-digit",
     minute: "2-digit",
   }).format(new Date(value));
+}
+
+function formatSupportFileSize(bytes: number) {
+  if (bytes < 1024 * 1024) {
+    return `${Math.max(1, Math.round(bytes / 1024))} KB`;
+  }
+
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
 function addDays(days: number) {
@@ -248,6 +271,25 @@ function parsePublicContactTicket(
 
 function ticketPreview(ticket: SupportTicket) {
   return parsePublicContactTicket(ticket)?.message ?? ticket.body;
+}
+
+function ticketContactName(ticket: SupportTicket) {
+  if (ticket.author) return fullName(ticket.author);
+
+  const guestName =
+    `${ticket.guest_first_name ?? ""} ${ticket.guest_last_name ?? ""}`.trim();
+
+  return guestName || "Utente";
+}
+
+function ticketContactEmail(ticket: SupportTicket) {
+  return ticket.author?.email ?? ticket.guest_email ?? "Email non disponibile";
+}
+
+function ticketContactRole(ticket: SupportTicket) {
+  if (ticket.author) return roleLabels[ticket.author.role];
+  if (!ticket.author_id && ticket.guest_email) return "Ospite";
+  return "Utente";
 }
 
 function DetailField({
@@ -1098,13 +1140,11 @@ export default function AdminSupportClient() {
                       <div className="flex items-start justify-between gap-3">
                         <div className="min-w-0">
                           <p className="truncate font-label-md text-primary">
-                            {fullName(ticket.author)}
+                            {ticketContactName(ticket)}
                           </p>
                           <p className="truncate text-xs text-on-surface-variant">
-                            {ticket.author?.email ?? "Email non disponibile"} ·{" "}
-                            {ticket.author
-                              ? roleLabels[ticket.author.role]
-                              : "Utente"}
+                            {ticketContactEmail(ticket)} ·{" "}
+                            {ticketContactRole(ticket)}
                           </p>
                         </div>
                         <span
@@ -1150,10 +1190,10 @@ export default function AdminSupportClient() {
                         onClick={() => setAuthorModalUser(selected.author)}
                         disabled={!selected.author}
                       >
-                        {fullName(selected.author)}
+                        {ticketContactName(selected)}
                       </button>
                       <p>
-                        {selected.author?.email ?? "Email non disponibile"} ·
+                        {ticketContactEmail(selected)} · {ticketContactRole(selected)} ·
                         Creato: {formatDate(selected.created_at)}
                       </p>
                     </div>
@@ -1218,11 +1258,69 @@ export default function AdminSupportClient() {
                             ].join(" ")}
                           >
                             <p className="mb-2 text-xs font-semibold uppercase tracking-[0.12em] opacity-70">
-                              {isAuthor ? fullName(selected.author) : "Admin"}
+                              {isAuthor ? ticketContactName(selected) : "Admin"}
                             </p>
                             <p className="break-words leading-6 [overflow-wrap:anywhere]">
                               {supportMessage.body}
                             </p>
+                            {supportMessage.attachments?.length ? (
+                              <div className="mt-3 space-y-3">
+                                {supportMessage.attachments.map((attachment) => (
+                                  <div
+                                    key={attachment.id}
+                                    className={[
+                                      "overflow-hidden rounded-xl border",
+                                      isAuthor
+                                        ? "border-outline-variant/30 bg-surface-container-low"
+                                        : "border-white/20 bg-white/10",
+                                    ].join(" ")}
+                                  >
+                                    {attachment.file_type === "image" ? (
+                                      // eslint-disable-next-line @next/next/no-img-element
+                                      <img
+                                        src={attachment.signed_url}
+                                        alt={attachment.file_name}
+                                        className="max-h-72 w-full object-contain"
+                                      />
+                                    ) : (
+                                      <video
+                                        src={attachment.signed_url}
+                                        controls
+                                        preload="metadata"
+                                        className="max-h-72 w-full bg-black object-contain"
+                                      />
+                                    )}
+
+                                    <div className="flex items-center justify-between gap-3 px-3 py-2 text-xs">
+                                      <span className="min-w-0 truncate">
+                                        {attachment.file_name}
+                                      </span>
+
+                                      <span className="shrink-0 opacity-70">
+                                        {formatSupportFileSize(
+                                          attachment.file_size,
+                                        )}
+                                      </span>
+                                    </div>
+
+                                    <a
+                                      href={attachment.signed_url}
+                                      target="_blank"
+                                      rel="noreferrer"
+                                      className={[
+                                        "block border-t px-3 py-2 text-xs font-semibold underline underline-offset-2",
+                                        isAuthor
+                                          ? "border-outline-variant/30"
+                                          : "border-white/20",
+                                      ].join(" ")}
+                                    >
+                                      Apri allegato
+                                    </a>
+                                  </div>
+                                ))}
+                              </div>
+                            ) : null}
+
                             <p className="mt-2 text-xs opacity-60">
                               {formatDate(supportMessage.created_at)}
                             </p>

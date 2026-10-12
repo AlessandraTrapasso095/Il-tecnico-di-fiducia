@@ -281,7 +281,7 @@ export function appBaseUrl() {
   return (
     process.env.NEXT_PUBLIC_SITE_URL ??
     process.env.APP_URL ??
-    "http://localhost:3000"
+    "http://localhost:3002"
   ).replace(/\/$/, "");
 }
 
@@ -291,6 +291,10 @@ export function supportAdminEmail() {
 
 export function configuredEmailFrom() {
   return sender();
+}
+
+export function emailReplyTo() {
+  return envValue("EMAIL_REPLY_TO");
 }
 
 export function escapeHtml(value: string) {
@@ -430,7 +434,7 @@ export async function sendSmtpDiagnosticEmail({
   text,
 }: SmtpDiagnosticInput): Promise<SmtpDiagnosticResult> {
   const recipient = to.trim();
-  const replyToAddress = supportAdminEmail();
+  const replyToAddress = emailReplyTo();
   const configSummary = smtpEnvSummary(Boolean(recipient));
   const emptySendMail = {
     attempted: false,
@@ -468,7 +472,7 @@ export async function sendSmtpDiagnosticEmail({
       sendMail: emptySendMail,
       error: {
         name: "ConfigurationError",
-        message: "Missing env: SUPPORT_ADMIN_EMAIL",
+        message: "Missing env: EMAIL_REPLY_TO",
         code: null,
         command: null,
         responseCode: null,

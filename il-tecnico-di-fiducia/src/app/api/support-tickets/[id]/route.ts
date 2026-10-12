@@ -8,7 +8,10 @@ import {
   getNotificationDeliveryState,
   logNotificationEmailDecision,
 } from "@/lib/server/notification-delivery";
-import { sendSupportTicketResolvedEmail } from "@/lib/server/support-ticket-emails";
+import {
+  sendGuestSupportTicketResolvedEmail,
+  sendSupportTicketResolvedEmail,
+} from "@/lib/server/support-ticket-emails";
 import { createServiceClient } from "@/lib/supabase/service";
 
 export const runtime = "nodejs";
@@ -39,7 +42,9 @@ export async function GET(
 
   const { data, error } = await supabase
     .from("support_tickets")
-    .select("id, author_id, subject, body, status, created_at, updated_at")
+    .select(
+      "id, author_id, guest_first_name, guest_last_name, guest_email, subject, body, status, created_at, updated_at",
+    )
     .eq("id", id)
     .maybeSingle();
 
@@ -128,7 +133,9 @@ export async function PATCH(
     .from("support_tickets")
     .update(updates)
     .eq("id", id)
-    .select("id, author_id, subject, body, status, created_at, updated_at")
+    .select(
+      "id, author_id, guest_first_name, guest_last_name, guest_email, subject, body, status, created_at, updated_at",
+    )
     .single();
 
   if (error) {
@@ -154,7 +161,36 @@ export async function PATCH(
       metadata: { status: payload.status },
     });
 
-    if (payload.status === "closed") {
+    if (
+      payload.status === "closed" &&
+      data.author_id === null &&
+      data.guest_email
+    ) {
+      try {
+        await sendGuestSupportTicketResolvedEmail({
+          ticket: {
+            ...data,
+            guest_email: data.guest_email,
+          },
+        });
+
+        await writeAuditLog(supabase, {
+          actorId: profile.id,
+          action: "admin.resolve_guest_support_ticket",
+          targetType: "support_ticket",
+          targetId: id,
+          metadata: { status: "closed" },
+        });
+      } catch (emailError) {
+        logApiError("SUPPORT_TICKET_DETAIL GUEST EMAIL ERROR", {
+          user_id: user.id,
+          role: profile.role,
+          query: "send guest ticket resolved email",
+          ticket_id: id,
+          error: emailError,
+        });
+      }
+    } else if (payload.status === "closed") {
       try {
         const service = createServiceClient();
         const authorsById = await loadAdminUserSummaries(service, [data.author_id]).catch(

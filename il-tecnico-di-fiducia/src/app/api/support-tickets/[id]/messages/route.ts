@@ -11,6 +11,8 @@ import {
   supportAdminEmail,
 } from "@/lib/server/email";
 import {
+  sendGuestSupportTicketReplyEmail,
+  sendGuestSupportTicketResolvedEmail,
   sendSupportTicketReplyEmail,
   sendSupportTicketUserReplyEmail,
 } from "@/lib/server/support-ticket-emails";
@@ -23,6 +25,78 @@ import {
 import { createServiceClient } from "@/lib/supabase/service";
 
 export const runtime = "nodejs";
+
+const SUPPORT_ATTACHMENT_SIGNED_URL_TTL_SECONDS = 60 * 5;
+
+type SupportMessageAttachmentRow = {
+  id: string;
+  support_message_id: string;
+  bucket_id: string;
+  file_path: string;
+  file_type: "image" | "video";
+  mime_type: string;
+  file_name: string;
+  file_size: number;
+  created_at: string;
+};
+
+async function loadSignedSupportAttachments(messageIds: string[]) {
+  const byMessage = new Map<string, Array<Record<string, unknown>>>();
+
+  if (messageIds.length === 0) return byMessage;
+
+  const service = createServiceClient();
+
+  const { data, error } = await service
+    .from("support_message_attachments")
+    .select(
+      "id, support_message_id, bucket_id, file_path, file_type, mime_type, file_name, file_size, created_at",
+    )
+    .in("support_message_id", messageIds)
+    .order("created_at", { ascending: true });
+
+  if (error) {
+    throw error;
+  }
+
+  for (const row of (data ?? []) as SupportMessageAttachmentRow[]) {
+    const { data: signed, error: signedError } = await service.storage
+      .from(row.bucket_id)
+      .createSignedUrl(
+        row.file_path,
+        SUPPORT_ATTACHMENT_SIGNED_URL_TTL_SECONDS,
+        { download: false },
+      );
+
+    if (signedError || !signed?.signedUrl) {
+      logApiError("SUPPORT_MESSAGES ATTACHMENT SIGN ERROR", {
+        query: "create support attachment signed url",
+        message_id: row.support_message_id,
+        error: signedError ?? new Error("Signed URL missing"),
+      });
+      continue;
+    }
+
+    const existing = byMessage.get(row.support_message_id) ?? [];
+
+    existing.push({
+      id: row.id,
+      file_type: row.file_type,
+      mime_type: row.mime_type,
+      file_name: row.file_name,
+      file_size: row.file_size,
+      signed_url: signed.signedUrl,
+      expires_at: new Date(
+        Date.now() + SUPPORT_ATTACHMENT_SIGNED_URL_TTL_SECONDS * 1000,
+      ).toISOString(),
+      created_at: row.created_at,
+    });
+
+    byMessage.set(row.support_message_id, existing);
+  }
+
+  return byMessage;
+}
 
 type CreateSupportMessagePayload = {
   body: string;
@@ -149,7 +223,33 @@ export async function GET(
     );
   }
 
-  return NextResponse.json({ messages: data ?? [] });
+  try {
+    const messages = data ?? [];
+
+    const attachmentsByMessage = await loadSignedSupportAttachments(
+      messages.map((supportMessage) => supportMessage.id),
+    );
+
+    return NextResponse.json({
+      messages: messages.map((supportMessage) => ({
+        ...supportMessage,
+        attachments: attachmentsByMessage.get(supportMessage.id) ?? [],
+      })),
+    });
+  } catch (attachmentError) {
+    logApiError("SUPPORT_MESSAGES ATTACHMENTS ERROR", {
+      query: "load support message attachments",
+      ticket_id: ticketId,
+      error: attachmentError,
+    });
+
+    return NextResponse.json({
+      messages: (data ?? []).map((supportMessage) => ({
+        ...supportMessage,
+        attachments: [],
+      })),
+    });
+  }
 }
 
 export async function POST(
@@ -187,7 +287,9 @@ export async function POST(
 
   const { data: ticket, error: ticketError } = await supabase
     .from("support_tickets")
-    .select("id, author_id, subject, body, status, created_at, updated_at")
+    .select(
+      "id, author_id, guest_first_name, guest_last_name, guest_email, subject, body, status, created_at, updated_at",
+    )
     .eq("id", ticketId)
     .maybeSingle();
 
@@ -253,7 +355,9 @@ export async function POST(
       .from("support_tickets")
       .update({ status: nextStatus })
       .eq("id", ticketId)
-      .select("id, author_id, subject, body, status, created_at, updated_at")
+      .select(
+      "id, author_id, guest_first_name, guest_last_name, guest_email, subject, body, status, created_at, updated_at",
+    )
       .single();
 
     if (statusError) {
@@ -261,6 +365,53 @@ export async function POST(
     }
 
     updatedTicket = statusTicket;
+
+    const isGuestTicket =
+      updatedTicket.author_id === null &&
+      Boolean(updatedTicket.guest_email);
+
+    if (isGuestTicket && updatedTicket.guest_email) {
+      try {
+        if (nextStatus === "closed") {
+          await sendGuestSupportTicketResolvedEmail({
+            ticket: {
+              ...updatedTicket,
+              guest_email: updatedTicket.guest_email,
+            },
+            replyBody: payload.body.trim(),
+          });
+        } else {
+          await sendGuestSupportTicketReplyEmail({
+            ticket: {
+              ...updatedTicket,
+              guest_email: updatedTicket.guest_email,
+            },
+            replyBody: payload.body.trim(),
+          });
+        }
+      } catch (emailError) {
+        logApiError("SUPPORT_MESSAGES GUEST EMAIL ERROR", {
+          user_id: user.id,
+          role: profile.role,
+          query: "send guest ticket reply email",
+          ticket_id: ticketId,
+          error: emailError,
+        });
+      }
+
+      await writeAuditLog(supabase, {
+        actorId: profile.id,
+        action: "admin.reply_guest_support_ticket",
+        targetType: "support_ticket",
+        targetId: ticketId,
+        metadata: { status: nextStatus },
+      });
+
+      return NextResponse.json({
+        message: data,
+        ticket: updatedTicket,
+      });
+    }
 
     await writeAuditLog(supabase, {
       actorId: profile.id,
@@ -436,7 +587,9 @@ export async function POST(
         .update({ status: "open" })
         .eq("id", ticketId)
         .eq("author_id", user.id)
-        .select("id, author_id, subject, body, status, created_at, updated_at")
+        .select(
+      "id, author_id, guest_first_name, guest_last_name, guest_email, subject, body, status, created_at, updated_at",
+    )
         .single();
 
       if (statusError) {

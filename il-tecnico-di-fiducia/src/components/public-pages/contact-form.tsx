@@ -7,7 +7,7 @@ import { fetchJson } from "@/lib/api/fetch-json";
 type ContactTicketResponse = {
   ok: true;
   ticket_id: string;
-  email_sent: boolean;
+  confirmation_email_sent: boolean;
 };
 
 const INITIAL_STATE = {
@@ -125,10 +125,22 @@ export function ContactForm() {
 
       <button
         type="submit"
-        className="mt-6 inline-flex min-h-12 w-full items-center justify-center rounded-full bg-[#FF8500] px-6 py-3 font-button text-white shadow-lg shadow-orange-500/20 transition hover:bg-[#FF9A2B] disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto"
+        className="mt-6 inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-full bg-[#FF8500] px-6 py-3 font-button text-white shadow-lg shadow-orange-500/20 transition hover:bg-[#FF9A2B] disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto"
         disabled={loading}
       >
-        {loading ? "Invio in corso…" : "Invia richiesta"}
+        {loading ? (
+          <>
+            <span
+              className="material-symbols-outlined animate-spin text-[18px]"
+              aria-hidden
+            >
+              progress_activity
+            </span>
+            Caricamento…
+          </>
+        ) : (
+          "Invia richiesta"
+        )}
       </button>
     </form>
   );

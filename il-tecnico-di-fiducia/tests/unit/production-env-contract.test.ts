@@ -16,6 +16,8 @@ const validRequiredEnv = {
   SUPABASE_SERVICE_ROLE_KEY: "service-role-test-value",
 
   RATE_LIMIT_SALT: "test-rate-limit-salt",
+  GUEST_SUPPORT_TOKEN_SECRET:
+    "test-guest-support-token-secret-value-1234567890",
 
   STRIPE_SECRET_KEY: "stripe-secret-test-value",
   STRIPE_WEBHOOK_SECRET: "stripe-webhook-test-value",
@@ -29,6 +31,7 @@ const validRequiredEnv = {
   SMTP_USER: "mailer@example.test",
   SMTP_PASS: "smtp-test-password",
   EMAIL_FROM: "Il Tecnico di Fiducia <mailer@example.test>",
+  EMAIL_REPLY_TO: "no-reply@example.test",
   SUPPORT_ADMIN_EMAIL: "support@example.test",
 };
 

@@ -2,10 +2,15 @@ import "server-only";
 
 import {
   appBaseUrl,
+  emailReplyTo,
   escapeHtml,
   sendTransactionalEmail,
   supportAdminEmail,
 } from "@/lib/server/email";
+import {
+  generateGuestAccessToken,
+  guestTicketUrl,
+} from "@/lib/server/guest-support";
 import type { AdminUserSummary } from "@/lib/server/admin-user-summaries";
 
 type TicketEmailData = {
@@ -95,7 +100,7 @@ export async function sendSupportTicketReplyEmail({
 
   return sendTransactionalEmail({
     to: author.email,
-    replyTo: supportAdminEmail(),
+    replyTo: emailReplyTo(),
     subject: "Risposta al tuo ticket - Il Tecnico di Fiducia",
     text: [
       `Ciao ${fullName(author)},`,
@@ -140,7 +145,7 @@ export async function sendSupportTicketResolvedEmail({
 
   return sendTransactionalEmail({
     to: author.email,
-    replyTo: supportAdminEmail(),
+    replyTo: emailReplyTo(),
     subject: "Ticket risolto - Il Tecnico di Fiducia",
     text: [
       `Ciao ${fullName(author)},`,
@@ -207,6 +212,162 @@ export async function sendSupportTicketUserReplyEmail({
           <a href="${escapeHtml(adminUrl)}" style="display:inline-block;background:#FF8500;color:#fff;text-decoration:none;border-radius:999px;padding:12px 20px;font-weight:700">
             Apri supporto admin
           </a>
+        </p>
+      </div>
+    `,
+  });
+}
+
+
+export async function sendGuestSupportTicketReplyEmail({
+  ticket,
+  replyBody,
+}: {
+  ticket: TicketEmailData & {
+    guest_first_name: string | null;
+    guest_last_name: string | null;
+    guest_email: string;
+  };
+  replyBody: string;
+}) {
+  const token = generateGuestAccessToken(ticket.id);
+  const supportUrl = guestTicketUrl({
+    ticketId: ticket.id,
+    token,
+  });
+
+  const guestName =
+    `${ticket.guest_first_name ?? ""} ${ticket.guest_last_name ?? ""}`.trim() ||
+    "Utente";
+
+  return sendTransactionalEmail({
+    to: ticket.guest_email,
+    replyTo: emailReplyTo(),
+    subject: "Risposta al tuo ticket - Il Tecnico di Fiducia",
+    text: [
+      `Ciao ${guestName},`,
+      "",
+      `Abbiamo risposto al tuo ticket: ${ticket.subject.replace(/^Contatto pubblico:\s*/i, "")}`,
+      "",
+      replyBody,
+      "",
+      `Stato ticket: ${ticketStatusLabel(ticket.status)}`,
+      `Visualizza risposta: ${supportUrl}`,
+      "",
+      "Questa casella email non è destinata alla ricezione delle risposte. Usa il pulsante/link del ticket per continuare la conversazione.",
+    ].join("\n"),
+    html: `
+      <div style="font-family:Arial,Helvetica,sans-serif;line-height:1.6;color:#141b2c">
+        <h2 style="color:#002654">Abbiamo risposto al tuo ticket</h2>
+        <p>Ciao ${escapeHtml(guestName)},</p>
+        <p>
+          Abbiamo risposto alla tua richiesta:
+          <strong>${escapeHtml(ticket.subject.replace(/^Contatto pubblico:\s*/i, ""))}</strong>
+        </p>
+
+        <div style="background:#f1f3ff;border-radius:16px;padding:16px;margin:16px 0">
+          ${escapeHtml(replyBody).replaceAll("\n", "<br>")}
+        </div>
+
+        <p><strong>Stato ticket:</strong> ${escapeHtml(ticketStatusLabel(ticket.status))}</p>
+
+        <p style="margin:24px 0">
+          <a
+            href="${escapeHtml(supportUrl)}"
+            style="display:inline-block;background:#FF8500;color:#fff;text-decoration:none;border-radius:999px;padding:13px 22px;font-weight:700"
+          >
+            Visualizza risposta
+          </a>
+        </p>
+
+        <p style="font-size:14px;color:#526070">
+          Per rispondere utilizza il ticket. Questa casella email non è destinata alla ricezione dei messaggi.
+        </p>
+      </div>
+    `,
+  });
+}
+
+
+export async function sendGuestSupportTicketResolvedEmail({
+  ticket,
+  replyBody,
+}: {
+  ticket: TicketEmailData & {
+    guest_first_name: string | null;
+    guest_last_name: string | null;
+    guest_email: string;
+  };
+  replyBody?: string;
+}) {
+  const token = generateGuestAccessToken(ticket.id);
+  const supportUrl = guestTicketUrl({
+    ticketId: ticket.id,
+    token,
+  });
+
+  const guestName =
+    `${ticket.guest_first_name ?? ""} ${ticket.guest_last_name ?? ""}`.trim() ||
+    "Utente";
+
+  const cleanSubject = ticket.subject.replace(/^Contatto pubblico:\s*/i, "");
+
+  return sendTransactionalEmail({
+    to: ticket.guest_email,
+    replyTo: emailReplyTo(),
+    subject: "Ticket risolto - Il Tecnico di Fiducia",
+    text: [
+      `Ciao ${guestName},`,
+      "",
+      `Il tuo ticket "${cleanSubject}" è stato segnato come risolto.`,
+      ...(replyBody
+        ? ["", "Ultima risposta dell'assistenza:", replyBody]
+        : []),
+      "",
+      "Puoi continuare a consultare la conversazione, ma il ticket non accetta più nuove risposte.",
+      `Rivedi cronologia ticket: ${supportUrl}`,
+      "",
+      "Questa casella email non è destinata alla ricezione dei messaggi.",
+    ].join("\n"),
+    html: `
+      <div style="font-family:Arial,Helvetica,sans-serif;line-height:1.6;color:#141b2c">
+        <h2 style="color:#002654">Ticket risolto</h2>
+
+        <p>Ciao ${escapeHtml(guestName)},</p>
+
+        <p>
+          Il tuo ticket
+          <strong>${escapeHtml(cleanSubject)}</strong>
+          è stato segnato come risolto.
+        </p>
+
+        ${
+          replyBody
+            ? `
+              <p><strong>Ultima risposta dell'assistenza:</strong></p>
+              <div style="background:#f1f3ff;border-radius:16px;padding:16px;margin:16px 0">
+                ${escapeHtml(replyBody).replaceAll("\n", "<br>")}
+              </div>
+            `
+            : ""
+        }
+
+        <p>
+          Puoi continuare a consultare la conversazione, ma non è più possibile
+          inviare nuove risposte.
+        </p>
+
+        <p style="margin:24px 0">
+          <a
+            href="${escapeHtml(supportUrl)}"
+            style="display:inline-block;background:#FF8500;color:#fff;text-decoration:none;border-radius:999px;padding:13px 22px;font-weight:700"
+          >
+            Rivedi cronologia ticket
+          </a>
+        </p>
+
+        <p style="font-size:14px;color:#526070">
+          Questa casella email non è destinata alla ricezione dei messaggi.
         </p>
       </div>
     `,

@@ -6,6 +6,7 @@ const required = [
   "SUPABASE_SERVICE_ROLE_KEY",
 
   "RATE_LIMIT_SALT",
+  "GUEST_SUPPORT_TOKEN_SECRET",
 
   "STRIPE_SECRET_KEY",
   "STRIPE_WEBHOOK_SECRET",
@@ -19,6 +20,7 @@ const required = [
   "SMTP_USER",
   "SMTP_PASS",
   "EMAIL_FROM",
+  "EMAIL_REPLY_TO",
   "SUPPORT_ADMIN_EMAIL",
 ];
 

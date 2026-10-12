@@ -67,9 +67,12 @@ export async function GET(request: NextRequest) {
 
   let builder = supabase
     .from("support_tickets")
-    .select("id, author_id, subject, body, status, created_at, updated_at", {
-      count: "exact",
-    })
+    .select(
+      "id, author_id, guest_first_name, guest_last_name, guest_email, subject, body, status, created_at, updated_at",
+      {
+        count: "exact",
+      },
+    )
     .order("created_at", { ascending: false })
     .range(rangeFrom, rangeTo);
 
@@ -96,7 +99,9 @@ export async function GET(request: NextRequest) {
   }
 
   const tickets = data ?? [];
-  const authorIds = tickets.map((ticket) => ticket.author_id);
+  const authorIds = tickets
+    .map((ticket) => ticket.author_id)
+    .filter((authorId): authorId is string => Boolean(authorId));
   const ticketIds = tickets.map((ticket) => ticket.id);
   let authorsById = new Map<string, AdminUserSummary>();
   try {
@@ -156,7 +161,9 @@ export async function GET(request: NextRequest) {
     total: count ?? 0,
     tickets: tickets.map((ticket) => ({
       ...ticket,
-      author: authorsById.get(ticket.author_id) ?? null,
+      author: ticket.author_id
+        ? (authorsById.get(ticket.author_id) ?? null)
+        : null,
       last_message: lastMessageByTicketId.get(ticket.id) ?? null,
     })),
   });
